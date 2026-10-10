@@ -52,8 +52,8 @@ return {
 	HuntByDay = { Umulig = true },
 	Seekers = { Easy = 1, Normal = 1, Umulig = 3 },
 	SeekEvery = 20,
-	Hearts = { Easy = 3, Normal = 3, Umulig = 3 },
-	BirdCount = { Easy = 2, Normal = 3, Umulig = 3 },
+	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
+	BirdCount = { Easy = 2, Normal = 1, Umulig = 0 },
 
 	DayMinutes = 10,
 	NightShare = 0.55,
@@ -87,7 +87,7 @@ return {
 	HeroOrder = { "Patrick", "Aurelia", "Milenkitka" },
 	Heroes = {
 		Patrick = { Emoji = "🏃", Skill = "Super fast" },
-		Aurelia = { Emoji = "🐱", Skill = "Cat friend" },
+		Aurelia = { Emoji = "🐱", Skill = "Cat friend, more birds" },
 		Milenkitka = { Emoji = "💡", Skill = "Big lantern, calm dogs" },
 	},
 

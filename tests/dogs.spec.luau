@@ -170,12 +170,14 @@ local function makeMud(count: number, catPos: Vector3)
 	return mud
 end
 
-local function makeBirds(world, mode: string, catPos: Vector3): { Vector3 }
+local function makeBirds(world, mode: string, catPos: Vector3, hero: string): { Vector3 }
 	local birds = {}
-	for _ = 1, Config.BirdCount[mode] do
+	local count = Config.BirdCount[mode] + (if hero == "Aurelia" then 2 else 0)
+	for i = 1, count do
+		local along = 0.3 + 0.55 * (i - 0.5) / count
 		for _ = 1, 30 do
-			local try = HOME:Lerp(catPos, rand(0.25, 0.9)) + Vector3.new(rand(-35, 35), 0, rand(-35, 35))
-			if math.abs(try.X) < HALF - 10 and math.abs(try.Z) < HALF - 10 and (try - HOME).Magnitude > Config.RatSafeRadius and isFree(world, try, 4) then
+			local try = HOME:Lerp(catPos, along + rand(-0.04, 0.04)) + Vector3.new(rand(-10, 10), 0, rand(-10, 10))
+			if math.abs(try.X) < HALF - 10 and math.abs(try.Z) < HALF - 10 and (try - HOME).Magnitude > Config.RatSafeRadius and isFree(world, try, 3) then
 				table.insert(birds, try)
 				break
 			end
@@ -400,7 +402,7 @@ local function play(mode: string, kind: string, hero: string)
 	local hunters = makeHunters(world, hs)
 	local mud = makeMud(Config.MudCount[mode], cat)
 	local rats = makeRats(world, mode, cat)
-	local birds = makeBirds(world, mode, cat)
+	local birds = makeBirds(world, mode, cat, hero)
 	local bot = {
 		pos = SPAWN,
 		heading = Vector3.new(1, 0, 0),
@@ -476,6 +478,13 @@ local function play(mode: string, kind: string, hero: string)
 		end
 
 		local alive = true
+		if hearts < Config.Hearts[mode] and phase ~= "escape" then
+			for _, b in birds do
+				if (b - bot.pos).Magnitude < 25 and (b - bot.pos).Magnitude < (goal - bot.pos).Magnitude then
+					goal = b
+				end
+			end
+		end
 		if alive then
 			botStep(bot, goal, active, world, mud, careful)
 		end
