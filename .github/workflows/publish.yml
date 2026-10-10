@@ -4,12 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches: [claude/roblox-forest-cat-game-qr4nzd]
-    paths: [FindPianka.rbxlx, music/**, sounds/**, tools/roblox.py]
+    paths: [src/**, default.project.json, FindPianka.rbxlx, music/**, sounds/**, tools/roblox.py, .github/workflows/publish.yml]
 
 permissions:
   contents: write
 
 concurrency: publish
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   publish:
@@ -32,20 +36,23 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Get Rojo
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/rojo.zip" https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+          unzip -o "$RUNNER_TEMP/rojo.zip" -d "$RUNNER_TEMP"
+
       - name: Upload sounds
         if: steps.check.outputs.ready == 'true'
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 tools/roblox.py audio | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Rebuild with sound ids
+      - name: Build place
         if: steps.check.outputs.ready == 'true'
         run: |
-          if ! git diff --quiet; then
-            curl -sSL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
-            unzip -o rojo.zip
-            ./rojo build default.project.json -o FindPianka.rbxlx
-            rm -f rojo rojo.zip
+          "$RUNNER_TEMP/rojo" build default.project.json -o FindPianka.rbxlx
+          if ! git diff --quiet src/shared/Config.luau; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add src/shared/Config.luau FindPianka.rbxlx

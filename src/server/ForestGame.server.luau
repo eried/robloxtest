@@ -449,7 +449,7 @@ local function makeNeighbor(spot: CFrame)
 	local lineEn = lineNo:Clone()
 	lineEn.Size = UDim2.new(1, -16, 0.4, -4)
 	lineEn.Position = UDim2.new(0, 8, 0.6, 0)
-	lineEn.TextColor3 = Color3.fromRGB(170, 170, 170)
+	lineEn.TextColor3 = Color3.fromRGB(235, 235, 235)
 	lineEn.Parent = back
 
 	model.PrimaryPart = root
@@ -682,6 +682,7 @@ end
 local round = 0
 local wildPrompt: ProximityPrompt? = nil
 local wildTween: Tween? = nil
+local homeTween: Tween? = nil
 local fleesLeft = 0
 local fleeing = false
 local wildCat: Cat? = nil
@@ -801,6 +802,7 @@ local function loseCat()
 	removeCat(carried)
 	carried, carrier = nil, nil
 	workspace:SetAttribute("Carrier", nil)
+	workspace:SetAttribute("CarryEnd", nil)
 	catEvent:FireAllClients("lost")
 	task.wait(2)
 	if round == myRound then
@@ -813,6 +815,7 @@ local function deliver(player: Player)
 	removeCat(carried)
 	carried, carrier = nil, nil
 	workspace:SetAttribute("Carrier", nil)
+	workspace:SetAttribute("CarryEnd", nil)
 
 	local stats = player:FindFirstChild("leaderstats")
 	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
@@ -825,7 +828,7 @@ local function deliver(player: Player)
 	cat.tagText.Text = "Home! ❤️"
 	cat.sparkles.SparkleColor = Color3.fromRGB(255, 120, 180)
 	cat.model.Parent = workspace
-	wagTail(cat.tail)
+	homeTween = wagTail(cat.tail)
 
 	local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 	catEvent:FireAllClients("home", player, seconds)
@@ -1177,7 +1180,7 @@ local function startKittens(cat: Cat, ultra: boolean)
 	local mom = homeCat :: Cat
 	mom.tagText.Text = "Mama " .. Config.CatName
 	mom.model.Parent = workspace
-	wagTail(mom.tail)
+	homeTween = wagTail(mom.tail)
 
 	local taken: { Vector3 } = {}
 	for _ = 1, Config.KittenCount do
@@ -1217,6 +1220,13 @@ local function startKittens(cat: Cat, ultra: boolean)
 end
 
 function newRound()
+	if wildTween then
+		wildTween:Cancel()
+	end
+	if homeTween then
+		homeTween:Cancel()
+	end
+	wildTween, homeTween = nil, nil
 	removeCat(wildCat)
 	removeCat(carried)
 	removeCat(homeCat)
@@ -1241,6 +1251,7 @@ function newRound()
 	fleeing = false
 	workspace:SetAttribute("CatPosition", pos)
 	workspace:SetAttribute("Carrier", nil)
+	workspace:SetAttribute("CarryEnd", nil)
 	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
 
 	prompt.Triggered:Connect(function(player)
@@ -1265,6 +1276,7 @@ function newRound()
 		carrier = player
 		workspace:SetAttribute("CatPosition", nil)
 		workspace:SetAttribute("Carrier", player.UserId)
+		workspace:SetAttribute("CarryEnd", workspace:GetServerTimeNow() + Config.CarryTime)
 		catEvent:FireAllClients("picked", player)
 
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -1364,7 +1376,9 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 	end
 	if (mode == "Easy" or mode == "Hard" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
 		local busy = carrier ~= nil or kittensLeft > 0 or homeCat ~= nil or workspace:GetAttribute("Escape") ~= nil
-		if busy or now - lastModeChange < 5 or now - (lastChangeBy[player] or -math.huge) < 60 then
+		local alone = #Players:GetPlayers() <= 1
+		local tooSoon = not alone and now - (lastChangeBy[player] or -math.huge) < 60
+		if (busy and not alone) or tooSoon or now - lastModeChange < 5 then
 			catEvent:FireClient(player, "modeLocked")
 			return
 		end
@@ -1388,7 +1402,7 @@ local function speak(n: Neighbor)
 	n.lineEn.Text = line[4]
 	n.bubble.Enabled = true
 	sayEvent:FireAllClients(n.head, index, n.pitch)
-	task.delay(line[2] / n.pitch + 0.5, function()
+	task.delay(math.max(line[2] / n.pitch + 0.5, line[2] + 1), function()
 		n.bubble.Enabled = false
 	end)
 end

@@ -53,7 +53,7 @@ local gui = new("ScreenGui", {
 -- GPS device
 local device = new("Frame", {
 	AnchorPoint = if touch then Vector2.new(1, 0) else Vector2.new(1, 1),
-	Position = if touch then UDim2.new(1, -10, 0, 60) else UDim2.new(1, -20, 1, -20),
+	Position = if touch then UDim2.new(1, -10, 0, 10) else UDim2.new(1, -20, 1, -20),
 	Size = UDim2.fromOffset(200, 260),
 	BackgroundColor3 = PANEL,
 	Parent = gui,
@@ -191,10 +191,14 @@ local function playClip(parent: Instance, clip: { any }, volume: number, speed: 
 	sound.RollOffMode = Enum.RollOffMode.InverseTapered
 	sound.RollOffMinDistance = 8
 	sound.RollOffMaxDistance = range
-	sound.TimePosition = clip[1]
+	sound.PlaybackRegionsEnabled = true
+	sound.PlaybackRegion = NumberRange.new(clip[1], clip[1] + clip[2])
 	sound.Parent = parent
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
 	sound:Play()
-	task.delay(clip[2] / speed, function()
+	task.delay(clip[2] / speed + 2, function()
 		sound:Destroy()
 	end)
 end
@@ -456,11 +460,31 @@ for i, info in MODES do
 	end)
 end
 cardText("The mode is the same for everyone here.", 404, 22, 15, GRAY)
+
+local closeButton = new("TextButton", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -10, 0, 10),
+	Size = UDim2.fromOffset(44, 44),
+	BackgroundColor3 = Color3.fromRGB(70, 75, 70),
+	Font = FONT,
+	TextSize = 26,
+	TextColor3 = WHITE,
+	Text = "X",
+	Visible = false,
+	ZIndex = 13,
+	Parent = card,
+})
+round(closeButton, UDim.new(0, 12))
+closeButton.Activated:Connect(function()
+	modeEvent:FireServer(nil, selectedHero)
+	intro.Visible = false
+end)
 refreshIntro()
 workspace:GetAttributeChangedSignal("Mode"):Connect(refreshIntro)
 
 menuButton.Activated:Connect(function()
 	refreshIntro()
+	closeButton.Visible = playing
 	intro.Visible = true
 end)
 
@@ -548,9 +572,9 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		showBanner("Time's up! ⏰\nThe kittens ran home.", 4)
 		tryAgain(4)
 	elseif kind == "modeLocked" then
-		showBanner("Wait for this round to end\nto change the mode.", 3)
+		showBanner("Wait! Someone is saving " .. cat .. ".\nTry again soon.", 3)
 	elseif kind == "mode" then
-		showBanner(nameOf(who) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
+		showBanner((if who == player then "You" else nameOf(who)) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end
 end)
 
@@ -722,8 +746,14 @@ RunService.RenderStepped:Connect(function()
 		timerLabel.Text = "⏳ " .. formatTime(left)
 		timerLabel.TextColor3 = if left < 30 then Color3.fromRGB(255, 90, 90) else WHITE
 	elseif start and (catPos or carrierId or escape) then
-		timerLabel.Text = "⏱ " .. formatTime(serverNow - start)
-		timerLabel.TextColor3 = WHITE
+		local carryEnd = workspace:GetAttribute("CarryEnd") :: number?
+		if carryEnd and carrierId == player.UserId and carryEnd - serverNow < 30 then
+			timerLabel.Text = "Hurry! " .. formatTime(carryEnd - serverNow)
+			timerLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+		else
+			timerLabel.Text = "⏱ " .. formatTime(serverNow - start)
+			timerLabel.TextColor3 = WHITE
+		end
 	end
 
 	local character = player.Character

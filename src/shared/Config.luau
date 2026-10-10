@@ -58,7 +58,6 @@ return {
 		{ 19.741, 3.642, "Gå hjem, barn.", "Go home, kid." },
 		{ 23.983, 3.189, "Har du sett katten min?", "Have you seen my cat?" },
 		{ 27.772, 5.358, "Det er sent. Du burde ikke være ute nå.", "It is late. You should not be out now." },
-		{ 33.73, 2.708, "Jeg ser deg.", "I see you." },
 		{ 37.038, 4.381, "Hysj! Ikke vekk hundene.", "Shh! Do not wake the dogs." },
 	},
 }
