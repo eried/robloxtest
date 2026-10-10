@@ -680,6 +680,7 @@ end
 
 local TWISTS = {
 	tree = "Twist: Pianka is up a tree! 🌳\nClimb the steps.",
+	bushes = "Twist: Pianka is hiding in a shaking bush! 🌿\nSearch the bushes.",
 	zoomies = "Twist: Pianka has the zoomies! 💨",
 	ratparty = "Twist: Rat party! 🐀🐀🐀",
 	fullmoon = "Twist: Full moon tonight! 🌕",
@@ -790,6 +791,22 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			playClip(root, Config.Mew, 1, 2.3, 60)
 		else
 			note(2.5)
+		end
+	elseif kind == "power" then
+		local texts = { speed = "Super speed! ⚡", bright = "Super light! 💡", jump = "Super jump! 🦘" }
+		popText(texts[tostring(value)] or "Power up!", Color3.fromRGB(150, 220, 255))
+		chime()
+	elseif kind == "bush" then
+		if value == "found" then
+			showBanner((if who == player then "You" else nameOf(who)) .. " found " .. cat .. " in a bush! 🌿", 3)
+			chime()
+		elseif value == "frog" then
+			popText("Ribbit! 🐸", Color3.fromRGB(140, 255, 140))
+		elseif value == "rat" then
+			popText("A rat! 🐀 Run!", Color3.fromRGB(255, 150, 150))
+		else
+			popText("Confetti! 🎉", Color3.fromRGB(255, 210, 90))
+			confetti()
 		end
 	elseif kind == "squash" then
 		popText("Squash! 🐀", Color3.fromRGB(150, 255, 150))

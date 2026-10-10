@@ -40,6 +40,9 @@ return {
 	RatSafeRadius = 40,
 
 	FishCount = 25,
+	MushroomCount = { Easy = 8, Normal = 6, Umulig = 4 },
+	MudCount = { Easy = 8, Normal = 14, Umulig = 20 },
+	TeamBonus = 3,
 	FishRespawn = 45,
 	Reward = { Deliver = 5, Kitten = 1, Umulig = 25, Rat = 2 },
 	Shop = {

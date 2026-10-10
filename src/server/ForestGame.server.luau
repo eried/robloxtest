@@ -326,6 +326,8 @@ type Neighbor = {
 	cooldown: number,
 	last: number,
 	pitch: number,
+	pointUntil: number,
+	pointAt: Vector3,
 }
 local neighbors: { Neighbor } = {}
 local neighborFolder = Instance.new("Folder")
@@ -464,6 +466,8 @@ local function makeNeighbor(spot: CFrame)
 		cooldown = 0,
 		last = 0,
 		pitch = rng:NextNumber(0.85, 1.05),
+		pointUntil = 0,
+		pointAt = Vector3.zero,
 	})
 end
 
@@ -518,16 +522,29 @@ local function applyHero(player: Player)
 		return
 	end
 	local hero = player:GetAttribute("Hero")
-	local slow = ((player:GetAttribute("SlowUntil") :: number?) or 0) > os.clock()
-	humanoid.WalkSpeed = (if hero == "Patrick" then Config.PatrickSpeed else 16) * (if slow then 0.6 else 1)
-	humanoid.DisplayName = if type(hero) == "string" then hero else player.DisplayName
+	local now = os.clock()
+	local slow = ((player:GetAttribute("SlowUntil") :: number?) or 0) > now
+	local boost = ((player:GetAttribute("BoostUntil") :: number?) or 0) > now
+	local muddy = player:GetAttribute("Muddy") == true
+	humanoid.WalkSpeed = (if hero == "Patrick" then Config.PatrickSpeed else 16)
+		* (if slow then 0.6 else 1)
+		* (if muddy then 0.55 else 1)
+		* (if boost then 1.5 else 1)
+	humanoid.UseJumpPower = false
+	humanoid.JumpHeight = if ((player:GetAttribute("JumpUntil") :: number?) or 0) > now then 20 else 7.2
+	local stats = player:FindFirstChild("leaderstats")
+	local rescued = stats and stats:FindFirstChild("Rescued") :: IntValue?
+	local saved = if rescued then rescued.Value else 0
+	local title = if saved >= 100 then " 👑" elseif saved >= 25 then " 🏅" elseif saved >= 5 then " ⭐" else ""
+	humanoid.DisplayName = (if type(hero) == "string" then hero else player.DisplayName) .. title
 	local backpack = player:FindFirstChild("Backpack")
 	local tool = character:FindFirstChild("Lantern") or (backpack and backpack:FindFirstChild("Lantern"))
 	local handle = tool and tool:FindFirstChild("Handle")
 	local light = handle and handle:FindFirstChildOfClass("PointLight")
 	if light then
-		light.Range = if hero == "Milena" then 60 else 40
-		light.Brightness = if hero == "Milena" then 5 else 3
+		local bright = ((player:GetAttribute("GlowUntil") :: number?) or 0) > now
+		light.Range = if hero == "Milena" or bright then 60 else 40
+		light.Brightness = if bright then 7 elseif hero == "Milena" then 5 else 3
 		local color = Color3.fromRGB(255, 190, 110)
 		for _, item in Config.Shop do
 			if item.id == player:GetAttribute("Lantern") then
@@ -1193,6 +1210,124 @@ local function buildTree(pos: Vector3): number
 	return 10.4
 end
 
+local mushroomFolder = Instance.new("Folder")
+mushroomFolder.Name = "Mushrooms"
+mushroomFolder.Parent = workspace
+local mudFolder = Instance.new("Folder")
+mudFolder.Name = "Mud"
+mudFolder.Parent = workspace
+local mudSpots: { { pos: Vector3, radius: number } } = {}
+
+local POWERS = {
+	{ kind = "speed", color = Color3.fromRGB(90, 170, 255), attribute = "BoostUntil", time = 6 },
+	{ kind = "bright", color = Color3.fromRGB(255, 220, 70), attribute = "GlowUntil", time = 10 },
+	{ kind = "jump", color = Color3.fromRGB(255, 120, 200), attribute = "JumpUntil", time = 8 },
+}
+
+local function spawnMushrooms()
+	mushroomFolder:ClearAllChildren()
+	local myRound = round
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	for i = 1, Config.MushroomCount[mode] or 6 do
+		local power = POWERS[(i - 1) % #POWERS + 1]
+		local pos = randomSpot(15)
+		for _ = 1, 20 do
+			if (pos - home).Magnitude > 30 and isFree(pos, 4) then
+				break
+			end
+			pos = randomSpot(15)
+		end
+		local model = Instance.new("Model")
+		model.Name = "Mushroom"
+		makePart("Part", {
+			Name = "Stem",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(1.4, 0.7, 0.7),
+			CFrame = CFrame.new(pos + Vector3.new(0, 0.7, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(240, 235, 220),
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+			CastShadow = false,
+			Parent = model,
+		})
+		local cap = makePart("Part", {
+			Name = "Cap",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * 2,
+			Position = pos + Vector3.new(0, 1.6, 0),
+			Color = power.color,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CastShadow = false,
+			Parent = model,
+		})
+		local light = Instance.new("PointLight")
+		light.Range = 10
+		light.Brightness = 1.5
+		light.Color = power.color
+		light.Shadows = false
+		light.Parent = cap
+		model.Parent = mushroomFolder
+		local taken = false
+		local function touched(hit: BasePart)
+			local player = if taken then nil else playerFromHit(hit)
+			local root = player and getRoot(player)
+			if not player or not root or (root.Position - cap.Position).Magnitude > 8 then
+				return
+			end
+			taken = true
+			model.Parent = nil
+			player:SetAttribute(power.attribute, os.clock() + power.time)
+			applyHero(player)
+			task.delay(power.time + 0.1, applyHero, player)
+			catEvent:FireClient(player, "power", nil, power.kind)
+			task.delay(45, function()
+				if round == myRound then
+					taken = false
+					model.Parent = mushroomFolder
+				end
+			end)
+		end
+		cap.Touched:Connect(touched)
+		for _, part in model:GetChildren() do
+			if part:IsA("BasePart") and part ~= cap then
+				part.Touched:Connect(touched)
+			end
+		end
+	end
+end
+
+local function spawnMud(catPos: Vector3)
+	mudFolder:ClearAllChildren()
+	table.clear(mudSpots)
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	for _ = 1, Config.MudCount[mode] or 8 do
+		for _ = 1, 20 do
+			local pos = randomSpot(15)
+			local radius = rng:NextNumber(6, 10)
+			if (pos - home).Magnitude > Config.RatSafeRadius + radius and (pos - catPos).Magnitude > radius + 8 and isFree(pos, radius * 0.6) then
+				makePart("Part", {
+					Name = "Mud",
+					Shape = Enum.PartType.Cylinder,
+					Size = Vector3.new(0.3, radius * 2, radius * 2),
+					CFrame = CFrame.new(pos + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+					Color = Color3.fromRGB(85, 60, 40),
+					Material = Enum.Material.Mud,
+					CanCollide = false,
+					CanQuery = false,
+					CanTouch = false,
+					CastShadow = false,
+					Parent = mudFolder,
+				})
+				table.insert(mudSpots, { pos = pos, radius = radius })
+				break
+			end
+		end
+	end
+end
+
+local hideInBushes: (Vector3) -> ()
+
 local function deliver(player: Player)
 	local myRound = round
 	removeCat(carried)
@@ -1206,6 +1341,12 @@ local function deliver(player: Player)
 		count.Value += if twist == "golden" then 2 else 1
 	end
 	giveFish(player, Config.Reward.Deliver * (if twist == "golden" then 2 else 1))
+	for _, friend in Players:GetPlayers() do
+		local root = getRoot(friend)
+		if friend ~= player and root and (root.Position - home).Magnitude < 40 then
+			giveFish(friend, Config.TeamBonus)
+		end
+	end
 	fireworks()
 
 	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.45, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
@@ -1719,14 +1860,15 @@ function newRound()
 
 	twistFolder:ClearAllChildren()
 	local roll = rng:NextNumber()
-	twist = if roll < 0.35
+	twist = if roll < 0.3
 		then nil
-		elseif roll < 0.53 then "tree"
-		elseif roll < 0.7 then "zoomies"
-		elseif roll < 0.84 then "ratparty"
+		elseif roll < 0.44 then "tree"
+		elseif roll < 0.58 then "bushes"
+		elseif roll < 0.71 then "zoomies"
+		elseif roll < 0.83 then "ratparty"
 		elseif roll < 0.92 then "fullmoon"
 		else "golden"
-	if twist == "tree" and isHardMode() then
+	if (twist == "tree" or twist == "bushes") and isHardMode() then
 		twist = nil
 	end
 	zoomies = twist == "zoomies"
@@ -1738,8 +1880,97 @@ function newRound()
 	placeWildCat(pos, if twist == "tree" then buildTree(pos) else 0)
 	spawnRats(pos)
 	spawnFish()
+	spawnMushrooms()
+	spawnMud(pos)
+	if twist == "bushes" then
+		hideInBushes(pos)
+	end
 	if twist then
 		catEvent:FireAllClients("twist", nil, twist)
+	end
+end
+
+hideInBushes = function(catPos: Vector3)
+	local cat = wildCat
+	if not cat then
+		return
+	end
+	cat.model.Parent = nil
+	local spots = { catPos }
+	for _ = 1, 80 do
+		if #spots >= 5 then
+			break
+		end
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local try = catPos + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(10, 24)
+		local ok = math.abs(try.X) < half - 10 and math.abs(try.Z) < half - 10 and isFree(try, 3)
+		for _, other in spots do
+			if (other - try).Magnitude < 7 then
+				ok = false
+			end
+		end
+		if ok then
+			table.insert(spots, try)
+		end
+	end
+	local surprises = { "frog", "confetti", "rat", "frog" }
+	for i, spot in spots do
+		local bush = makePart("Part", {
+			Name = "ShakyBush",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * 6,
+			Position = spot + Vector3.new(0, 2, 0),
+			Color = Color3.fromRGB(70, 140, 60),
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+			Parent = twistFolder,
+		})
+		TweenService:Create(bush, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+			CFrame = bush.CFrame * CFrame.Angles(0, 0, math.rad(6)),
+		}):Play()
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = "Search"
+		prompt.ObjectText = "Bush"
+		prompt.HoldDuration = 0.3
+		prompt.MaxActivationDistance = 9
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = bush
+		local real = i == 1
+		local surprise = surprises[(i - 2) % #surprises + 1]
+		prompt.Triggered:Connect(function(player)
+			if not bush.Parent then
+				return
+			end
+			bush:Destroy()
+			if real then
+				if wildCat == cat then
+					cat.model.Parent = workspace
+				end
+				catEvent:FireAllClients("bush", player, "found")
+			else
+				catEvent:FireClient(player, "bush", player, surprise)
+				if surprise == "rat" then
+					local model, body, bubble = makeRat(spot)
+					table.insert(rats, {
+						model = model,
+						body = body,
+						bubble = bubble,
+						nest = spot,
+						pos = spot,
+						dir = Vector3.new(0, 0, -1),
+						wander = spot,
+						cooldown = os.clock() + 1,
+						windup = 0,
+						fleeUntil = 0,
+						fleeFrom = spot,
+						deadUntil = 0,
+						speed = Config.RatSpeed.Easy,
+					})
+				elseif surprise == "confetti" then
+					giveFish(player, 2)
+				end
+			end
+		end)
 	end
 end
 
@@ -1938,6 +2169,9 @@ local function addPlayer(player: Player)
 	local count = Instance.new("IntValue")
 	count.Name = "Rescued"
 	count.Parent = stats
+	count:GetPropertyChangedSignal("Value"):Connect(function()
+		applyHero(player)
+	end)
 	local fish = Instance.new("IntValue")
 	fish.Name = "Fish"
 	fish.Parent = stats
@@ -2025,6 +2259,23 @@ task.spawn(function()
 					task.spawn(fleeFrom, cat, prompt, p, r.Position)
 					break
 				end
+			end
+		end
+
+		for _, p in Players:GetPlayers() do
+			local r = getRoot(p)
+			local inMud = false
+			if r then
+				for _, puddle in mudSpots do
+					if (Vector3.new(r.Position.X, 0, r.Position.Z) - puddle.pos).Magnitude < puddle.radius and r.Position.Y < 5 then
+						inMud = true
+						break
+					end
+				end
+			end
+			if (p:GetAttribute("Muddy") == true) ~= inMud then
+				p:SetAttribute("Muddy", inMud)
+				applyHero(p)
 			end
 		end
 
@@ -2135,6 +2386,19 @@ task.spawn(function()
 end)
 
 local function speak(n: Neighbor)
+	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
+	if catPos and rng:NextNumber() < 0.35 then
+		n.cooldown = os.clock() + rng:NextNumber(10, 16)
+		n.pointUntil = os.clock() + 4
+		n.pointAt = Vector3.new(catPos.X, n.root.Position.Y, catPos.Z)
+		n.lineNo.Text = "Katten gikk den veien! 👉"
+		n.lineEn.Text = "The cat went that way!"
+		n.bubble.Enabled = true
+		task.delay(4, function()
+			n.bubble.Enabled = false
+		end)
+		return
+	end
 	local index = rng:NextInteger(1, #Config.Lines)
 	if index == n.last then
 		index = index % #Config.Lines + 1
@@ -2168,7 +2432,9 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 		local nextPos = pos
 		local face: Vector3? = nil
-		if target then
+		if now < n.pointUntil then
+			face = n.pointAt
+		elseif target then
 			face = target
 			if nearest > 7 then
 				local step = pos + (target - pos).Unit * Config.NeighborSpeed * dt
@@ -2243,6 +2509,10 @@ RunService.Heartbeat:Connect(function(dt)
 
 		local goal: Vector3? = nil
 		local speed = 0
+		if target and ((target.player:GetAttribute("GlowUntil") :: number?) or 0) > now then
+			rat.fleeUntil = now + 1
+			rat.fleeFrom = target.pos
+		end
 		if now < rat.fleeUntil then
 			local away = rat.pos - rat.fleeFrom
 			goal = rat.pos + (if away.Magnitude > 0.1 then away.Unit else Vector3.new(1, 0, 0)) * 5

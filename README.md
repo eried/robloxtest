@@ -20,7 +20,9 @@ Watch out for rats! They nibble and slow you down. Jump on them to squash them, 
 
 Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten pet.
 
-Every round can have a twist: Pianka up a tree, zoomies, a rat party, a full moon or a golden Pianka.
+Every round can have a twist: Pianka up a tree or hiding in a shaking bush, zoomies, a rat party, a full moon or a golden Pianka.
+
+Glowing mushrooms give super speed (blue), super light that scares rats (yellow) or a super jump (pink). Mud puddles slow you down. Neighbors sometimes point the way. Rescue 5, 25 or 100 times to earn ⭐ 🏅 👑 next to your name.
 
 Spooky neighbors live in cabins and talk in Norwegian. Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
 
