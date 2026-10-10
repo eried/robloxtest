@@ -66,3 +66,8 @@ jobs:
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 tools/roblox.py publish | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Game status
+        if: steps.check.outputs.ready == 'true'
+        continue-on-error: true
+        run: python3 tools/roblox.py status | tee -a "$GITHUB_STEP_SUMMARY"

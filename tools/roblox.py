@@ -129,5 +129,18 @@ def publish():
     print("Published version", res.get("versionNumber"))
 
 
+def status():
+    place = place_id()
+    universe = universe_id(place)
+    try:
+        with urllib.request.urlopen(f"https://develop.roblox.com/v1/universes/{universe}") as res:
+            info = json.loads(res.read())
+        state = "Public" if info.get("isActive") else "Private"
+        print(f"{info.get('name')}: {state} ({info.get('privacyType')})")
+    except urllib.error.URLError as err:
+        print(f"Could not read the game status: {err}")
+    print(f"https://www.roblox.com/games/{place}")
+
+
 if __name__ == "__main__":
-    {"audio": audio, "publish": publish}[sys.argv[1]]()
+    {"audio": audio, "publish": publish, "status": status}[sys.argv[1]]()
