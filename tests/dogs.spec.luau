@@ -398,6 +398,7 @@ local function play(mode: string, kind: string, hero: string)
 		wander = SPAWN,
 		wanderUntil = 0,
 		lastBite = -10,
+		lastCaught = -10,
 	}
 	local hearts = Config.Hearts[mode]
 	local dayOffset = rand(0, Config.DayMinutes * 60)
@@ -475,7 +476,7 @@ local function play(mode: string, kind: string, hero: string)
 						h.untilTime = now
 						if (h.pos - path.a).Magnitude > 60 then
 							h.pos = path.a
-							h.untilTime = now + 1
+							h.graceUntil = now + 1
 						end
 					end
 				end
@@ -493,12 +494,17 @@ local function play(mode: string, kind: string, hero: string)
 		end
 		local gap = DogBrain.gap(s, now - packStart)
 		for _, dog in active do
-			local event = DogBrain.step(dog, DT, now, runners, world, dog.settings, gap)
+			local seen = if now < (dog.graceUntil or 0) then {} else runners
+			local event = DogBrain.step(dog, DT, now, seen, world, dog.settings, gap)
 			if event == "caught" then
 				check((dog.pos - bot.pos).Magnitude < dog.settings.catch + 0.5, "caught from too far")
 				if phase == "escape" then
 					return finish(if dog.kind == "pack" then "pack" elseif dog.hunter then "hunter" else "patrol")
 				end
+				if now - bot.lastCaught < 2.5 then
+					continue
+				end
+				bot.lastCaught = now
 				if dog.hunter then
 					r.grabs += 1
 				else

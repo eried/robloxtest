@@ -336,6 +336,8 @@ local function stepPack(dog: Dog, dt: number, now: number, runners: { Runner }, 
 	elseif dog.state == "lunge" then
 		moveTo(dog, rpos, r.speed * s.lungeFactor, dt, world)
 		if (rpos - dog.pos).Magnitude < s.catch then
+			dog.state = "rest"
+			dog.untilTime = now + s.restTime
 			return "caught", r.id
 		end
 		if now >= dog.untilTime then

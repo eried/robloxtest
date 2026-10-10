@@ -387,6 +387,7 @@ type Neighbor = {
 	light: SpotLight?,
 	angry: boolean,
 	sayUntil: number,
+	graceUntil: number,
 }
 local neighbors: { Neighbor } = {}
 local neighborFolder = Instance.new("Folder")
@@ -544,6 +545,7 @@ local function makeNeighbor(spot: CFrame, cabin: Vector3)
 		light = nil,
 		angry = false,
 		sayUntil = 0,
+		graceUntil = 0,
 	})
 end
 
@@ -2051,7 +2053,7 @@ hideInBushes = function(catPos: Vector3)
 		local real = i == 1
 		local surprise = surprises[(i - 2) % #surprises + 1]
 		prompt.Triggered:Connect(function(player)
-			if not bush.Parent then
+			if not bush.Parent or player:GetAttribute("Out") then
 				return
 			end
 			bush:Destroy()
@@ -2132,12 +2134,17 @@ local function loseHeart(player: Player)
 end
 
 -- A dog or a neighbor caught a player
+local lastCaught: { [Player]: number } = {}
 local function caughtBy(player: Player, from: Vector3, by: string)
 	local stack = stacks[player]
 	if workspace:GetAttribute("Escape") and stack and #stack > 0 then
 		failUmulig(player)
 		return
 	end
+	if os.clock() - (lastCaught[player] or -10) < 2.5 then
+		return
+	end
+	lastCaught[player] = os.clock()
 	local root = getRoot(player)
 	if root then
 		player:SetAttribute("SlowUntil", os.clock() + 2)
@@ -2391,6 +2398,7 @@ Players.PlayerRemoving:Connect(function(player)
 		pets[player] = nil
 	end
 	lastBitten[player] = nil
+	lastCaught[player] = nil
 	lastFlash[player] = nil
 	lastShop[player] = nil
 	task.spawn(function()
@@ -2427,7 +2435,7 @@ task.spawn(function()
 		if cat and prompt and not fleeing and (zoomies or (fleesLeft > 0 and isHardMode())) then
 			local catPos = cat.model:GetPivot().Position
 			for _, p in Players:GetPlayers() do
-				local r = getRoot(p)
+				local r = if p:GetAttribute("Out") then nil else getRoot(p)
 				local limit = if p:GetAttribute("Hero") == "Aurelia" then Config.HardFlees - 1 else 0
 				if r and (zoomies or fleesLeft > limit) and (r.Position - catPos).Magnitude < Config.FleeDistance then
 					zoomies = false
@@ -2911,7 +2919,7 @@ local function dropCone(n: Neighbor)
 	end
 end
 
-local function startHunt(now: number, mode: string)
+local function startHunt(now: number, mode: string, announce: boolean)
 	local s = hunterSettings()
 	local hunters: { Neighbor } = {}
 	for _, n in neighbors do
@@ -2940,10 +2948,12 @@ local function startHunt(now: number, mode: string)
 	for i = 1, math.min(Config.Seekers[mode] or 1, #hunters) do
 		hunters[i].seeker = true
 	end
-	catEvent:FireAllClients("hunt")
+	if announce then
+		catEvent:FireAllClients("hunt")
+	end
 end
 
-local function stopHunt()
+local function stopHunt(announce: boolean)
 	for _, n in neighbors do
 		dropCone(n)
 		n.brain = nil
@@ -2951,7 +2961,9 @@ local function stopHunt()
 		n.bubble.Enabled = false
 		n.model:SetAttribute("Hunting", nil)
 	end
-	catEvent:FireAllClients("dawn")
+	if announce then
+		catEvent:FireAllClients("dawn")
+	end
 end
 
 RunService.Heartbeat:Connect(function(dt: number)
@@ -2961,11 +2973,12 @@ RunService.Heartbeat:Connect(function(dt: number)
 	local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
 	local want = Config.HuntByDay[mode] == true or daylight < 0.5
 	if want and (not hunting or huntMode ~= mode) then
+		local announce = not hunting
 		hunting, huntMode = true, mode
-		startHunt(now, mode)
+		startHunt(now, mode, announce)
 	elseif not want and hunting then
 		hunting = false
-		stopHunt()
+		stopHunt(daylight >= 0.5 and Config.HuntByDay[huntMode] ~= true)
 	end
 	if not hunting then
 		return
@@ -2992,11 +3005,11 @@ RunService.Heartbeat:Connect(function(dt: number)
 				brain.untilTime = now
 				if (brain.pos - path.a).Magnitude > 60 then
 					brain.pos = path.a
-					brain.untilTime = now + 1
+					n.graceUntil = now + 1
 				end
 			end
 		end
-		local event, id = DogBrain.step(brain, dt, now, runners, brainWorld, s, 0)
+		local event, id = DogBrain.step(brain, dt, now, if now < n.graceUntil then {} else runners, brainWorld, s, 0)
 		local player = if id then byId[id] else nil
 		if event == "alert" then
 			neighborSay(n, Config.Hunt, 2)
@@ -3028,9 +3041,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 			end
 		end
 		local moving = brain.state ~= "turn" and brain.state ~= "alert"
-		local sway = if moving then math.sin(now * (if brain.state == "chase" then 12 else 6)) * 0.06 else 0
-		local at = Vector3.new(brain.pos.X, n.spot.Y, brain.pos.Z)
-		n.root.CFrame = CFrame.lookAt(at, at + brain.dir) * CFrame.Angles(0, 0, sway)
+		local bob = if moving then math.abs(math.sin(now * (if brain.state == "chase" then 12 else 6))) * 0.12 else 0
+		local at = Vector3.new(brain.pos.X, n.spot.Y + bob, brain.pos.Z)
+		n.root.CFrame = CFrame.lookAt(at, at + brain.dir)
 	end
 end)
 
