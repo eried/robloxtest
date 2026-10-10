@@ -1111,7 +1111,7 @@ local function startEscape()
 				dog.pos = Vector3.new(math.clamp(nextPos.X, -half + 3, half - 3), 0, math.clamp(nextPos.Z, -half + 3, half - 3))
 			end
 
-			if t > dog.barkUntil and rng:NextNumber() < dt * 1.2 then
+			if t > dog.barkUntil and rng:NextNumber() < dt * 0.3 then
 				dog.barkUntil = t + 0.6
 			end
 			dog.bark.Visible = t < dog.barkUntil
@@ -1309,7 +1309,12 @@ for _, player in Players:GetPlayers() do
 	addPlayer(player)
 end
 
+local lastCall: { [Player]: number } = {}
+local lastChangeBy: { [Player]: number } = {}
+
 Players.PlayerRemoving:Connect(function(player)
+	lastCall[player] = nil
+	lastChangeBy[player] = nil
 	if carrier == player then
 		loseCat()
 	end
@@ -1348,16 +1353,23 @@ end)
 
 local lastModeChange = 0
 modeEvent.OnServerEvent:Connect(function(player, mode, hero)
-	if type(hero) == "string" and Config.Heroes[hero] then
+	local now = os.clock()
+	if now - (lastCall[player] or 0) < 1 then
+		return
+	end
+	lastCall[player] = now
+	if type(hero) == "string" and Config.Heroes[hero] and player:GetAttribute("Hero") ~= hero then
 		player:SetAttribute("Hero", hero)
 		applyHero(player)
 	end
 	if (mode == "Easy" or mode == "Hard" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
-		local now = os.clock()
-		if now - lastModeChange < 5 then
+		local busy = carrier ~= nil or kittensLeft > 0 or homeCat ~= nil or workspace:GetAttribute("Escape") ~= nil
+		if busy or now - lastModeChange < 5 or now - (lastChangeBy[player] or -math.huge) < 60 then
+			catEvent:FireClient(player, "modeLocked")
 			return
 		end
 		lastModeChange = now
+		lastChangeBy[player] = now
 		workspace:SetAttribute("Mode", mode)
 		catEvent:FireAllClients("mode", player, mode)
 		newRound()
@@ -1376,7 +1388,7 @@ local function speak(n: Neighbor)
 	n.lineEn.Text = line[4]
 	n.bubble.Enabled = true
 	sayEvent:FireAllClients(n.head, index, n.pitch)
-	task.delay(math.max(2, line[2] - 1), function()
+	task.delay(line[2] / n.pitch + 0.5, function()
 		n.bubble.Enabled = false
 	end)
 end
@@ -1402,7 +1414,13 @@ RunService.Heartbeat:Connect(function(dt)
 			face = target
 			if nearest > 7 then
 				local step = pos + (target - pos).Unit * Config.NeighborSpeed * dt
-				if (step - n.spot).Magnitude < 20 then
+				local clear = true
+				for _, cabin in cabinSpots do
+					if (Vector3.new(step.X, 0, step.Z) - cabin).Magnitude < 8 then
+						clear = false
+					end
+				end
+				if clear and (step - n.spot).Magnitude < 20 then
 					nextPos = step
 				end
 			end
@@ -1414,7 +1432,7 @@ RunService.Heartbeat:Connect(function(dt)
 			face = n.spot + (n.spot - pos)
 		end
 		if face and (Vector3.new(face.X, pos.Y, face.Z) - nextPos).Magnitude > 0.1 then
-			n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z))
+			n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z)) * CFrame.Angles(0, 0, math.sin(now * 3) * 0.04)
 		end
 	end
 end)

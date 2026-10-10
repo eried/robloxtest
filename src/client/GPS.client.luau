@@ -319,7 +319,7 @@ local card = new("Frame", {
 round(card, UDim.new(0, 20))
 outline(card, 4)
 if touch then
-	new("UIScale", { Scale = 0.7, Parent = card })
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 450, 0.5, 0.7), Parent = card })
 end
 
 local function cardText(text: string, y: number, height: number, size: number, color: Color3)
@@ -547,6 +547,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "timeUp" then
 		showBanner("Time's up! ⏰\nThe kittens ran home.", 4)
 		tryAgain(4)
+	elseif kind == "modeLocked" then
+		showBanner("Wait for this round to end\nto change the mode.", 3)
 	elseif kind == "mode" then
 		showBanner(nameOf(who) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end
@@ -589,8 +591,8 @@ local function updateSky(): number
 		atmosphere.Color = Color3.fromRGB(40, 48, 70):Lerp(Color3.fromRGB(190, 215, 190), daylight)
 		atmosphere.Decay = Color3.fromRGB(20, 25, 40):Lerp(Color3.fromRGB(90, 120, 90), daylight)
 	end
-	tint.TintColor = Color3.fromRGB(170, 185, 255):Lerp(Color3.new(1, 1, 1), daylight)
-	tint.Saturation = -0.35 * dark
+	tint.TintColor = Color3.fromRGB(200, 210, 255):Lerp(Color3.new(1, 1, 1), daylight)
+	tint.Saturation = -0.2 * dark
 	return daylight
 end
 
@@ -662,6 +664,7 @@ end
 -- Animal sounds
 local nextMeow = os.clock() + 4
 local nextMew = 0
+local nextBark = 0
 local barking: { [Instance]: boolean } = {}
 
 local function animalSounds()
@@ -689,7 +692,8 @@ local function animalSounds()
 			local body = (dog :: Model).PrimaryPart
 			local bark = body and body:FindFirstChild("TextLabel", true) :: TextLabel?
 			local loud = bark ~= nil and bark.Visible
-			if loud and not barking[dog] and body then
+			if loud and not barking[dog] and body and now > nextBark then
+				nextBark = now + 0.4
 				playClip(body, Config.Bark, 1, math.random(90, 110) / 100, 150)
 			end
 			barking[dog] = loud

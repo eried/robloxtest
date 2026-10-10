@@ -15,7 +15,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
-      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      HAS_KEY: ${{ secrets.ROBLOX_API_KEY != '' }}
       UNIVERSE_ID: ${{ vars.UNIVERSE_ID }}
       PLACE_ID: ${{ vars.PLACE_ID }}
       ROBLOX_USERNAME: ${{ vars.ROBLOX_USERNAME }}
@@ -25,7 +25,7 @@ jobs:
       - name: Check setup
         id: check
         run: |
-          if [ -z "$ROBLOX_API_KEY" ] || [ -z "$UNIVERSE_ID" ] || [ -z "$PLACE_ID" ]; then
+          if [ "$HAS_KEY" != "true" ] || [ -z "$UNIVERSE_ID" ] || [ -z "$PLACE_ID" ]; then
             echo "Not set up yet. Add the ROBLOX_API_KEY secret and the UNIVERSE_ID and PLACE_ID variables." | tee -a "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
@@ -34,6 +34,8 @@ jobs:
 
       - name: Upload sounds
         if: steps.check.outputs.ready == 'true'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 tools/roblox.py audio | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Rebuild with sound ids
@@ -53,4 +55,6 @@ jobs:
 
       - name: Publish place
         if: steps.check.outputs.ready == 'true'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 tools/roblox.py publish | tee -a "$GITHUB_STEP_SUMMARY"

@@ -980,12 +980,13 @@ local function stackKitten(player: Player): boolean
 	end
 	local stack = stacks[player]
 	if not stack then
-		stack = {}
-		stacks[player] = stack
+		local fresh: { Cat } = {}
+		stack = fresh
+		stacks[player] = fresh
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
 			humanoid.Died:Once(function()
-				if stacks[player] == stack and #stack > 0 then
+				if stacks[player] == fresh and #fresh > 0 then
 					failUmulig(player)
 				end
 			end)
@@ -1211,7 +1212,7 @@ local function startEscape()
 				dog.pos = Vector3.new(math.clamp(nextPos.X, -half + 3, half - 3), 0, math.clamp(nextPos.Z, -half + 3, half - 3))
 			end
 
-			if t > dog.barkUntil and rng:NextNumber() < dt * 1.2 then
+			if t > dog.barkUntil and rng:NextNumber() < dt * 0.3 then
 				dog.barkUntil = t + 0.6
 			end
 			dog.bark.Visible = t < dog.barkUntil
@@ -1409,7 +1410,12 @@ for _, player in Players:GetPlayers() do
 	addPlayer(player)
 end
 
+local lastCall: { [Player]: number } = {}
+local lastChangeBy: { [Player]: number } = {}
+
 Players.PlayerRemoving:Connect(function(player)
+	lastCall[player] = nil
+	lastChangeBy[player] = nil
 	if carrier == player then
 		loseCat()
 	end
@@ -1448,16 +1454,23 @@ end)
 
 local lastModeChange = 0
 modeEvent.OnServerEvent:Connect(function(player, mode, hero)
-	if type(hero) == "string" and Config.Heroes[hero] then
+	local now = os.clock()
+	if now - (lastCall[player] or 0) < 1 then
+		return
+	end
+	lastCall[player] = now
+	if type(hero) == "string" and Config.Heroes[hero] and player:GetAttribute("Hero") ~= hero then
 		player:SetAttribute("Hero", hero)
 		applyHero(player)
 	end
 	if (mode == "Easy" or mode == "Hard" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
-		local now = os.clock()
-		if now - lastModeChange < 5 then
+		local busy = carrier ~= nil or kittensLeft > 0 or homeCat ~= nil or workspace:GetAttribute("Escape") ~= nil
+		if busy or now - lastModeChange < 5 or now - (lastChangeBy[player] or -math.huge) < 60 then
+			catEvent:FireClient(player, "modeLocked")
 			return
 		end
 		lastModeChange = now
+		lastChangeBy[player] = now
 		workspace:SetAttribute("Mode", mode)
 		catEvent:FireAllClients("mode", player, mode)
 		newRound()
@@ -1476,7 +1489,7 @@ local function speak(n: Neighbor)
 	n.lineEn.Text = line[4]
 	n.bubble.Enabled = true
 	sayEvent:FireAllClients(n.head, index, n.pitch)
-	task.delay(math.max(2, line[2] - 1), function()
+	task.delay(line[2] / n.pitch + 0.5, function()
 		n.bubble.Enabled = false
 	end)
 end
@@ -1502,7 +1515,13 @@ RunService.Heartbeat:Connect(function(dt)
 			face = target
 			if nearest > 7 then
 				local step = pos + (target - pos).Unit * Config.NeighborSpeed * dt
-				if (step - n.spot).Magnitude < 20 then
+				local clear = true
+				for _, cabin in cabinSpots do
+					if (Vector3.new(step.X, 0, step.Z) - cabin).Magnitude < 8 then
+						clear = false
+					end
+				end
+				if clear and (step - n.spot).Magnitude < 20 then
 					nextPos = step
 				end
 			end
@@ -1514,7 +1533,7 @@ RunService.Heartbeat:Connect(function(dt)
 			face = n.spot + (n.spot - pos)
 		end
 		if face and (Vector3.new(face.X, pos.Y, face.Z) - nextPos).Magnitude > 0.1 then
-			n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z))
+			n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z)) * CFrame.Angles(0, 0, math.sin(now * 3) * 0.04)
 		end
 	end
 end)
@@ -1861,7 +1880,7 @@ local card = new("Frame", {
 round(card, UDim.new(0, 20))
 outline(card, 4)
 if touch then
-	new("UIScale", { Scale = 0.7, Parent = card })
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 450, 0.5, 0.7), Parent = card })
 end
 
 local function cardText(text: string, y: number, height: number, size: number, color: Color3)
@@ -1949,21 +1968,22 @@ end
 
 local playing = false
 
+local DARK = Color3.fromRGB(20, 20, 20)
 local MODES = {
-	{ "Easy", GREEN, "Find her", Color3.fromRGB(20, 20, 20) },
-	{ "Hard", Color3.fromRGB(255, 120, 90), "7 kittens!", Color3.fromRGB(20, 20, 20) },
-	{ "Umulig", Color3.fromRGB(150, 25, 40), "Almost impossible", WHITE },
+	{ mode = "Easy", color = GREEN, note = "Find her", text = DARK },
+	{ mode = "Hard", color = Color3.fromRGB(255, 120, 90), note = "7 kittens!", text = DARK },
+	{ mode = "Umulig", color = Color3.fromRGB(150, 25, 40), note = "Almost impossible", text = WHITE },
 }
 for i, info in MODES do
-	local mode = info[1]
+	local mode = info.mode
 	local button = new("TextButton", {
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, (i - 2) * 168, 0, 306),
 		Size = UDim2.fromOffset(156, 60),
-		BackgroundColor3 = info[2],
+		BackgroundColor3 = info.color,
 		Font = FONT,
 		TextSize = 28,
-		TextColor3 = info[4],
+		TextColor3 = info.text,
 		Text = mode,
 		ZIndex = 12,
 		Parent = card,
@@ -1983,7 +2003,7 @@ for i, info in MODES do
 		Font = FONT,
 		TextSize = 16,
 		TextColor3 = GRAY,
-		Text = info[3],
+		Text = info.note,
 		ZIndex = 12,
 		Parent = card,
 	})
@@ -2088,6 +2108,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "timeUp" then
 		showBanner("Time's up! ⏰\nThe kittens ran home.", 4)
 		tryAgain(4)
+	elseif kind == "modeLocked" then
+		showBanner("Wait for this round to end\nto change the mode.", 3)
 	elseif kind == "mode" then
 		showBanner(nameOf(who) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end
@@ -2130,8 +2152,8 @@ local function updateSky(): number
 		atmosphere.Color = Color3.fromRGB(40, 48, 70):Lerp(Color3.fromRGB(190, 215, 190), daylight)
 		atmosphere.Decay = Color3.fromRGB(20, 25, 40):Lerp(Color3.fromRGB(90, 120, 90), daylight)
 	end
-	tint.TintColor = Color3.fromRGB(170, 185, 255):Lerp(Color3.new(1, 1, 1), daylight)
-	tint.Saturation = -0.35 * dark
+	tint.TintColor = Color3.fromRGB(200, 210, 255):Lerp(Color3.new(1, 1, 1), daylight)
+	tint.Saturation = -0.2 * dark
 	return daylight
 end
 
@@ -2203,6 +2225,7 @@ end
 -- Animal sounds
 local nextMeow = os.clock() + 4
 local nextMew = 0
+local nextBark = 0
 local barking: { [Instance]: boolean } = {}
 
 local function animalSounds()
@@ -2230,7 +2253,8 @@ local function animalSounds()
 			local body = (dog :: Model).PrimaryPart
 			local bark = body and body:FindFirstChild("TextLabel", true) :: TextLabel?
 			local loud = bark ~= nil and bark.Visible
-			if loud and not barking[dog] and body then
+			if loud and not barking[dog] and body and now > nextBark then
+				nextBark = now + 0.4
 				playClip(body, Config.Bark, 1, math.random(90, 110) / 100, 150)
 			end
 			barking[dog] = loud
