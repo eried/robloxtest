@@ -29,8 +29,8 @@ jobs:
       - name: Check setup
         id: check
         run: |
-          if [ "$HAS_KEY" != "true" ] || [ -z "$UNIVERSE_ID" ] || [ -z "$PLACE_ID" ]; then
-            echo "Not set up yet. Add the ROBLOX_API_KEY secret and the UNIVERSE_ID and PLACE_ID variables." | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$HAS_KEY" != "true" ] || [ -z "$PLACE_ID" ]; then
+            echo "Not set up yet. Add the ROBLOX_API_KEY secret and the PLACE_ID." | tee -a "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"

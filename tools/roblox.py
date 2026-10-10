@@ -85,8 +85,16 @@ def audio():
         f.write(config)
 
 
+def universe_id(place):
+    if os.environ.get("UNIVERSE_ID"):
+        return os.environ["UNIVERSE_ID"]
+    res = call("GET", f"{API}/universes/v1/places/{place}/universe", auth=False)
+    return str(res["universeId"])
+
+
 def publish():
-    universe, place = os.environ["UNIVERSE_ID"], os.environ["PLACE_ID"]
+    place = os.environ["PLACE_ID"]
+    universe = universe_id(place)
     with open("FindPianka.rbxlx", "rb") as f:
         data = f.read()
     url = f"{API}/universes/v1/{universe}/places/{place}/versions?versionType=Published"
