@@ -8,6 +8,7 @@ local ContentProvider = game:GetService("ContentProvider")
 local SoundService = game:GetService("SoundService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Sky = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Sky"))
 local catEvent = ReplicatedStorage:WaitForChild("PiankaEvent") :: RemoteEvent
 local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
 local shopEvent = ReplicatedStorage:WaitForChild("Shop") :: RemoteEvent
@@ -235,6 +236,29 @@ local timerLabel = new("TextLabel", {
 	Parent = gui,
 })
 round(timerLabel, UDim.new(0, 12))
+
+local heartsLabel = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 54),
+	Size = UDim2.fromOffset(160, 28),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 22,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "",
+	Parent = gui,
+})
+
+local function showHearts()
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local max = Config.Hearts[mode] or 3
+	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
+	heartsLabel.Text = if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
+end
+player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
+player:GetAttributeChangedSignal("Out"):Connect(showHearts)
+workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
+showHearts()
 
 local menuButton = topButton("Menu", -120, 80)
 local musicButton = topButton("🎵", 100, 40)
@@ -833,7 +857,35 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			end)
 		end
 	elseif kind == "dropped" then
-		showBanner(if who == player then "The rats scared " .. cat .. "!\nGet her back!" else cat .. " jumped down!", 3)
+		local scarer = if value == "dog" then "A dog" elseif value == "neighbor" then "The neighbor" else "The rats"
+		showBanner(if who == player then scarer .. " scared " .. cat .. "!\nGet her back!" else cat .. " jumped down!", 3)
+	elseif kind == "heart" then
+		popText(if seconds > 0 then "-1 ❤️" else "😵", Color3.fromRGB(255, 110, 130))
+	elseif kind == "out" then
+		if who == player then
+			showBanner("😵 Out of hearts!\nWait for the next round.", 4)
+		else
+			showBanner(nameOf(who) .. " is out of hearts! 😵", 3)
+		end
+	elseif kind == "hearts" then
+		showBanner("💔 Out of hearts!\n" .. cat .. " is still lost.", 5)
+		tryAgain(5)
+	elseif kind == "hunt" then
+		showBanner("🏮 Night! The neighbors are hunting.\nStay out of their light!", 4)
+	elseif kind == "dawn" then
+		showBanner("☀️ Morning! The neighbors went home.", 3)
+	elseif kind == "hunted" then
+		popText("A neighbor saw you! Run! 🏮", Color3.fromRGB(255, 170, 80))
+		note(1.4)
+	elseif kind == "grabbed" then
+		flash.BackgroundTransparency = 0.5
+		TweenService:Create(flash, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
+		popText("Ut herfra! 😱", Color3.fromRGB(255, 120, 120))
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and typeof(value) == "Vector3" then
+			root.AssemblyLinearVelocity = value * 45 + Vector3.new(0, 25, 0)
+		end
 	elseif kind == "poor" then
 		showBanner("Not enough fish 🐟\nFind more in the forest!", 2)
 	elseif kind == "bought" then
@@ -852,7 +904,6 @@ sayEvent.OnClientEvent:Connect(function(head: BasePart, index: number, pitch: nu
 end)
 
 -- Day and night
-local START_PHASE = Config.NightShare + (1 - Config.NightShare) * 7 / 12
 local DAY_AMBIENT = Color3.fromRGB(120, 140, 120)
 local NIGHT_AMBIENT = Color3.fromRGB(46, 54, 80)
 local tint = new("ColorCorrectionEffect", { Parent = Lighting })
@@ -862,11 +913,7 @@ local function updateSky(): number
 	if not dayStart then
 		return 1
 	end
-	local phase = ((workspace:GetServerTimeNow() - dayStart) / (Config.DayMinutes * 60) + START_PHASE) % 1
-	local clock = if phase < Config.NightShare
-		then (18 + 12 * phase / Config.NightShare) % 24
-		else 6 + 12 * (phase - Config.NightShare) / (1 - Config.NightShare)
-	local daylight = math.clamp(math.sin((clock - 6) / 12 * math.pi) * 3, 0, 1)
+	local clock, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
 	if workspace:GetAttribute("Twist") == "fullmoon" then
 		daylight = math.max(daylight, 0.35)
 	end
@@ -916,6 +963,17 @@ local function showDogs(from: Vector3?, right: Vector3?)
 				local pos = (dog :: Model):GetPivot().Position
 				if (pos - from).Magnitude < 100 then
 					table.insert(marks, { pos = pos, icon = "🐕" })
+				end
+			end
+		end
+		local neighbors = workspace:FindFirstChild("Neighbors")
+		if neighbors then
+			for _, n in neighbors:GetChildren() do
+				if n:IsA("Model") and n:GetAttribute("Hunting") then
+					local pos = n:GetPivot().Position
+					if (pos - from).Magnitude < 100 then
+						table.insert(marks, { pos = pos, icon = "🏮" })
+					end
 				end
 			end
 		end

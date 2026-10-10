@@ -14,7 +14,9 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 
 - **Easy**: find Pianka with the GPS and bring her home.
 - **Normal**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. And there is a surprise when you catch her!
-- **Umulig** (almost impossible): like Normal, plus dogs.
+- **Umulig** (almost impossible): like Normal, then run home with the kittens while a pack of dogs follows you.
+
+You have 3 hearts. A dog bite or a neighbor grab costs one. Out of hearts? You faint 😵 until the next round. If everyone faints, the round is lost.
 
 Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
 
@@ -28,7 +30,7 @@ Every round can have a twist: Pianka up a tree or hiding in a shaking bush, zoom
 
 Glowing mushrooms give super speed (blue), super light that scares rats (yellow) or a super jump (pink). Mud puddles slow you down. Neighbors sometimes point the way. Rescue 5, 25 or 100 times to earn ⭐ 🏅 👑 next to your name.
 
-Spooky neighbors live in cabins and talk in Norwegian. Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
+Spooky neighbors live in cabins and talk in Norwegian. At night they come out with lanterns and hunt you. Stay out of their light! Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
 
 ## Publish
 
@@ -47,4 +49,4 @@ Rebuild after changes: `rojo build -o FindPianka.rbxlx`
 
 ## Tests
 
-`lune run tests/dogs.spec.luau 200` plays thousands of rounds with bots (careful and naive) and checks that the dogs work and the modes stay balanced. It also runs before every publish.
+`lune run tests/dogs.spec.luau 200` plays thousands of full rounds with bots (careful, naive and wandering kid) against dogs, night neighbors, rats and hearts, and checks that every mode can be won and lost. It also runs before every publish.

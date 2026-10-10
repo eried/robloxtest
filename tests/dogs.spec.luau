@@ -1,4 +1,4 @@
--- Bot playtests for the dog brains. Run: lune run tests/dogs.spec.luau [rounds]
+-- Bot playtests for dogs, neighbors and hearts. Run: lune run tests/dogs.spec.luau [rounds] [mode]
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local process = require("@lune/process")
@@ -12,12 +12,15 @@ local function load(path: string): any
 end
 
 local DogBrain = load("src/shared/DogBrain.luau")
+local Sky = load("src/shared/Sky.luau")
 local Config = load("src/shared/Config.luau")
 
-local ROUNDS = tonumber(process.args[1]) or 300
+local ROUNDS = tonumber(process.args[1]) or 200
+local ONLY = process.args[2]
 local DT = 1 / 30
 local HALF = Config.ForestSize / 2
 local HOME = Vector3.new(Config.HomePosition.X, 0, Config.HomePosition.Z)
+local SPAWN = Vector3.new(0, 0, 0)
 
 local seed = 84
 local function random(): number
@@ -82,24 +85,80 @@ local function makeWorld()
 	return world
 end
 
+local function isFree(world, p: Vector3, radius: number): boolean
+	for _, t in DogBrain.treesNear(world, p, p, radius) do
+		if (t - p).Magnitude < radius then
+			return false
+		end
+	end
+	for _, c in world.cabins do
+		if (c - p).Magnitude < radius + 10 then
+			return false
+		end
+	end
+	return true
+end
+
 local function randomCatSpot(world): Vector3
 	for _ = 1, 300 do
 		local p = Vector3.new(rand(-HALF + 15, HALF - 15), 0, rand(-HALF + 15, HALF - 15))
-		local ok = p.Magnitude >= Config.MinCatDistance
-		for _, t in DogBrain.treesNear(world, p, p, 6) do
-			if (t - p).Magnitude < 5 then
-				ok = false
-				break
-			end
-		end
-		if ok then
+		if (p - HOME).Magnitude >= Config.MinCatDistance and isFree(world, p, 5) then
 			return p
 		end
 	end
 	return Vector3.new(200, 0, 200)
 end
 
-local function makeMud(world, count: number, catPos: Vector3)
+local function fleeSpot(world, cat: Vector3, from: Vector3): Vector3?
+	local away = cat - from
+	away = if away.Magnitude > 0.1 then away.Unit else Vector3.new(1, 0, 0)
+	for i = 1, 16 do
+		local spread = if i <= 6 then 0.8 else math.pi
+		local a = rand(-spread, spread)
+		local dir = Vector3.new(away.X * math.cos(a) - away.Z * math.sin(a), 0, away.X * math.sin(a) + away.Z * math.cos(a))
+		local p = cat + dir * rand(40, 60)
+		if math.abs(p.X) < HALF - 15 and math.abs(p.Z) < HALF - 15 and (p - HOME).Magnitude >= Config.MinCatDistance and isFree(world, p, 5) then
+			return p
+		end
+	end
+	return nil
+end
+
+local function dropSpot(world, from: Vector3): Vector3
+	for _ = 1, 30 do
+		local a = rand(0, math.pi * 2)
+		local p = from + Vector3.new(math.cos(a), 0, math.sin(a)) * rand(40, 60)
+		if math.abs(p.X) < HALF - 15 and math.abs(p.Z) < HALF - 15 and (p - HOME).Magnitude > 50 and isFree(world, p, 5) then
+			return p
+		end
+	end
+	return from
+end
+
+local function kittenSpots(world, center: Vector3): { Vector3 }
+	local spots = {}
+	for _ = 1, Config.KittenCount do
+		local found = nil
+		for _ = 1, 200 do
+			local a = rand(0, math.pi * 2)
+			local p = center + Vector3.new(math.cos(a), 0, math.sin(a)) * rand(40, 160)
+			local ok = math.abs(p.X) < HALF - 10 and math.abs(p.Z) < HALF - 10 and (p - HOME).Magnitude >= Config.KittenHomeMin and isFree(world, p, 4)
+			for _, other in spots do
+				if (other - p).Magnitude < 25 then
+					ok = false
+				end
+			end
+			if ok then
+				found = p
+				break
+			end
+		end
+		table.insert(spots, found or Vector3.new(rand(-HALF + 15, HALF - 15), 0, rand(-HALF + 15, HALF - 15)))
+	end
+	return spots
+end
+
+local function makeMud(count: number, catPos: Vector3)
 	local mud = {}
 	for _ = 1, count do
 		local p = Vector3.new(rand(-HALF + 15, HALF - 15), 0, rand(-HALF + 15, HALF - 15))
@@ -111,8 +170,85 @@ local function makeMud(world, count: number, catPos: Vector3)
 	return mud
 end
 
--- A bot player. "naive" walks straight, "careful" steers around dog cones.
-local function botStep(bot, goal: Vector3, dogs, world, mud, s, careful: boolean)
+local function makeRats(world, mode: string, catPos: Vector3)
+	local rats = {}
+	for i = 1, Config.RatCount[mode] do
+		local pos = Vector3.new(rand(-HALF + 15, HALF - 15), 0, rand(-HALF + 15, HALF - 15))
+		for _ = 1, 40 do
+			local try = if i % 2 == 0
+				then catPos + Vector3.new(rand(-80, 80), 0, rand(-80, 80))
+				else Vector3.new(rand(-HALF + 15, HALF - 15), 0, rand(-HALF + 15, HALF - 15))
+			if math.abs(try.X) < HALF - 10 and math.abs(try.Z) < HALF - 10 and (try - HOME).Magnitude > Config.RatSafeRadius + 40
+				and (try - catPos).Magnitude > 20 and isFree(world, try, 4) then
+				pos = try
+				break
+			end
+		end
+		table.insert(rats, { nest = pos, pos = pos, wander = pos, cooldown = 0, windup = 0, speed = Config.RatSpeed[mode] })
+	end
+	return rats
+end
+
+-- Same rules as the rats in the game. Returns true on a bite.
+local function ratStep(rat, bot, alive: boolean, world): boolean
+	local now = bot.time
+	local d = (bot.pos - rat.pos).Magnitude
+	local safe = (bot.pos - HOME).Magnitude < Config.RatSafeRadius
+	local hunting = alive and d < Config.RatAggro and (bot.pos - rat.nest).Magnitude < Config.RatLeash and not safe and bot.hp > 25
+	local goal, speed = nil, 0
+	local bit = false
+	if hunting and now > rat.cooldown then
+		speed = math.min(rat.speed, bot.speed * 0.8)
+		if d < 2.8 then
+			speed = 0
+			if rat.windup == 0 then
+				rat.windup = now + 0.3
+			elseif now >= rat.windup then
+				rat.windup = 0
+				rat.cooldown = now + 2
+				if now - bot.lastBite >= 0.5 then
+					bot.lastBite = now
+					bit = true
+				end
+			end
+		else
+			rat.windup = 0
+			goal = bot.pos
+		end
+	else
+		rat.windup = 0
+		if (rat.wander - rat.pos).Magnitude < 1 then
+			rat.wander = rat.nest + Vector3.new(rand(-15, 15), 0, rand(-15, 15))
+		end
+		goal, speed = rat.wander, 5
+	end
+	if goal and speed > 0 then
+		local delta = goal - rat.pos
+		if delta.Magnitude > 0.05 then
+			local nextPos = rat.pos + delta.Unit * math.min(speed * DT, delta.Magnitude)
+			for _, t in DogBrain.treesNear(world, nextPos, nextPos, 3) do
+				local away = nextPos - t
+				if away.Magnitude < 2 and away.Magnitude > 0.01 then
+					nextPos = t + away.Unit * 2
+				end
+			end
+			rat.pos = Vector3.new(math.clamp(nextPos.X, -HALF + 3, HALF - 3), 0, math.clamp(nextPos.Z, -HALF + 3, HALF - 3))
+		end
+	end
+	return bit
+end
+
+-- A bot player. "naive" walks straight, "careful" steers around cones, "kid" wanders like a searching player.
+local function botStep(bot, goal: Vector3, dogs, world, mud, careful: boolean)
+	if bot.kid and (goal - bot.pos).Magnitude > 40 then
+		if bot.time >= bot.wanderUntil or (bot.wander - bot.pos).Magnitude < 5 then
+			local a = rand(-1, 1)
+			local u = (goal - bot.pos).Unit
+			bot.wander = bot.pos + Vector3.new(u.X * math.cos(a) - u.Z * math.sin(a), 0, u.X * math.sin(a) + u.Z * math.cos(a)) * 60
+			bot.wanderUntil = bot.time + 8
+		end
+		goal = bot.wander
+	end
 	local toGoal = goal - bot.pos
 	local desire = if toGoal.Magnitude > 0.01 then toGoal.Unit else Vector3.new(1, 0, 0)
 	local nearTrees = DogBrain.treesNear(world, bot.pos, bot.pos, 5)
@@ -145,6 +281,7 @@ local function botStep(bot, goal: Vector3, dogs, world, mud, s, careful: boolean
 		else
 			local ahead = bot.pos + desire * 10
 			for _, dog in dogs do
+				local s = dog.settings
 				for _, probe in { bot.pos, ahead } do
 					local away = probe - dog.pos
 					local m = away.Magnitude
@@ -194,7 +331,7 @@ local function botStep(bot, goal: Vector3, dogs, world, mud, s, careful: boolean
 	bot.speed = speed
 end
 
-local function checkDogs(dogs, s, world)
+local function checkDogs(dogs, world)
 	for _, dog in dogs do
 		check(not isNan(dog.pos) and not isNan(dog.dir), "dog position is NaN")
 		check(math.abs(dog.pos.X) <= world.half and math.abs(dog.pos.Z) <= world.half, "dog left the map")
@@ -203,7 +340,7 @@ local function checkDogs(dogs, s, world)
 			local ab = dog.b - dog.a
 			local t = math.clamp((dog.pos - dog.a):Dot(ab) / ab:Dot(ab), 0, 1)
 			local off = (dog.a + ab * t - dog.pos).Magnitude
-			check(off < 3.5, "patrol dog wandered off its path by " .. string.format("%.1f", off))
+			check(off < 3.5, "patrol wandered off its path by " .. string.format("%.1f", off))
 		end
 	end
 end
@@ -214,117 +351,255 @@ local function makePatrols(world, catPos: Vector3, s)
 	for _, path in paths do
 		local dog = DogBrain.newPatrol(path.a, path.b)
 		dog.pos = path.a:Lerp(path.b, rand(0, 1))
+		dog.settings = s
 		table.insert(dogs, dog)
 	end
 	return dogs, #paths
 end
 
--- Easy and Normal: walk to Pianka, carry her home. Being caught makes her run off.
-local function playFetch(mode: string, careful: boolean, walk: number)
+local function makeHunters(world, hs)
+	local hunters = {}
+	for _, cabin in world.cabins do
+		local path = DogBrain.yardPath(rand, world, cabin, HOME, Config.RatSafeRadius)
+		if path then
+			check((path.a - cabin).Magnitude > 9 and (path.b - cabin).Magnitude > 9, "yard path hits its cabin")
+			local h = DogBrain.newPatrol(path.a, path.b)
+			h.pos = path.a:Lerp(path.b, rand(0, 1))
+			h.settings = hs
+			h.hunter = true
+			table.insert(hunters, h)
+		end
+	end
+	return hunters
+end
+
+-- One full round. Easy: carry Pianka home. Normal: find 7 kittens in time. Umulig: kittens, then run home.
+local function play(mode: string, kind: string, hero: string)
+	local careful = kind == "careful"
 	local s = Config.Dogs[mode]
+	local hs = DogBrain.with(s, Config.Hunters[mode])
+	local walk = if hero == "Patrick" then Config.PatrickSpeed else 16
+	local calm = if hero == "Milena" then 0.92 else 1
 	local world = makeWorld()
 	local cat = randomCatSpot(world)
 	local dogs, placed = makePatrols(world, cat, s)
-	local mud = makeMud(world, Config.MudCount[mode], cat)
-	local bot = { pos = HOME + Vector3.new(-8, 0, 0), heading = Vector3.new(1, 0, 0), speed = walk, walk = walk, time = 0, slowUntil = 0 }
-	local carrying = false
-	local stats = { caught = 0, spotted = 0, drops = 0, time = 0, done = false, placed = placed, wanted = s.patrolCount }
-	local lastProgress, best = 0, math.huge
-	while bot.time < 400 do
+	local hunters = makeHunters(world, hs)
+	local mud = makeMud(Config.MudCount[mode], cat)
+	local rats = makeRats(world, mode, cat)
+	local bot = {
+		pos = SPAWN,
+		heading = Vector3.new(1, 0, 0),
+		speed = walk,
+		walk = walk,
+		time = 0,
+		slowUntil = 0,
+		hp = 100,
+		kid = kind == "kid",
+		wander = SPAWN,
+		wanderUntil = 0,
+		lastBite = -10,
+	}
+	local hearts = Config.Hearts[mode]
+	local dayOffset = rand(0, Config.DayMinutes * 60)
+	local hunting = false
+	local phase = "find"
+	local flees = if mode == "Easy" then 0 elseif hero == "Aurelia" then 1 else Config.HardFlees
+	local kittens: { Vector3 } = {}
+	local carryStart, kittenEnd, packStart = 0, 0, 0
+	local r = { outcome = "", bites = 0, grabs = 0, ratBites = 0, time = 0, placed = placed, wanted = s.patrolCount, huntShare = 0 }
+	local best, lastProgress, lastGoal = math.huge, 0, Vector3.zero
+
+	local function finish(outcome: string)
+		r.outcome = outcome
+		r.time = bot.time
+		r.huntShare /= math.max(bot.time, 1)
+		return r
+	end
+
+	while bot.time < 900 do
 		bot.time += DT
-		local goal = if carrying then HOME else cat
-		botStep(bot, goal, dogs, world, mud, s, careful)
-		local runner = { id = 1, pos = bot.pos, heading = bot.heading, speed = bot.walk, safe = (bot.pos - HOME).Magnitude < Config.RatSafeRadius }
-		for _, dog in dogs do
-			local event = DogBrain.step(dog, DT, bot.time, { runner }, world, s, 0)
-			if event == "alert" then
-				stats.spotted += 1
-			elseif event == "caught" then
-				check((dog.pos - bot.pos).Magnitude < s.catch + 0.5, "caught from too far")
-				stats.caught += 1
-				bot.slowUntil = bot.time + 2
-				if carrying then
-					carrying = false
-					stats.drops += 1
-					local angle = rand(0, math.pi * 2)
-					cat = bot.pos + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rand(40, 60)
-					cat = Vector3.new(math.clamp(cat.X, -HALF + 15, HALF - 15), 0, math.clamp(cat.Z, -HALF + 15, HALF - 15))
+		local now = bot.time
+		local _, daylight = Sky.at(dayOffset + now, Config.DayMinutes, Config.NightShare)
+		local hunt = Config.HuntByDay[mode] == true or daylight < 0.5
+		if hunt and not hunting then
+			for _, h in hunters do
+				h.state = "return"
+				h.untilTime = now
+				h.seeker = false
+				h.nextSeek = now + rand(8, 8 + Config.SeekEvery)
+			end
+			for i = #hunters, 2, -1 do
+				local j = math.floor(rand(1, i + 1 - 1e-9))
+				hunters[i], hunters[j] = hunters[j], hunters[i]
+			end
+			for i = 1, math.min(Config.Seekers[mode], #hunters) do
+				hunters[i].seeker = true
+			end
+		end
+		hunting = hunt
+		if hunt then
+			r.huntShare += DT
+		end
+		local active = table.clone(dogs)
+		if hunting then
+			for _, h in hunters do
+				table.insert(active, h)
+			end
+		end
+
+		local goal = HOME
+		if phase == "find" then
+			goal = cat
+		elseif phase == "kittens" then
+			goal = kittens[1]
+			for _, k in kittens do
+				if (k - bot.pos).Magnitude < (goal - bot.pos).Magnitude then
+					goal = k
 				end
 			end
 		end
-		checkDogs(dogs, s, world)
-		if not carrying and (bot.pos - cat).Magnitude < 6 then
-			carrying = true
-		elseif carrying and (bot.pos - HOME).Magnitude < Config.HomeRadius then
-			stats.done = true
-			break
+
+		local alive = true
+		if alive then
+			botStep(bot, goal, active, world, mud, careful)
+		end
+		bot.hp = math.min(100, bot.hp + DT)
+		if hunting and alive and (bot.pos - HOME).Magnitude >= Config.RatSafeRadius then
+			for _, h in hunters do
+				if h.seeker and now >= h.nextSeek and (h.state == "patrol" or h.state == "turn") then
+					h.nextSeek = now + Config.SeekEvery
+					local path = DogBrain.huntPath(rand, world, bot.pos, bot.heading, HOME, Config.RatSafeRadius)
+					if path then
+						h.a, h.b = path.a, path.b
+						h.state = "return"
+						h.untilTime = now
+						if (h.pos - path.a).Magnitude > 60 then
+							h.pos = path.a
+							h.untilTime = now + 1
+						end
+					end
+				end
+			end
+		end
+		local runners = {}
+		if alive then
+			runners[1] = {
+				id = 1,
+				pos = bot.pos,
+				heading = bot.heading,
+				speed = bot.speed * calm,
+				safe = (bot.pos - HOME).Magnitude < Config.RatSafeRadius,
+			}
+		end
+		local gap = DogBrain.gap(s, now - packStart)
+		for _, dog in active do
+			local event = DogBrain.step(dog, DT, now, runners, world, dog.settings, gap)
+			if event == "caught" then
+				check((dog.pos - bot.pos).Magnitude < dog.settings.catch + 0.5, "caught from too far")
+				if phase == "escape" then
+					return finish(if dog.kind == "pack" then "pack" elseif dog.hunter then "hunter" else "patrol")
+				end
+				if dog.hunter then
+					r.grabs += 1
+				else
+					r.bites += 1
+				end
+				hearts -= 1
+				bot.slowUntil = now + 2
+				if phase == "carry" then
+					phase = "find"
+					cat = dropSpot(world, bot.pos)
+				end
+				if hearts <= 0 then
+					return finish("hearts")
+				end
+				break
+			end
+		end
+		checkDogs(active, world)
+		if phase ~= "escape" then
+			for _, rat in rats do
+				if ratStep(rat, bot, alive, world) then
+					r.ratBites += 1
+					bot.hp -= math.min(Config.RatBite, bot.hp - 1)
+					bot.slowUntil = bot.time + 1.5
+					if phase == "carry" and bot.hp <= 30 then
+						phase = "find"
+						cat = dropSpot(world, bot.pos)
+					end
+				end
+			end
+		end
+
+		if alive then
+			if phase == "find" then
+				local d = (bot.pos - cat).Magnitude
+				if flees > 0 and d < Config.FleeDistance then
+					local spot = fleeSpot(world, cat, bot.pos)
+					if spot then
+						cat = spot
+						flees -= 1
+					end
+				elseif d < 6 then
+					if mode == "Easy" then
+						phase = "carry"
+						carryStart = now
+					else
+						phase = "kittens"
+						kittens = kittenSpots(world, cat)
+						kittenEnd = now + Config.KittenTime
+					end
+				end
+			elseif phase == "carry" then
+				if now - carryStart > Config.CarryTime then
+					return finish("lost")
+				elseif (bot.pos - HOME).Magnitude < Config.HomeRadius then
+					return finish("won")
+				end
+			elseif phase == "kittens" then
+				for i = #kittens, 1, -1 do
+					if (kittens[i] - bot.pos).Magnitude < 6 then
+						table.remove(kittens, i)
+					end
+				end
+				if #kittens == 0 then
+					if mode ~= "Umulig" then
+						return finish("won")
+					end
+					phase = "escape"
+					packStart = now
+					local toHome = HOME - bot.pos
+					local heading = if toHome.Magnitude > 1 then toHome.Unit else Vector3.new(0, 0, -1)
+					local right = Vector3.new(-heading.Z, 0, heading.X)
+					for _, slot in DogBrain.formation(s.packCount) do
+						local pos = bot.pos - heading * (s.packGap + 6 + slot.back) + right * slot.side
+						pos = Vector3.new(math.clamp(pos.X, -HALF + 5, HALF - 5), 0, math.clamp(pos.Z, -HALF + 5, HALF - 5))
+						local dog = DogBrain.newPack(pos, slot.side, slot.back, 1)
+						dog.settings = s
+						table.insert(dogs, dog)
+					end
+				elseif now > kittenEnd then
+					return finish("timeUp")
+				end
+			elseif phase == "escape" and (bot.pos - HOME).Magnitude < Config.HomeRadius then
+				return finish("won")
+			end
+		end
+
+		if (goal - lastGoal).Magnitude > 1 then
+			best, lastGoal, lastProgress = math.huge, goal, now
 		end
 		local d = (bot.pos - goal).Magnitude
 		if d < best - 1 then
-			best, lastProgress = d, bot.time
-		elseif bot.time - lastProgress > 40 then
-			break
-		end
-		if (goal - (if carrying then HOME else cat)).Magnitude > 1 then
-			best = math.huge
+			best, lastProgress = d, now
+		elseif now - lastProgress > 45 then
+			return finish("stall")
 		end
 	end
-	stats.time = bot.time
-	return stats
+	return finish("stall")
 end
 
--- Umulig: run home with the kittens, the pack follows in formation.
-local function playEscape(careful: boolean, walk: number)
-	local s = Config.Dogs.Umulig
-	local world = makeWorld()
-	local start = randomCatSpot(world)
-	for _ = 1, 50 do
-		if (start - HOME).Magnitude >= Config.KittenHomeMin then
-			break
-		end
-		start = randomCatSpot(world)
-	end
-	local dogs = makePatrols(world, start, s)
-	local mud = makeMud(world, Config.MudCount.Umulig, start)
-	local heading = (HOME - start).Unit
-	local bot = { pos = start, heading = heading, speed = walk, walk = walk, time = 0, slowUntil = 0 }
-	local right = Vector3.new(-heading.Z, 0, heading.X)
-	for _, slot in DogBrain.formation(s.packCount) do
-		local pos = start - heading * (s.packGap + 6 + slot.back) + right * slot.side
-		local dog = DogBrain.newPack(pos, slot.side, slot.back, 1)
-		table.insert(dogs, dog)
-	end
-	local result = { won = false, by = "", time = 0, distance = (start - HOME).Magnitude, lunges = 0 }
-	local startTime = 0
-	while bot.time < 150 do
-		bot.time += DT
-		botStep(bot, HOME, dogs, world, mud, s, careful)
-		local runner = { id = 1, pos = bot.pos, heading = bot.heading, speed = bot.speed, safe = false }
-		local gap = DogBrain.gap(s, bot.time - startTime)
-		for _, dog in dogs do
-			local event = DogBrain.step(dog, DT, bot.time, { runner }, world, s, gap)
-			if event == "lunge" then
-				result.lunges += 1
-			elseif event == "caught" then
-				check((dog.pos - bot.pos).Magnitude < s.catch + 0.5, "caught from too far")
-				result.by = dog.kind
-				result.time = bot.time
-				return result
-			end
-		end
-		checkDogs(dogs, s, world)
-		if (bot.pos - HOME).Magnitude < Config.HomeRadius then
-			result.won = true
-			result.time = bot.time
-			return result
-		end
-	end
-	result.by = "timeout"
-	result.time = bot.time
-	return result
-end
-
--- Unit checks on the cone
+-- Unit checks
 do
 	local world = { trees = {}, cabins = {}, half = HALF }
 	local dog = DogBrain.newPatrol(Vector3.new(0, 0, 0), Vector3.new(0, 0, -40))
@@ -335,57 +610,80 @@ do
 	local blocked = { trees = { Vector3.new(0, 0, -6) }, cabins = {}, half = HALF }
 	check(not DogBrain.sees(dog, Vector3.new(0, 0, -12), 18, 30, blocked), "trees block sight")
 	check(#DogBrain.formation(6) == 6, "formation size")
+	local hs = DogBrain.with(Config.Dogs.Easy, Config.Hunters.Easy)
+	check(hs.coneRange == Config.Hunters.Easy.coneRange and hs.packCount == Config.Dogs.Easy.packCount, "settings merge")
+	local day = Config.DayMinutes * 60
+	local _, afternoon = Sky.at(0, Config.DayMinutes, Config.NightShare)
+	local _, midnight = Sky.at(day * (1 - Config.NightShare) * 5 / 12 + day * Config.NightShare / 2, Config.DayMinutes, Config.NightShare)
+	check(afternoon > 0.9 and midnight < 0.1, "sky clock")
 end
 
 local function pct(n: number, total: number): string
 	return string.format("%3d%%", math.floor(n / math.max(total, 1) * 100 + 0.5))
 end
 
-print(string.format("Find Pianka dog playtest, %d rounds per row", ROUNDS))
+print(string.format("Find Pianka bot playtest, %d rounds per row", ROUNDS))
+print("Full rounds with patrol dogs, night hunters, rats, mud and hearts")
 print("")
-print("Mode    Bot      Hero     Done  Caught  Rounds caught  Avg time  Paths")
-for _, mode in (if process.args[2] == "escape" then {} else { "Easy", "Normal" }) do
-	for _, row in { { "careful", true }, { "naive", false } } do
-		local done, caughtRounds, caughtTotal, time, placed, wanted = 0, 0, 0, 0, 0, 0
-		for _ = 1, ROUNDS do
-			local r = playFetch(mode, row[2], 16)
-			done += if r.done then 1 else 0
-			caughtRounds += if r.caught > 0 then 1 else 0
-			caughtTotal += r.caught
-			time += r.time
-			placed += r.placed
-			wanted += r.wanted
-		end
-		print(string.format("%-7s %-8s %-8s %s  %6.2f  %s           %5.0f s   %s",
-			mode, row[1], "-", pct(done, ROUNDS), caughtTotal / ROUNDS, pct(caughtRounds, ROUNDS), time / ROUNDS, pct(placed, wanted)))
-		check(done / ROUNDS >= 0.95, mode .. " " .. row[1] .. ": rounds must be finishable")
-		if mode == "Easy" and row[2] then
-			check(caughtRounds / ROUNDS <= 0.15, "Easy must stay easy for careful players")
-		end
-		if mode == "Easy" and not row[2] then
-			check(caughtRounds / ROUNDS >= 0.05, "Easy dogs must still matter")
-		end
+print("Mode    Bot      Hero      Won  Hearts  Lost  Time up  Caught  Stall  Bites  Grabs  Rats   Night  Avg time")
+local rows = {
+	{ "Easy", "careful", "default" },
+	{ "Easy", "careful", "Patrick" },
+	{ "Easy", "naive", "default" },
+	{ "Easy", "kid", "default" },
+	{ "Normal", "careful", "default" },
+	{ "Normal", "careful", "Aurelia" },
+	{ "Normal", "naive", "default" },
+	{ "Normal", "kid", "default" },
+	{ "Umulig", "careful", "default" },
+	{ "Umulig", "careful", "Patrick" },
+	{ "Umulig", "naive", "default" },
+	{ "Umulig", "kid", "default" },
+}
+local totals: { [string]: { failed: number, rounds: number } } = {}
+for _, row in rows do
+	local mode, bot, hero = row[1], row[2], row[3]
+	local careful = bot == "careful"
+	if ONLY and ONLY ~= mode then
+		continue
+	end
+	local count: { [string]: number } = {}
+	local bites, grabs, ratBites, time, placed, wanted, night = 0, 0, 0, 0, 0, 0, 0
+	for _ = 1, ROUNDS do
+		local r = play(mode, bot, hero)
+		count[r.outcome] = (count[r.outcome] or 0) + 1
+		bites += r.bites
+		grabs += r.grabs
+		ratBites += r.ratBites
+		time += r.time
+		placed += r.placed
+		wanted += r.wanted
+		night += r.huntShare
+	end
+	local function n(key: string): number
+		return count[key] or 0
+	end
+	local caught = n("pack") + n("patrol") + n("hunter")
+	print(string.format("%-7s %-8s %-8s %s   %s  %s     %s    %s   %s   %4.2f   %4.2f  %5.2f  %s   %5.0f s",
+		mode, bot, hero, pct(n("won"), ROUNDS), pct(n("hearts"), ROUNDS), pct(n("lost"), ROUNDS), pct(n("timeUp"), ROUNDS),
+		pct(caught, ROUNDS), pct(n("stall"), ROUNDS), bites / ROUNDS, grabs / ROUNDS, ratBites / ROUNDS,
+		pct(night, ROUNDS), time / ROUNDS))
+	local total = totals[mode] or { failed = 0, rounds = 0 }
+	total.failed += ROUNDS - n("won") - n("stall")
+	total.rounds += ROUNDS
+	totals[mode] = total
+	check(n("stall") / ROUNDS <= 0.05, mode .. " " .. bot .. " " .. hero .. ": rounds must not stall")
+	check(placed / math.max(wanted, 1) >= 0.9, mode .. ": patrol paths must fit")
+	if mode == "Easy" and careful then
+		check(n("won") / ROUNDS >= 0.85, "Easy must be doable for careful players")
+	elseif mode == "Normal" and careful then
+		check(n("won") / ROUNDS >= 0.5, "Normal must be doable for careful players")
+	elseif mode == "Umulig" then
+		check(n("won") / ROUNDS <= (if careful then 0.3 else 0.15), "Umulig must stay almost impossible")
 	end
 end
-print("")
-print("Umulig escape (run home, pack behind, patrol dogs, mud)")
-print("Bot      Hero     Won   Pack  Patrol  Timeout  Avg lunges")
-for _, row in { { "careful", true }, { "naive", false } } do
-	for _, hero in { { "default", 16 }, { "Patrick", Config.PatrickSpeed } } do
-		local won, pack, patrol, timeout, lunges = 0, 0, 0, 0, 0
-		for _ = 1, ROUNDS do
-			local r = playEscape(row[2], hero[2])
-			won += if r.won then 1 else 0
-			pack += if r.by == "pack" then 1 else 0
-			patrol += if r.by == "patrol" then 1 else 0
-			timeout += if r.by == "timeout" then 1 else 0
-			lunges += r.lunges
-		end
-		print(string.format("%-8s %-8s %s  %s  %s    %s     %.2f",
-			row[1], hero[1], pct(won, ROUNDS), pct(pack, ROUNDS), pct(patrol, ROUNDS), pct(timeout, ROUNDS), lunges / ROUNDS))
-		check(won / ROUNDS <= (if row[2] then 0.3 else 0.15), "Umulig must stay almost impossible")
-		check(timeout / ROUNDS <= 0.05, "Umulig escapes must not stall")
-	end
+for mode, total in totals do
+	check(total.failed > 0, mode .. ": there must be a way to fail")
 end
 print("")
 if failures > 0 then

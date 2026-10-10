@@ -31,8 +31,8 @@ return {
 			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
 		},
 		Normal = {
-			patrolCount = 6, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.6,
-			chaseFactor = 1.15, chaseTime = 3.5, catch = 3,
+			patrolCount = 6, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.7,
+			chaseFactor = 1.15, chaseTime = 3, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
 			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
 		},
@@ -43,6 +43,16 @@ return {
 			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
 		},
 	},
+
+	Hunters = {
+		Easy = { patrolSpeed = 5, coneAngle = 28, coneRange = 18, alertDelay = 1, chaseFactor = 1.05, chaseTime = 2.5, catch = 3 },
+		Normal = { patrolSpeed = 5, coneAngle = 30, coneRange = 22, alertDelay = 0.8, chaseFactor = 1.1, chaseTime = 3, catch = 3 },
+		Umulig = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3 },
+	},
+	HuntByDay = { Umulig = true },
+	Seekers = { Easy = 1, Normal = 1, Umulig = 3 },
+	SeekEvery = 20,
+	Hearts = { Easy = 3, Normal = 3, Umulig = 3 },
 
 	DayMinutes = 10,
 	NightShare = 0.55,
@@ -97,4 +107,7 @@ return {
 		{ 27.772, 5.358, "Det er sent. Du burde ikke være ute nå.", "It is late. You should not be out now." },
 		{ 37.038, 4.381, "Hysj! Ikke vekk hundene.", "Shh! Do not wake the dogs." },
 	},
+	Hunt = { "Hva gjør du her?!", "What are you doing here?!" },
+	Chase = { "Stopp!", "Stop!" },
+	Grab = { "Ut herfra!", "Get out of here!" },
 }

@@ -436,4 +436,96 @@ function DogBrain.patrolPaths(
 	return paths
 end
 
+-- A short straight path in a neighbor's yard
+function DogBrain.yardPath(
+	rand: (number, number) -> number,
+	world: World,
+	cabin: Vector3,
+	home: Vector3,
+	safeRadius: number
+): { a: Vector3, b: Vector3 }?
+	for _ = 1, 60 do
+		local center = cabin + rotateY(Vector3.new(1, 0, 0), rand(0, math.pi * 2)) * rand(16, 24)
+		local dir = rotateY(Vector3.new(1, 0, 0), rand(0, math.pi * 2))
+		local len = rand(24, 36)
+		local a = center - dir * (len / 2)
+		local b = center + dir * (len / 2)
+		local edge = world.half - 15
+		local ok = math.abs(a.X) < edge and math.abs(a.Z) < edge and math.abs(b.X) < edge and math.abs(b.Z) < edge
+		ok = ok and (closestOnSegment(a, b, flat(home)) - flat(home)).Magnitude > safeRadius + 12
+		if ok then
+			for _, c in world.cabins do
+				if (closestOnSegment(a, b, c) - c).Magnitude < 11 then
+					ok = false
+					break
+				end
+			end
+		end
+		if ok then
+			for _, t in DogBrain.treesNear(world, a, b, 4) do
+				if (closestOnSegment(a, b, t) - t).Magnitude < 3 then
+					ok = false
+					break
+				end
+			end
+		end
+		if ok then
+			return { a = a, b = b }
+		end
+	end
+	return nil
+end
+
+-- A path across where the player is heading, so a hunter can sweep it
+function DogBrain.huntPath(
+	rand: (number, number) -> number,
+	world: World,
+	target: Vector3,
+	heading: Vector3,
+	home: Vector3,
+	safeRadius: number
+): { a: Vector3, b: Vector3 }?
+	local forward = if heading.Magnitude > 0.01 then flat(heading).Unit else Vector3.new(1, 0, 0)
+	for _ = 1, 40 do
+		local side = rotateY(forward, math.pi / 2)
+		local center = flat(target) + forward * rand(40, 65) + side * rand(-12, 12)
+		local dir = rotateY(side, rand(-0.4, 0.4))
+		local len = rand(24, 36)
+		local a = center - dir * (len / 2)
+		local b = center + dir * (len / 2)
+		local edge = world.half - 10
+		local ok = math.abs(a.X) < edge and math.abs(a.Z) < edge and math.abs(b.X) < edge and math.abs(b.Z) < edge
+		ok = ok and (closestOnSegment(a, b, flat(home)) - flat(home)).Magnitude > safeRadius + 8
+		if ok then
+			for _, c in world.cabins do
+				if (closestOnSegment(a, b, c) - c).Magnitude < 11 then
+					ok = false
+					break
+				end
+			end
+		end
+		if ok then
+			for _, t in DogBrain.treesNear(world, a, b, 4) do
+				if (closestOnSegment(a, b, t) - t).Magnitude < 3 then
+					ok = false
+					break
+				end
+			end
+		end
+		if ok then
+			return { a = a, b = b }
+		end
+	end
+	return nil
+end
+
+-- Same settings with some values changed
+function DogBrain.with(s: Settings, changes: { [string]: number }): Settings
+	local copy = table.clone(s) :: any
+	for key, value in changes do
+		copy[key] = value
+	end
+	return copy
+end
+
 return DogBrain

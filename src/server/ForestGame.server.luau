@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local DogBrain = require(ReplicatedStorage.Shared.DogBrain)
+local Sky = require(ReplicatedStorage.Shared.Sky)
 
 local rng = Random.new()
 local half = Config.ForestSize / 2
@@ -316,19 +317,76 @@ for _, side in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 
 	})
 end
 
+-- Vision cones
+local CONE_CALM = Color3.fromRGB(255, 220, 90)
+local CONE_PACK = Color3.fromRGB(255, 150, 60)
+local CONE_ANGRY = Color3.fromRGB(255, 60, 50)
+local CONE_HUNT = Color3.fromRGB(255, 200, 130)
+
+local function makeCone(model: Model, root: BasePart, nose: Vector3, range: number, angle: number, color: Color3): ({ BasePart }, SpotLight)
+	local cone: { BasePart } = {}
+	local spread = math.rad(angle)
+	local function edge(from: Vector3, to: Vector3)
+		local part = makePart("Part", {
+			Name = "Cone",
+			Size = Vector3.new(0.18, 0.06, (to - from).Magnitude),
+			CFrame = root.CFrame * CFrame.lookAt((from + to) / 2, to),
+			Color = color,
+			Material = Enum.Material.Neon,
+			Transparency = 0.35,
+			Anchored = false,
+			Massless = true,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			CastShadow = false,
+			Parent = model,
+		})
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = part
+		weld.Parent = part
+		table.insert(cone, part)
+	end
+	local left = nose + Vector3.new(-math.sin(spread), 0, -math.cos(spread)) * range
+	local right = nose + Vector3.new(math.sin(spread), 0, -math.cos(spread)) * range
+	edge(nose, left)
+	edge(nose, right)
+	edge(left, right)
+	local light = Instance.new("SpotLight")
+	light.Face = Enum.NormalId.Front
+	light.Angle = angle * 2
+	light.Range = range
+	light.Brightness = 2
+	light.Color = color
+	light.Shadows = false
+	light.Parent = root
+	return cone, light
+end
+
 -- Neighbors
 type Neighbor = {
+	model: Model,
 	root: BasePart,
 	head: BasePart,
 	bubble: BillboardGui,
 	lineNo: TextLabel,
 	lineEn: TextLabel,
 	spot: Vector3,
+	cabin: Vector3,
 	cooldown: number,
 	last: number,
 	pitch: number,
 	pointUntil: number,
 	pointAt: Vector3,
+	lamp: PointLight,
+	brain: DogBrain.Dog?,
+	seeker: boolean,
+	nextSeek: number,
+	cone: { BasePart },
+	light: SpotLight?,
+	angry: boolean,
+	sayUntil: number,
 }
 local neighbors: { Neighbor } = {}
 local neighborFolder = Instance.new("Folder")
@@ -380,7 +438,7 @@ local function makeCabin(pos: Vector3): CFrame
 	return base * CFrame.new(-2, 0, -8)
 end
 
-local function makeNeighbor(spot: CFrame)
+local function makeNeighbor(spot: CFrame, cabin: Vector3)
 	local model = Instance.new("Model")
 	model.Name = "Neighbor"
 	local coat = ({ Color3.fromRGB(40, 40, 48), Color3.fromRGB(55, 40, 35), Color3.fromRGB(35, 45, 40) })[rng:NextInteger(1, 3)]
@@ -425,6 +483,13 @@ local function makeNeighbor(spot: CFrame)
 	end
 	add("HatBrim", Vector3.new(2, 0.15, 2), Vector3.new(0, 2.6, 0), Color3.fromRGB(20, 20, 22))
 	add("HatTop", Vector3.new(1.3, 1.1, 1.3), Vector3.new(0, 3.2, 0), Color3.fromRGB(20, 20, 22))
+	local lantern = add("Lantern", Vector3.new(0.6, 0.8, 0.6), Vector3.new(1.65, -1.7, -0.4), Color3.fromRGB(255, 190, 110), Enum.Material.Neon)
+	local lamp = Instance.new("PointLight")
+	lamp.Range = 14
+	lamp.Brightness = 2
+	lamp.Color = Color3.fromRGB(255, 190, 110)
+	lamp.Enabled = false
+	lamp.Parent = lantern
 
 	local bubble = Instance.new("BillboardGui")
 	bubble.Size = UDim2.fromOffset(280, 70)
@@ -458,22 +523,32 @@ local function makeNeighbor(spot: CFrame)
 	model.PrimaryPart = root
 	model.Parent = neighborFolder
 	table.insert(neighbors, {
+		model = model,
 		root = root,
 		head = head,
 		bubble = bubble,
 		lineNo = lineNo,
 		lineEn = lineEn,
 		spot = spot.Position + Vector3.new(0, 3.6, 0),
+		cabin = Vector3.new(cabin.X, 0, cabin.Z),
 		cooldown = 0,
 		last = 0,
 		pitch = rng:NextNumber(0.85, 1.05),
 		pointUntil = 0,
 		pointAt = Vector3.zero,
+		lamp = lamp,
+		brain = nil,
+		seeker = false,
+		nextSeek = 0,
+		cone = {},
+		light = nil,
+		angry = false,
+		sayUntil = 0,
 	})
 end
 
 for _, pos in cabinSpots do
-	makeNeighbor(makeCabin(pos))
+	makeNeighbor(makeCabin(pos), pos)
 end
 
 -- Lantern
@@ -800,22 +875,69 @@ local function clearUmulig()
 	table.clear(stacks)
 end
 
-local function failUmulig(player: Player?)
-	if not umulig then
+local roundOver = 0
+
+local function roundActive(): boolean
+	return roundOver ~= round and (wildCat ~= nil or carried ~= nil or kittensLeft > 0 or umulig)
+end
+
+local function failRound(player: Player?, kind: string)
+	if roundOver == round then
 		return
 	end
+	roundOver = round
 	local myRound = round
 	umulig = false
 	kittensLeft = 0
 	clearUmulig()
 	kittenFolder:ClearAllChildren()
-	workspace:SetAttribute("KittenDeadline", nil)
-	catEvent:FireAllClients("caught", player)
+	if wildTween then
+		wildTween:Cancel()
+		wildTween = nil
+	end
+	removeCat(wildCat)
+	removeCat(carried)
+	wildCat, carried, carrier = nil, nil, nil
+	for _, key in { "KittenDeadline", "KittensLeft", "CatPosition", "Carrier", "CarryEnd" } do
+		workspace:SetAttribute(key, nil)
+	end
+	catEvent:FireAllClients(kind, player)
 	task.delay(5, function()
 		if round == myRound then
 			newRound()
 		end
 	end)
+end
+
+local function failUmulig(player: Player?)
+	if umulig then
+		failRound(player, "caught")
+	end
+end
+
+local function setGhost(player: Player)
+	local character = player.Character
+	if not character then
+		return
+	end
+	for _, part in character:GetDescendants() do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			part.Transparency = math.max(part.Transparency, 0.6)
+		end
+	end
+end
+
+local function resetHearts(player: Player)
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	player:SetAttribute("Hearts", Config.Hearts[mode] or 3)
+	if player:GetAttribute("Out") then
+		player:SetAttribute("Out", nil)
+		task.spawn(function()
+			pcall(function()
+				player:LoadCharacterAsync()
+			end)
+		end)
+	end
 end
 
 local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from: Vector3)
@@ -911,7 +1033,7 @@ twistFolder.Name = "Twist"
 twistFolder.Parent = workspace
 local lastBitten: { [Player]: number } = {}
 local lastFlash: { [Player]: number } = {}
-local dropCat: (Player) -> ()
+local dropCat: (Player, string?) -> ()
 local twist: string? = nil
 local zoomies = false
 local GOLD = Color3.fromRGB(255, 200, 50)
@@ -1470,10 +1592,6 @@ local function stackKitten(player: Player): boolean
 	return true
 end
 
-local CONE_CALM = Color3.fromRGB(255, 220, 90)
-local CONE_PACK = Color3.fromRGB(255, 150, 60)
-local CONE_ANGRY = Color3.fromRGB(255, 60, 50)
-
 local function makeDog(pos: Vector3, range: number, angle: number, coneColor: Color3): (Model, TextLabel, { BasePart }, SpotLight)
 	local dog = Instance.new("Model")
 	dog.Name = "Dog"
@@ -1508,32 +1626,6 @@ local function makeDog(pos: Vector3, range: number, angle: number, coneColor: Co
 	end
 	add("Tail", Vector3.new(0.3, 0.3, 1.4), Vector3.new(0, 2.6, 2.1))
 
-	local cone: { BasePart } = {}
-	local nose = Vector3.new(0, 0.12, -3.4)
-	local spread = math.rad(angle)
-	local function edge(from: Vector3, to: Vector3)
-		local mid = (from + to) / 2
-		local part = makePart("Part", {
-			Name = "Cone",
-			Size = Vector3.new(0.18, 0.06, (to - from).Magnitude),
-			CFrame = base * CFrame.lookAt(mid, to),
-			Color = coneColor,
-			Material = Enum.Material.Neon,
-			Transparency = 0.35,
-			CanCollide = false,
-			CanQuery = false,
-			CanTouch = false,
-			CastShadow = false,
-			Parent = dog,
-		})
-		table.insert(cone, part)
-	end
-	local left = nose + Vector3.new(-math.sin(spread), 0, -math.cos(spread)) * range
-	local right = nose + Vector3.new(math.sin(spread), 0, -math.cos(spread)) * range
-	edge(nose, left)
-	edge(nose, right)
-	edge(left, right)
-
 	dog.PrimaryPart = body
 	for _, part in dog:GetChildren() do
 		if part:IsA("BasePart") and part ~= body then
@@ -1563,14 +1655,7 @@ local function makeDog(pos: Vector3, range: number, angle: number, coneColor: Co
 	bark.Visible = false
 	bark.Parent = bubble
 
-	local light = Instance.new("SpotLight")
-	light.Face = Enum.NormalId.Front
-	light.Angle = angle * 2
-	light.Range = range
-	light.Brightness = 2
-	light.Color = coneColor
-	light.Shadows = false
-	light.Parent = body
+	local cone, light = makeCone(dog, body, Vector3.new(0, -1.78, -3.4), range, angle, coneColor)
 
 	dog.Parent = dogFolder
 	return dog, bark, cone, light
@@ -1690,7 +1775,7 @@ local function startEscape()
 end
 
 local function collectKitten(kitten: Cat, player: Player)
-	if kitten.model.Parent ~= kittenFolder or kittensLeft <= 0 then
+	if kitten.model.Parent ~= kittenFolder or kittensLeft <= 0 or player:GetAttribute("Out") then
 		return
 	end
 	if umulig and not stackKitten(player) then
@@ -1807,7 +1892,7 @@ placeWildCat = function(pos: Vector3, height: number)
 
 	prompt.Triggered:Connect(function(player)
 		local character = player.Character
-		if wildCat ~= cat or fleeing or not character or not getRoot(player) then
+		if wildCat ~= cat or fleeing or not character or not getRoot(player) or player:GetAttribute("Out") then
 			return
 		end
 		if isHardMode() then
@@ -1898,6 +1983,9 @@ function newRound()
 	zoomies = twist == "zoomies"
 	workspace:SetAttribute("Twist", twist)
 
+	for _, player in Players:GetPlayers() do
+		resetHearts(player)
+	end
 	local pos = findCatSpot()
 	fleesLeft = Config.HardFlees
 	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
@@ -1999,7 +2087,7 @@ hideInBushes = function(catPos: Vector3)
 	end
 end
 
-dropCat = function(player: Player)
+dropCat = function(player: Player, by: string?)
 	local root = getRoot(player)
 	local from = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else home
 	removeCat(carried)
@@ -2014,7 +2102,54 @@ dropCat = function(player: Player)
 		end
 	end
 	placeWildCat(spot, 0)
-	catEvent:FireAllClients("dropped", player)
+	catEvent:FireAllClients("dropped", player, by or "rats")
+end
+
+local function loseHeart(player: Player)
+	if not roundActive() or player:GetAttribute("Out") then
+		return
+	end
+	local hearts = math.max(((player:GetAttribute("Hearts") :: number?) or 1) - 1, 0)
+	player:SetAttribute("Hearts", hearts)
+	catEvent:FireClient(player, "heart", nil, hearts)
+	if hearts > 0 then
+		return
+	end
+	player:SetAttribute("Out", true)
+	setGhost(player)
+	catEvent:FireAllClients("out", player)
+	local stack = stacks[player]
+	if stack and #stack > 0 then
+		failUmulig(player)
+		return
+	end
+	for _, other in Players:GetPlayers() do
+		if not other:GetAttribute("Out") then
+			return
+		end
+	end
+	failRound(player, "hearts")
+end
+
+-- A dog or a neighbor caught a player
+local function caughtBy(player: Player, from: Vector3, by: string)
+	local stack = stacks[player]
+	if workspace:GetAttribute("Escape") and stack and #stack > 0 then
+		failUmulig(player)
+		return
+	end
+	local root = getRoot(player)
+	if root then
+		player:SetAttribute("SlowUntil", os.clock() + 2)
+		applyHero(player)
+		task.delay(2.1, applyHero, player)
+		local away = Vector3.new(root.Position.X, 0, root.Position.Z) - from
+		catEvent:FireClient(player, if by == "dog" then "dogbite" else "grabbed", nil, if away.Magnitude > 0.1 then away.Unit else Vector3.new(0, 0, 1))
+	end
+	if carrier == player then
+		dropCat(player, by)
+	end
+	loseHeart(player)
 end
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -2229,8 +2364,12 @@ local function addPlayer(player: Player)
 		end
 	end)
 
+	player:SetAttribute("Hearts", Config.Hearts[(workspace:GetAttribute("Mode") :: string?) or "Easy"] or 3)
 	player.CharacterAdded:Connect(function(character)
 		giveLantern(player, character)
+		if player:GetAttribute("Out") then
+			task.defer(setGhost, player)
+		end
 	end)
 	if player.Character then
 		task.spawn(giveLantern, player, player.Character)
@@ -2267,6 +2406,17 @@ Players.PlayerRemoving:Connect(function(player)
 	local stack = stacks[player]
 	if stack and #stack > 0 then
 		failUmulig(player)
+	end
+	local anyone = false
+	local everyoneOut = true
+	for _, other in Players:GetPlayers() do
+		if other ~= player then
+			anyone = true
+			everyoneOut = everyoneOut and other:GetAttribute("Out") == true
+		end
+	end
+	if anyone and everyoneOut and roundActive() then
+		failRound(nil, "hearts")
 	end
 end)
 
@@ -2443,6 +2593,9 @@ end
 RunService.Heartbeat:Connect(function(dt: number)
 	local now = os.clock()
 	for _, n in neighbors do
+		if n.brain then
+			continue
+		end
 		local pos = n.root.Position
 		local target: Vector3? = nil
 		local nearest = 40
@@ -2477,7 +2630,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 				speak(n)
 			end
 		elseif (n.spot - pos).Magnitude > 0.5 then
-			nextPos = pos + (n.spot - pos).Unit * math.min((n.spot - pos).Magnitude, 4 * dt)
+			nextPos = pos + (n.spot - pos).Unit * math.min((n.spot - pos).Magnitude, 6 * dt)
 			face = n.spot + (n.spot - pos)
 		end
 		if face and (Vector3.new(face.X, pos.Y, face.Z) - nextPos).Magnitude > 0.1 then
@@ -2496,7 +2649,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	for _, player in Players:GetPlayers() do
 		local root = getRoot(player)
 		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
-		if root and humanoid then
+		if root and humanoid and not player:GetAttribute("Out") then
 			table.insert(targets, { player = player, root = root, humanoid = humanoid, pos = Vector3.new(root.Position.X, 0, root.Position.Z) })
 		end
 	end
@@ -2649,40 +2802,18 @@ local function onDogEvent(dog: LiveDog, event: string, player: Player?, now: num
 	elseif event == "caught" and player then
 		dog.bark.Text = "WOOF!"
 		dog.barkUntil = now + 1
-		local stack = stacks[player]
-		if workspace:GetAttribute("Escape") and stack and #stack > 0 then
-			failUmulig(player)
-			return
-		end
-		local root = getRoot(player)
-		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
-		if root and humanoid then
-			humanoid:TakeDamage(math.max(0, math.min(15, humanoid.Health - 1)))
-			player:SetAttribute("SlowUntil", now + 2)
-			applyHero(player)
-			task.delay(2.1, applyHero, player)
-			local away = Vector3.new(root.Position.X, 0, root.Position.Z) - dog.brain.pos
-			catEvent:FireClient(player, "dogbite", nil, if away.Magnitude > 0.1 then away.Unit else Vector3.new(0, 0, 1))
-		end
-		if carrier == player then
-			dropCat(player)
-		end
+		caughtBy(player, dog.brain.pos, "dog")
 	end
 end
 
-RunService.Heartbeat:Connect(function(dt: number)
-	if #liveDogs == 0 then
-		return
-	end
-	local now = os.clock()
-	local s = dogSettings()
+local function collectRunners(): ({ DogBrain.Runner }, { [number]: Player })
 	local homeFlat = Vector3.new(home.X, 0, home.Z)
 	local runners: { DogBrain.Runner } = {}
 	local byId: { [number]: Player } = {}
 	for _, player in Players:GetPlayers() do
 		local root = getRoot(player)
 		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
-		if root and humanoid then
+		if root and humanoid and not player:GetAttribute("Out") then
 			local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
 			local track = headings[player]
 			local heading = if track then track.heading else Vector3.new(0, 0, -1)
@@ -2706,6 +2837,16 @@ RunService.Heartbeat:Connect(function(dt: number)
 			headings[player] = nil
 		end
 	end
+	return runners, byId
+end
+
+RunService.Heartbeat:Connect(function(dt: number)
+	if #liveDogs == 0 then
+		return
+	end
+	local now = os.clock()
+	local s = dogSettings()
+	local runners, byId = collectRunners()
 	local gap = DogBrain.gap(s, now - packStart)
 	for _, dog in table.clone(liveDogs) do
 		if not dog.model.Parent then
@@ -2734,6 +2875,162 @@ RunService.Heartbeat:Connect(function(dt: number)
 		local hop = if moving then math.abs(math.sin(now * (if fast then 14 else 8))) * (if fast then 0.4 else 0.15) else 0
 		local at = dog.brain.pos + Vector3.new(0, 1.9 + hop, 0)
 		dog.body.CFrame = CFrame.lookAt(at, at + dog.brain.dir)
+	end
+end)
+
+
+-- Neighbors hunt at night
+local NEIGHBOR_NOSE = Vector3.new(0, -3.45, -1)
+local hunting = false
+local huntMode = ""
+
+local function rnd(a: number, b: number): number
+	return rng:NextNumber(a, b)
+end
+
+local function hunterSettings(): DogBrain.Settings
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	return DogBrain.with(dogSettings(), Config.Hunters[mode] or Config.Hunters.Easy)
+end
+
+local function neighborSay(n: Neighbor, line: { string }, seconds: number)
+	n.lineNo.Text = line[1]
+	n.lineEn.Text = line[2]
+	n.bubble.Enabled = true
+	n.sayUntil = os.clock() + seconds
+end
+
+local function dropCone(n: Neighbor)
+	for _, part in n.cone do
+		part:Destroy()
+	end
+	n.cone = {}
+	if n.light then
+		n.light:Destroy()
+		n.light = nil
+	end
+end
+
+local function startHunt(now: number, mode: string)
+	local s = hunterSettings()
+	local hunters: { Neighbor } = {}
+	for _, n in neighbors do
+		dropCone(n)
+		n.brain = nil
+		n.seeker = false
+		local path = DogBrain.yardPath(rnd, brainWorld, n.cabin, home, Config.RatSafeRadius)
+		if path then
+			local brain = DogBrain.newPatrol(path.a, path.b)
+			brain.pos = Vector3.new(n.root.Position.X, 0, n.root.Position.Z)
+			brain.state = "return"
+			brain.untilTime = now + 2
+			n.brain = brain
+			n.nextSeek = now + rng:NextNumber(8, 8 + Config.SeekEvery)
+			n.angry = false
+			n.cone, n.light = makeCone(n.model, n.root, NEIGHBOR_NOSE, s.coneRange, s.coneAngle, CONE_HUNT)
+			n.lamp.Enabled = true
+			n.model:SetAttribute("Hunting", true)
+			table.insert(hunters, n)
+		end
+	end
+	for i = #hunters, 2, -1 do
+		local j = rng:NextInteger(1, i)
+		hunters[i], hunters[j] = hunters[j], hunters[i]
+	end
+	for i = 1, math.min(Config.Seekers[mode] or 1, #hunters) do
+		hunters[i].seeker = true
+	end
+	catEvent:FireAllClients("hunt")
+end
+
+local function stopHunt()
+	for _, n in neighbors do
+		dropCone(n)
+		n.brain = nil
+		n.lamp.Enabled = false
+		n.bubble.Enabled = false
+		n.model:SetAttribute("Hunting", nil)
+	end
+	catEvent:FireAllClients("dawn")
+end
+
+RunService.Heartbeat:Connect(function(dt: number)
+	local now = os.clock()
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
+	local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
+	local want = Config.HuntByDay[mode] == true or daylight < 0.5
+	if want and (not hunting or huntMode ~= mode) then
+		hunting, huntMode = true, mode
+		startHunt(now, mode)
+	elseif not want and hunting then
+		hunting = false
+		stopHunt()
+	end
+	if not hunting then
+		return
+	end
+	local s = hunterSettings()
+	local runners, byId = collectRunners()
+	for _, n in neighbors do
+		local brain = n.brain
+		if not brain then
+			continue
+		end
+		if n.seeker and now >= n.nextSeek and (brain.state == "patrol" or brain.state == "turn") then
+			n.nextSeek = now + Config.SeekEvery
+			local target: DogBrain.Runner? = nil
+			for _, r in runners do
+				if not r.safe and (not target or (r.pos - brain.pos).Magnitude < (target.pos - brain.pos).Magnitude) then
+					target = r
+				end
+			end
+			local path = target and DogBrain.huntPath(rnd, brainWorld, target.pos, target.heading, home, Config.RatSafeRadius)
+			if path then
+				brain.a, brain.b = path.a, path.b
+				brain.state = "return"
+				brain.untilTime = now
+				if (brain.pos - path.a).Magnitude > 60 then
+					brain.pos = path.a
+					brain.untilTime = now + 1
+				end
+			end
+		end
+		local event, id = DogBrain.step(brain, dt, now, runners, brainWorld, s, 0)
+		local player = if id then byId[id] else nil
+		if event == "alert" then
+			neighborSay(n, Config.Hunt, 2)
+			sayEvent:FireAllClients(n.head, 1, n.pitch)
+			if player then
+				catEvent:FireClient(player, "hunted")
+			end
+		elseif event == "chase" then
+			neighborSay(n, Config.Chase, 2)
+		elseif event == "caught" and player then
+			neighborSay(n, Config.Grab, 2.5)
+			caughtBy(player, brain.pos, "neighbor")
+		end
+		if not n.brain then
+			continue
+		end
+		if now > n.sayUntil then
+			n.bubble.Enabled = false
+		end
+		local angry = brain.state == "alert" or brain.state == "chase"
+		if angry ~= n.angry then
+			n.angry = angry
+			local color = if angry then CONE_ANGRY else CONE_HUNT
+			for _, part in n.cone do
+				part.Color = color
+			end
+			if n.light then
+				n.light.Color = color
+			end
+		end
+		local moving = brain.state ~= "turn" and brain.state ~= "alert"
+		local sway = if moving then math.sin(now * (if brain.state == "chase" then 12 else 6)) * 0.06 else 0
+		local at = Vector3.new(brain.pos.X, n.spot.Y, brain.pos.Z)
+		n.root.CFrame = CFrame.lookAt(at, at + brain.dir) * CFrame.Angles(0, 0, sway)
 	end
 end)
 
