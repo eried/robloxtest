@@ -489,6 +489,8 @@ menuButton.Activated:Connect(function()
 end)
 
 -- Events
+local nextGlitch = 0
+local glitchUntil = 0
 local best: { [string]: number } = {}
 
 local function nameOf(who: Player?): string
@@ -556,6 +558,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			showBanner(cat .. " ran away again! Use your GPS.", 3)
 		end)
 	elseif kind == "dogs" then
+		glitchUntil = 0
+		nextGlitch = os.clock() + 8
 		local runner = ((player:GetAttribute("Kittens") :: number?) or 0) > 0
 		showBanner(if runner then "🐕 Dogs! Run home!" else "🐕 Dogs! Watch out!", 2)
 	elseif kind == "caught" then
@@ -571,6 +575,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "timeUp" then
 		showBanner("Time's up! ⏰\nThe kittens ran home.", 4)
 		tryAgain(4)
+	elseif kind == "heroLater" then
+		showBanner("You will be " .. tostring(value) .. "\nnext round.", 3)
 	elseif kind == "modeLocked" then
 		showBanner("Wait! Someone is saving " .. cat .. ".\nTry again soon.", 3)
 	elseif kind == "mode" then
@@ -624,8 +630,6 @@ end
 local lastBeep = 0
 local lastForward = Vector3.new(0, 0, -1)
 local dogDots: { TextLabel } = {}
-local nextGlitch = 0
-local glitchUntil = 0
 
 local function radarPos(offset: Vector3, right: Vector3): UDim2
 	local distance = offset.Magnitude

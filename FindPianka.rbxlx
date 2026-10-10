@@ -783,6 +783,7 @@ local round = 0
 local wildPrompt: ProximityPrompt? = nil
 local wildTween: Tween? = nil
 local homeTween: Tween? = nil
+local pendingHero: { [Player]: string } = {}
 local fleesLeft = 0
 local fleeing = false
 local wildCat: Cat? = nil
@@ -1099,9 +1100,6 @@ local function startEscape()
 		local center = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else Vector3.zero
 		local angle = i / Config.DogCount * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
 		local pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(Config.DogSpawnMin, Config.DogSpawnMax)
-		if math.abs(pos.X) > half - 5 or math.abs(pos.Z) > half - 5 then
-			pos = center * 2 - pos
-		end
 		pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
 		local model, bark = makeDog(pos)
 		table.insert(dogs, {
@@ -1327,6 +1325,11 @@ function newRound()
 		homeTween:Cancel()
 	end
 	wildTween, homeTween = nil, nil
+	for player, hero in pendingHero do
+		player:SetAttribute("Hero", hero)
+		applyHero(player)
+	end
+	table.clear(pendingHero)
 	removeCat(wildCat)
 	removeCat(carried)
 	removeCat(homeCat)
@@ -1427,6 +1430,7 @@ local lastChangeBy: { [Player]: number } = {}
 Players.PlayerRemoving:Connect(function(player)
 	lastCall[player] = nil
 	lastChangeBy[player] = nil
+	pendingHero[player] = nil
 	if carrier == player then
 		loseCat()
 	end
@@ -1470,12 +1474,17 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 		return
 	end
 	lastCall[player] = now
+	local busy = carrier ~= nil or kittensLeft > 0 or homeCat ~= nil or workspace:GetAttribute("Escape") ~= nil
 	if type(hero) == "string" and Config.Heroes[hero] and player:GetAttribute("Hero") ~= hero then
-		player:SetAttribute("Hero", hero)
-		applyHero(player)
+		if busy and player:GetAttribute("Hero") ~= nil then
+			pendingHero[player] = hero
+			catEvent:FireClient(player, "heroLater", nil, hero)
+		else
+			player:SetAttribute("Hero", hero)
+			applyHero(player)
+		end
 	end
 	if (mode == "Easy" or mode == "Hard" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
-		local busy = carrier ~= nil or kittensLeft > 0 or homeCat ~= nil or workspace:GetAttribute("Escape") ~= nil
 		local alone = #Players:GetPlayers() <= 1
 		local tooSoon = not alone and now - (lastChangeBy[player] or -math.huge) < 60
 		if (busy and not alone) or tooSoon or now - lastModeChange < 5 then
@@ -2063,6 +2072,8 @@ menuButton.Activated:Connect(function()
 end)
 
 -- Events
+local nextGlitch = 0
+local glitchUntil = 0
 local best: { [string]: number } = {}
 
 local function nameOf(who: Player?): string
@@ -2130,6 +2141,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			showBanner(cat .. " ran away again! Use your GPS.", 3)
 		end)
 	elseif kind == "dogs" then
+		glitchUntil = 0
+		nextGlitch = os.clock() + 8
 		local runner = ((player:GetAttribute("Kittens") :: number?) or 0) > 0
 		showBanner(if runner then "🐕 Dogs! Run home!" else "🐕 Dogs! Watch out!", 2)
 	elseif kind == "caught" then
@@ -2145,6 +2158,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "timeUp" then
 		showBanner("Time's up! ⏰\nThe kittens ran home.", 4)
 		tryAgain(4)
+	elseif kind == "heroLater" then
+		showBanner("You will be " .. tostring(value) .. "\nnext round.", 3)
 	elseif kind == "modeLocked" then
 		showBanner("Wait! Someone is saving " .. cat .. ".\nTry again soon.", 3)
 	elseif kind == "mode" then
@@ -2198,8 +2213,6 @@ end
 local lastBeep = 0
 local lastForward = Vector3.new(0, 0, -1)
 local dogDots: { TextLabel } = {}
-local nextGlitch = 0
-local glitchUntil = 0
 
 local function radarPos(offset: Vector3, right: Vector3): UDim2
 	local distance = offset.Magnitude
