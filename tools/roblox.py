@@ -92,8 +92,16 @@ def universe_id(place):
     return str(res["universeId"])
 
 
+def place_id():
+    if os.environ.get("PLACE_ID"):
+        return os.environ["PLACE_ID"]
+    universe = os.environ["UNIVERSE_ID"]
+    res = call("GET", f"https://games.roblox.com/v1/games?universeIds={universe}", auth=False)
+    return str(res["data"][0]["rootPlaceId"])
+
+
 def publish():
-    place = os.environ["PLACE_ID"]
+    place = place_id()
     universe = universe_id(place)
     with open("FindPianka.rbxlx", "rb") as f:
         data = f.read()
