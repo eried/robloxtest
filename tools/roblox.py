@@ -40,9 +40,27 @@ def call(method, url, data=None, headers=None, auth=True):
             sys.exit(f"{method} {url} failed: {err.code} {body}")
 
 
+def key_info():
+    body = json.dumps({"apiKey": KEY}).encode()
+    req = urllib.request.Request(f"{API}/api-key/v1/introspect", data=body, method="POST", headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req) as res:
+            info = json.loads(res.read())
+    except urllib.error.HTTPError as err:
+        print(f"Key check failed: {err.code}")
+        return {}
+    scopes = [f"{s.get('name')}:{','.join(s.get('operations', []))}" for s in info.get("scopes", [])]
+    print("Key owner:", info.get("authorizedUserId"), "enabled:", info.get("enabled"), "expired:", info.get("expired"))
+    print("Key scopes:", scopes or info.get("scopes"))
+    return info
+
+
 def user_id():
     if os.environ.get("ROBLOX_USER_ID"):
         return os.environ["ROBLOX_USER_ID"]
+    owner = key_info().get("authorizedUserId")
+    if owner:
+        return str(owner)
     name = os.environ.get("ROBLOX_USERNAME") or "mrscientist84"
     body = json.dumps({"usernames": [name], "excludeBannedUsers": True}).encode()
     res = call("POST", "https://users.roblox.com/v1/usernames/users", body, {"Content-Type": "application/json"}, auth=False)
