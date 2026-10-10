@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_KEY: ${{ secrets.ROBLOX_API_KEY != '' }}
-      UNIVERSE_ID: ${{ vars.UNIVERSE_ID }}
+      UNIVERSE_ID: ${{ vars.UNIVERSE_ID || '10770167426' }}
       PLACE_ID: ${{ vars.PLACE_ID }}
       ROBLOX_USERNAME: ${{ vars.ROBLOX_USERNAME }}
     steps:

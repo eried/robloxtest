@@ -96,8 +96,21 @@ def place_id():
     if os.environ.get("PLACE_ID"):
         return os.environ["PLACE_ID"]
     universe = os.environ["UNIVERSE_ID"]
-    res = call("GET", f"https://games.roblox.com/v1/games?universeIds={universe}", auth=False)
-    return str(res["data"][0]["rootPlaceId"])
+    for url in (
+        f"https://games.roblox.com/v1/games?universeIds={universe}",
+        f"https://develop.roblox.com/v1/universes/{universe}",
+    ):
+        try:
+            with urllib.request.urlopen(url) as res:
+                body = json.loads(res.read())
+        except urllib.error.URLError as err:
+            print(f"Could not read {url}: {err}")
+            continue
+        item = body["data"][0] if body.get("data") else body
+        if item.get("rootPlaceId"):
+            print("Place id", item["rootPlaceId"])
+            return str(item["rootPlaceId"])
+    sys.exit("Could not find the place id. Add a PLACE_ID variable in GitHub.")
 
 
 def publish():
