@@ -53,6 +53,7 @@ return {
 	Seekers = { Easy = 1, Normal = 1, Umulig = 3 },
 	SeekEvery = 20,
 	Hearts = { Easy = 3, Normal = 3, Umulig = 3 },
+	BirdCount = { Easy = 2, Normal = 3, Umulig = 3 },
 
 	DayMinutes = 10,
 	NightShare = 0.55,
@@ -83,11 +84,11 @@ return {
 	NeighborSpeed = 3,
 
 	PatrickSpeed = 20,
-	HeroOrder = { "Patrick", "Aurelia", "Milena" },
+	HeroOrder = { "Patrick", "Aurelia", "Milenkitka" },
 	Heroes = {
 		Patrick = { Emoji = "🏃", Skill = "Super fast" },
 		Aurelia = { Emoji = "🐱", Skill = "Cat friend" },
-		Milena = { Emoji = "🏮", Skill = "Big lantern, calm dogs" },
+		Milenkitka = { Emoji = "💡", Skill = "Big lantern, calm dogs" },
 	},
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here

@@ -94,10 +94,10 @@ Lighting.Brightness = 2
 Lighting.OutdoorAmbient = Color3.fromRGB(120, 140, 120)
 local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
 atmosphere.Density = 0.45
-atmosphere.Offset = 0.25
+atmosphere.Offset = 0.18
 atmosphere.Color = Color3.fromRGB(190, 215, 190)
 atmosphere.Decay = Color3.fromRGB(90, 120, 90)
-atmosphere.Haze = 1.5
+atmosphere.Haze = 1.75
 atmosphere.Parent = Lighting
 
 local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
@@ -557,35 +557,49 @@ end
 local lantern = Instance.new("Tool")
 lantern.Name = "Lantern"
 lantern.CanBeDropped = false
-lantern.GripPos = Vector3.new(0, 0.9, 0)
+lantern.GripPos = Vector3.new(0, 1, 0)
 local lanternHandle = makePart("Part", {
 	Name = "Handle",
-	Size = Vector3.new(0.7, 0.9, 0.7),
+	Size = Vector3.new(0.6, 0.8, 0.6),
 	Color = Color3.fromRGB(255, 200, 90),
 	Material = Enum.Material.Neon,
+	Transparency = 0.15,
 	Anchored = false,
 	CanCollide = false,
 	CastShadow = false,
 	Massless = true,
 	Parent = lantern,
 })
-for _, y in { 0.55, -0.55 } do
-	local cap = makePart("Part", {
-		Name = "Cap",
-		Size = Vector3.new(0.9, 0.2, 0.9),
-		CFrame = CFrame.new(0, y, 0),
-		Color = Color3.fromRGB(40, 35, 30),
-		Material = Enum.Material.Metal,
+local function lanternPart(name: string, size: Vector3, offset: Vector3, color: Color3, material: Enum.Material)
+	local part = makePart("Part", {
+		Name = name,
+		Size = size,
+		CFrame = CFrame.new(offset),
+		Color = color,
+		Material = material,
 		Anchored = false,
 		CanCollide = false,
+		CastShadow = false,
 		Massless = true,
 		Parent = lantern,
 	})
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = lanternHandle
-	weld.Part1 = cap
-	weld.Parent = cap
+	weld.Part1 = part
+	weld.Parent = part
 end
+local METAL = Color3.fromRGB(45, 40, 35)
+lanternPart("Flame", Vector3.new(0.2, 0.3, 0.2), Vector3.new(0, -0.1, 0), Color3.fromRGB(255, 250, 210), Enum.Material.Neon)
+lanternPart("Base", Vector3.new(0.85, 0.15, 0.85), Vector3.new(0, -0.47, 0), METAL, Enum.Material.Metal)
+lanternPart("Cap", Vector3.new(0.85, 0.15, 0.85), Vector3.new(0, 0.47, 0), METAL, Enum.Material.Metal)
+lanternPart("Roof", Vector3.new(0.5, 0.18, 0.5), Vector3.new(0, 0.62, 0), METAL, Enum.Material.Metal)
+for _, x in { -0.32, 0.32 } do
+	for _, z in { -0.32, 0.32 } do
+		lanternPart("Post", Vector3.new(0.08, 0.8, 0.08), Vector3.new(x, 0, z), METAL, Enum.Material.Metal)
+	end
+	lanternPart("Loop", Vector3.new(0.07, 0.35, 0.07), Vector3.new(x * 0.6, 0.86, 0), METAL, Enum.Material.Metal)
+end
+lanternPart("Loop", Vector3.new(0.45, 0.07, 0.07), Vector3.new(0, 1.04, 0), METAL, Enum.Material.Metal)
 local lanternLight = Instance.new("PointLight")
 lanternLight.Range = 40
 lanternLight.Brightness = 3
@@ -621,8 +635,8 @@ local function applyHero(player: Player)
 	local light = handle and handle:FindFirstChildOfClass("PointLight")
 	if light then
 		local bright = ((player:GetAttribute("GlowUntil") :: number?) or 0) > now
-		light.Range = if hero == "Milena" or bright then 60 else 40
-		light.Brightness = if bright then 7 elseif hero == "Milena" then 5 else 3
+		light.Range = if hero == "Milenkitka" or bright then 60 else 40
+		light.Brightness = if bright then 7 elseif hero == "Milenkitka" then 5 else 3
 		local color = Color3.fromRGB(255, 190, 110)
 		for _, item in Config.Shop do
 			if item.id == player:GetAttribute("Lantern") then
@@ -942,6 +956,132 @@ local function resetHearts(player: Player)
 	end
 end
 
+-- Birds Pianka leaves for you, each gives a heart back
+type Bird = { model: Model, pos: Vector3 }
+local birds: { Bird } = {}
+local birdFolder = Instance.new("Folder")
+birdFolder.Name = "Birds"
+birdFolder.Parent = workspace
+local BIRD_COLORS = { Color3.fromRGB(90, 140, 220), Color3.fromRGB(200, 80, 60), Color3.fromRGB(150, 110, 70), Color3.fromRGB(240, 200, 60) }
+
+local function makeBird(pos: Vector3)
+	local model = Instance.new("Model")
+	model.Name = "Bird"
+	local color = BIRD_COLORS[rng:NextInteger(1, #BIRD_COLORS)]
+	local base = CFrame.new(pos.X, 0.6, pos.Z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+	local body = makePart("Part", {
+		Name = "Body",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one,
+		CFrame = base,
+		Color = color,
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Parent = model,
+	})
+	local function add(name: string, shape: Enum.PartType, size: Vector3, offset: Vector3, c: Color3)
+		local part = makePart("Part", {
+			Name = name,
+			Shape = shape,
+			Size = size,
+			CFrame = base * CFrame.new(offset),
+			Color = c,
+			Material = Enum.Material.SmoothPlastic,
+			Anchored = false,
+			Massless = true,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Parent = model,
+		})
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = part
+		weld.Parent = part
+	end
+	add("Head", Enum.PartType.Ball, Vector3.one * 0.7, Vector3.new(0, 0.5, -0.35), color)
+	add("Beak", Enum.PartType.Block, Vector3.new(0.18, 0.14, 0.3), Vector3.new(0, 0.48, -0.8), Color3.fromRGB(255, 160, 40))
+	for _, x in { -0.18, 0.18 } do
+		add("Eye", Enum.PartType.Ball, Vector3.one * 0.12, Vector3.new(x, 0.6, -0.64), Color3.fromRGB(20, 20, 20))
+		add("Wing", Enum.PartType.Block, Vector3.new(0.12, 0.45, 0.7), Vector3.new(x * 2.8, 0, 0.05), color:Lerp(Color3.new(0, 0, 0), 0.25))
+	end
+	add("Tail", Enum.PartType.Block, Vector3.new(0.4, 0.08, 0.45), Vector3.new(0, 0.15, 0.6), color:Lerp(Color3.new(0, 0, 0), 0.25))
+	local glow = Instance.new("PointLight")
+	glow.Range = 8
+	glow.Brightness = 1
+	glow.Color = Color3.fromRGB(255, 130, 170)
+	glow.Parent = body
+	local tag = Instance.new("BillboardGui")
+	tag.Size = UDim2.fromOffset(40, 30)
+	tag.StudsOffset = Vector3.new(0, 1.6, 0)
+	tag.MaxDistance = 60
+	tag.Parent = body
+	local heart = Instance.new("TextLabel")
+	heart.Size = UDim2.fromScale(1, 1)
+	heart.BackgroundTransparency = 1
+	heart.TextScaled = true
+	heart.Text = "❤️"
+	heart.Parent = tag
+	model.PrimaryPart = body
+	model.Parent = birdFolder
+	TweenService:Create(body, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		CFrame = base + Vector3.new(0, 0.35, 0),
+	}):Play()
+	table.insert(birds, { model = model, pos = Vector3.new(pos.X, 0, pos.Z) })
+end
+
+local function spawnBirds(catPos: Vector3)
+	birdFolder:ClearAllChildren()
+	table.clear(birds)
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	for _ = 1, Config.BirdCount[mode] or 3 do
+		for _ = 1, 30 do
+			local try = home:Lerp(catPos, rng:NextNumber(0.25, 0.9)) + Vector3.new(rng:NextNumber(-35, 35), 0, rng:NextNumber(-35, 35))
+			try = Vector3.new(try.X, 0, try.Z)
+			if math.abs(try.X) < half - 10 and math.abs(try.Z) < half - 10 and (try - home).Magnitude > Config.RatSafeRadius and isFree(try, 4) then
+				makeBird(try)
+				break
+			end
+		end
+	end
+end
+
+local birdHint: { [Player]: number } = {}
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		local now = os.clock()
+		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+		local max = Config.Hearts[mode] or 3
+		for i = #birds, 1, -1 do
+			local bird = birds[i]
+			for _, p in Players:GetPlayers() do
+				local r = getRoot(p)
+				if r and not p:GetAttribute("Out") and (Vector3.new(r.Position.X, 0, r.Position.Z) - bird.pos).Magnitude < 5 then
+					local hearts = (p:GetAttribute("Hearts") :: number?) or max
+					if hearts < max then
+						p:SetAttribute("Hearts", hearts + 1)
+						bird.model:Destroy()
+						table.remove(birds, i)
+						catEvent:FireClient(p, "bird", nil, hearts + 1)
+						break
+					elseif now - (birdHint[p] or 0) > 4 then
+						birdHint[p] = now
+						catEvent:FireClient(p, "birdFull")
+					end
+				end
+			end
+		end
+		for p in birdHint do
+			if not p.Parent then
+				birdHint[p] = nil
+			end
+		end
+	end
+end)
+
 local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from: Vector3)
 	local start = cat.model:GetPivot()
 	local catPos = Vector3.new(start.X, 0, start.Z)
@@ -966,6 +1106,10 @@ local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from:
 	fleeing = true
 	fleesLeft -= 1
 	prompt.Enabled = false
+	if #birds < 8 then
+		makeBird(catPos)
+		catEvent:FireClient(player, "gift")
+	end
 	if wildTween then
 		wildTween:Cancel()
 	end
@@ -1265,7 +1409,7 @@ onLanternFlash = function(player: Player)
 		light.Brightness = 10
 		task.delay(0.3, applyHero, player)
 	end
-	local radius = if player:GetAttribute("Hero") == "Milena" then 30 else 20
+	local radius = if player:GetAttribute("Hero") == "Milenkitka" then 30 else 20
 	local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
 	for _, rat in rats do
 		if (rat.pos - pos).Magnitude < radius then
@@ -1996,6 +2140,7 @@ function newRound()
 	spawnPatrols(pos)
 	spawnFish()
 	spawnMushrooms()
+	spawnBirds(pos)
 	spawnMud(pos)
 	if twist == "bushes" then
 		hideInBushes(pos)
@@ -2210,6 +2355,12 @@ end
 local shopEvent = Instance.new("RemoteEvent")
 shopEvent.Name = "Shop"
 shopEvent.Parent = ReplicatedStorage
+local flashEvent = Instance.new("RemoteEvent")
+flashEvent.Name = "Flash"
+flashEvent.Parent = ReplicatedStorage
+flashEvent.OnServerEvent:Connect(function(player)
+	onLanternFlash(player)
+end)
 type Pet = { cat: Cat, pos: Vector3 }
 local pets: { [Player]: Pet } = {}
 local lastShop: { [Player]: number } = {}
@@ -2829,7 +2980,7 @@ local function collectRunners(): ({ DogBrain.Runner }, { [number]: Player })
 				heading = (pos - track.pos).Unit
 			end
 			headings[player] = { pos = pos, heading = heading }
-			local calm = if player:GetAttribute("Hero") == "Milena" then 0.92 else 1
+			local calm = if player:GetAttribute("Hero") == "Milenkitka" then 0.92 else 1
 			table.insert(runners, {
 				id = player.UserId,
 				pos = pos,

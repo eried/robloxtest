@@ -8,7 +8,7 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 
 - **Patrick** 🏃 super fast
 - **Aurelia** 🐱 cat friend: her GPS never loses signal and Pianka runs from her only once
-- **Milena** 🏮 big lantern, and dogs rest longer when chasing her
+- **Milenkitka** 💡 big lantern, and dogs rest longer when chasing her
 
 ## Modes (same for everyone on a server)
 
@@ -16,7 +16,7 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 - **Normal**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. And there is a surprise when you catch her!
 - **Umulig** (almost impossible): like Normal, then run home with the kittens while a pack of dogs follows you.
 
-You have 3 hearts. A dog bite or a neighbor grab costs one. Out of hearts? You faint 😵 until the next round. If everyone faints, the round is lost.
+You have 3 hearts. A dog bite or a neighbor grab costs one. Out of hearts? You faint 😵 until the next round. If everyone faints, the round is lost. Pianka leaves birds 🐦 for you in the forest. Each one gives a heart back.
 
 Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
 
@@ -28,7 +28,7 @@ Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown a
 
 Every round can have a twist: Pianka up a tree or hiding in a shaking bush, zoomies, a rat party, a full moon or a golden Pianka.
 
-Glowing mushrooms give super speed (blue), super light that scares rats (yellow) or a super jump (pink). Mud puddles slow you down. Neighbors sometimes point the way. Rescue 5, 25 or 100 times to earn ⭐ 🏅 👑 next to your name.
+Tap the lantern button (or press F) to flash rats away. Glowing mushrooms give super speed (blue), super light that scares rats (yellow) or a super jump (pink). Mud puddles slow you down. Neighbors sometimes point the way. Rescue 5, 25 or 100 times to earn ⭐ 🏅 👑 next to your name.
 
 Spooky neighbors live in cabins and talk in Norwegian. At night they come out with lanterns and hunt you. Stay out of their light! Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
 

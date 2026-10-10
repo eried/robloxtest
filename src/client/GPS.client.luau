@@ -13,6 +13,8 @@ local catEvent = ReplicatedStorage:WaitForChild("PiankaEvent") :: RemoteEvent
 local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
 local shopEvent = ReplicatedStorage:WaitForChild("Shop") :: RemoteEvent
 local sayEvent = ReplicatedStorage:WaitForChild("NeighborSay") :: RemoteEvent
+local flashEvent = ReplicatedStorage:WaitForChild("Flash") :: RemoteEvent
+local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -255,6 +257,133 @@ local function showHearts()
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
 	heartsLabel.Text = if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
 end
+-- Lantern button
+task.spawn(function()
+	for _ = 1, 10 do
+		if pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		end) then
+			return
+		end
+		task.wait(1)
+	end
+end)
+
+local METAL = Color3.fromRGB(45, 40, 35)
+local lanternButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -16),
+	Size = UDim2.fromOffset(84, 84),
+	BackgroundColor3 = Color3.fromRGB(25, 28, 34),
+	BackgroundTransparency = 0.15,
+	Text = "",
+	ZIndex = 2,
+	Parent = gui,
+})
+round(lanternButton, UDim.new(1, 0))
+local lanternRing = new("UIStroke", { Color = Color3.fromRGB(255, 190, 110), Thickness = 3, Parent = lanternButton })
+local lanternGlow = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.56),
+	Size = UDim2.fromOffset(56, 56),
+	BackgroundColor3 = Color3.fromRGB(255, 190, 110),
+	BackgroundTransparency = 0.8,
+	ZIndex = 3,
+	Parent = lanternButton,
+})
+round(lanternGlow, UDim.new(1, 0))
+local function lanternBit(size: Vector2, y: number, color: Color3, corner: number): Frame
+	local bit = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, y),
+		Size = UDim2.fromOffset(size.X, size.Y),
+		BackgroundColor3 = color,
+		ZIndex = 4,
+		Parent = lanternButton,
+	})
+	round(bit, UDim.new(0, corner))
+	return bit
+end
+local loop = lanternBit(Vector2.new(20, 16), 9, METAL, 10)
+loop.BackgroundTransparency = 1
+new("UIStroke", { Color = METAL, Thickness = 3, Parent = loop })
+lanternBit(Vector2.new(30, 7), 21, METAL, 3)
+local lanternGlass = lanternBit(Vector2.new(24, 30), 28, Color3.fromRGB(255, 190, 110), 5)
+for _, x in { -12, 10 } do
+	new("Frame", {
+		Position = UDim2.new(0.5, x, 0, 0),
+		Size = UDim2.new(0, 2, 1, 0),
+		BackgroundColor3 = METAL,
+		BorderSizePixel = 0,
+		ZIndex = 5,
+		Parent = lanternGlass,
+	})
+end
+local flame = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.6),
+	Size = UDim2.fromOffset(9, 13),
+	BackgroundColor3 = Color3.fromRGB(255, 250, 215),
+	ZIndex = 5,
+	Parent = lanternGlass,
+})
+round(flame, UDim.new(1, 0))
+lanternBit(Vector2.new(32, 7), 57, METAL, 3)
+if not touch then
+	new("TextLabel", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -2, 1, -2),
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = METAL,
+		Font = FONT,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "F",
+		ZIndex = 6,
+		Parent = lanternButton,
+	})
+end
+
+local function lanternColor(): Color3
+	local id = player:GetAttribute("Lantern")
+	if id == "LanternRainbow" then
+		return Color3.fromHSV((os.clock() * 0.2) % 1, 0.6, 1)
+	end
+	for _, item in Config.Shop do
+		if item.id == id then
+			return item.color
+		end
+	end
+	return Color3.fromRGB(255, 190, 110)
+end
+
+local flashReady = 0
+local function flashLantern()
+	local now = os.clock()
+	if now < flashReady then
+		return
+	end
+	flashReady = now + 4
+	flashEvent:FireServer()
+	lanternGlow.Size = UDim2.fromOffset(84, 84)
+	lanternGlow.BackgroundTransparency = 0.2
+	TweenService:Create(lanternGlow, TweenInfo.new(0.6), { Size = UDim2.fromOffset(56, 56), BackgroundTransparency = 0.8 }):Play()
+end
+lanternButton.Activated:Connect(flashLantern)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.F then
+		flashLantern()
+	end
+end)
+RunService.RenderStepped:Connect(function()
+	local color = lanternColor()
+	local ready = os.clock() >= flashReady
+	lanternGlass.BackgroundColor3 = color
+	lanternGlow.BackgroundColor3 = color
+	lanternRing.Color = if ready then color else Color3.fromRGB(90, 90, 90)
+	flame.Size = UDim2.fromOffset(9, 12 + math.sin(os.clock() * 9) * 1.5)
+end)
+
 player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
 player:GetAttributeChangedSignal("Out"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
@@ -293,7 +422,8 @@ if touch then
 end
 
 local bannerId = 0
-local function showBanner(text: string, duration: number)
+local bannerFree = 0
+local function showNow(text: string, duration: number)
 	bannerId += 1
 	local id = bannerId
 	banner.Text = text
@@ -305,6 +435,16 @@ local function showBanner(text: string, duration: number)
 			banner.Visible = false
 		end
 	end)
+end
+
+local function showBanner(text: string, duration: number)
+	local now = os.clock()
+	local wait = math.max(0, bannerFree - now)
+	bannerFree = math.max(now, bannerFree) + math.min(duration, 1.8)
+	if wait > 6 then
+		return
+	end
+	task.delay(wait, showNow, text, duration)
 end
 
 local function confetti()
@@ -411,7 +551,7 @@ for i, name in Config.HeroOrder do
 		Size = UDim2.new(1, 0, 0, 40),
 		BackgroundTransparency = 1,
 		Font = FONT,
-		TextSize = 26,
+		TextSize = if #name > 8 then 20 else 26,
 		TextColor3 = WHITE,
 		Text = hero.Emoji .. " " .. name,
 		ZIndex = 13,
@@ -671,11 +811,20 @@ local flash = new("Frame", {
 	Parent = gui,
 })
 
+local popCount = 0
+local lastPop: { [string]: number } = {}
 local function popText(text: string, color: Color3)
+	local now = os.clock()
+	if now - (lastPop[text] or -10) < 2 then
+		return
+	end
+	lastPop[text] = now
+	popCount += 1
+	local row = popCount - 1
 	local label = new("TextLabel", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.45),
-		Size = UDim2.fromOffset(300, 50),
+		Position = UDim2.fromScale(0.5, 0.45 + row * 0.07),
+		Size = UDim2.fromOffset(600, 50),
 		BackgroundTransparency = 1,
 		Font = FONT,
 		TextSize = 36,
@@ -685,9 +834,14 @@ local function popText(text: string, color: Color3)
 		ZIndex = 6,
 		Parent = gui,
 	})
-	local tween = TweenService:Create(label, TweenInfo.new(1.2), { Position = UDim2.fromScale(0.5, 0.33), TextTransparency = 1, TextStrokeTransparency = 1 })
+	local tween = TweenService:Create(label, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Position = UDim2.fromScale(0.5, 0.39 + row * 0.07),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
 	tween.Completed:Once(function()
 		label:Destroy()
+		popCount -= 1
 	end)
 	tween:Play()
 end
@@ -859,6 +1013,13 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "dropped" then
 		local scarer = if value == "dog" then "A dog" elseif value == "neighbor" then "The neighbor" else "The rats"
 		showBanner(if who == player then scarer .. " scared " .. cat .. "!\nGet her back!" else cat .. " jumped down!", 3)
+	elseif kind == "bird" then
+		popText("+1 ❤️ 🐦", Color3.fromRGB(255, 140, 180))
+		chime()
+	elseif kind == "birdFull" then
+		popText("Hearts full ❤️", Color3.fromRGB(255, 170, 200))
+	elseif kind == "gift" then
+		popText(cat .. " left you a bird! 🐦", Color3.fromRGB(255, 170, 200))
 	elseif kind == "heart" then
 		popText(if seconds > 0 then "-1 ❤️" else "😵", Color3.fromRGB(255, 110, 130))
 	elseif kind == "out" then
@@ -871,11 +1032,11 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		showBanner("💔 Out of hearts!\n" .. cat .. " is still lost.", 5)
 		tryAgain(5)
 	elseif kind == "hunt" then
-		showBanner("🏮 Night! The neighbors are hunting.\nStay out of their light!", 4)
+		showBanner("🔦 Night! The neighbors are hunting.\nStay out of their light!", 4)
 	elseif kind == "dawn" then
 		showBanner("☀️ Morning! The neighbors went home.", 3)
 	elseif kind == "hunted" then
-		popText("A neighbor saw you! Run! 🏮", Color3.fromRGB(255, 170, 80))
+		popText("A neighbor saw you! Run! 🔦", Color3.fromRGB(255, 170, 80))
 		note(1.4)
 	elseif kind == "grabbed" then
 		flash.BackgroundTransparency = 0.5
@@ -905,7 +1066,7 @@ end)
 
 -- Day and night
 local DAY_AMBIENT = Color3.fromRGB(120, 140, 120)
-local NIGHT_AMBIENT = Color3.fromRGB(46, 54, 80)
+local NIGHT_AMBIENT = Color3.fromRGB(24, 28, 46)
 local tint = new("ColorCorrectionEffect", { Parent = Lighting })
 
 local function updateSky(): number
@@ -915,25 +1076,25 @@ local function updateSky(): number
 	end
 	local clock, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
 	if workspace:GetAttribute("Twist") == "fullmoon" then
-		daylight = math.max(daylight, 0.35)
+		daylight = math.max(daylight, 0.3)
 	end
 	local dark = 1 - daylight
 	Lighting.ClockTime = clock
-	Lighting.Brightness = 0.8 + 1.2 * daylight
+	Lighting.Brightness = 0.35 + 1.65 * daylight
 	Lighting.OutdoorAmbient = NIGHT_AMBIENT:Lerp(DAY_AMBIENT, daylight)
-	Lighting.Ambient = Color3.fromRGB(28, 32, 48):Lerp(Color3.fromRGB(70, 75, 70), daylight)
+	Lighting.Ambient = Color3.fromRGB(14, 16, 28):Lerp(Color3.fromRGB(70, 75, 70), daylight)
 
 	local mode = workspace:GetAttribute("Mode")
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		local base = if mode == "Umulig" then 0.56 elseif mode == "Normal" then 0.48 else 0.36
-		atmosphere.Density = base + 0.06 * dark
-		atmosphere.Color = Color3.fromRGB(85, 96, 125):Lerp(Color3.fromRGB(190, 215, 190), daylight)
-		atmosphere.Decay = Color3.fromRGB(40, 46, 68):Lerp(Color3.fromRGB(90, 120, 90), daylight)
+		local base = if mode == "Umulig" then 0.64 elseif mode == "Normal" then 0.56 else 0.4
+		atmosphere.Density = base + 0.08 * dark
+		atmosphere.Color = Color3.fromRGB(60, 70, 96):Lerp(Color3.fromRGB(190, 215, 190), daylight)
+		atmosphere.Decay = Color3.fromRGB(30, 35, 54):Lerp(Color3.fromRGB(90, 120, 90), daylight)
 	end
-	tint.TintColor = Color3.fromRGB(215, 222, 255):Lerp(Color3.new(1, 1, 1), daylight)
-	tint.Saturation = -0.15 * dark
-	tint.Brightness = 0.03 * dark
+	tint.TintColor = Color3.fromRGB(208, 216, 255):Lerp(Color3.new(1, 1, 1), daylight)
+	tint.Saturation = -0.18 * dark
+	tint.Brightness = 0.01 * dark
 	return daylight
 end
 
@@ -972,8 +1133,17 @@ local function showDogs(from: Vector3?, right: Vector3?)
 				if n:IsA("Model") and n:GetAttribute("Hunting") then
 					local pos = n:GetPivot().Position
 					if (pos - from).Magnitude < 100 then
-						table.insert(marks, { pos = pos, icon = "🏮" })
+						table.insert(marks, { pos = pos, icon = "🔦" })
 					end
+				end
+			end
+		end
+		local birdFolder = workspace:FindFirstChild("Birds")
+		if birdFolder then
+			for _, bird in birdFolder:GetChildren() do
+				local pos = (bird :: Model):GetPivot().Position
+				if (pos - from).Magnitude < 60 then
+					table.insert(marks, { pos = pos, icon = "🐦" })
 				end
 			end
 		end
@@ -1137,18 +1307,17 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if hard and player:GetAttribute("Hero") ~= "Aurelia" and root then
 		local now = os.clock()
 		if nextGlitch == 0 then
-			nextGlitch = now + 12
+			nextGlitch = now + 20
 		elseif now > nextGlitch then
-			glitchUntil = now + math.random(3, 5)
-			nextGlitch = glitchUntil + math.random(10, 18)
+			glitchUntil = now + math.random(2, 3)
+			nextGlitch = glitchUntil + math.random(25, 40)
 		end
 		if now < glitchUntil then
-			local static = math.random(20, 60)
-			radar.BackgroundColor3 = Color3.fromRGB(static, static, static)
+			radar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 			catDot.Visible = false
 			showDogs(nil, nil)
-			distanceLabel.Text = "No signal"
-			hintLabel.Text = "..."
+			distanceLabel.Text = "No signal 📡"
+			hintLabel.Text = ""
 			return
 		end
 	end
