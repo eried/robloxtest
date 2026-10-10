@@ -47,7 +47,7 @@ return {
 	MusicId = 139972511482001,
 
 	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
-	SoundsId = 0,
+	SoundsId = 91539648212607,
 	Meow = { 0.6, 2.55 },
 	Mew = { 3.75, 2.05 },
 	Bark = { 6.4, 2.28 },
