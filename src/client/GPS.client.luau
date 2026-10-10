@@ -1,10 +1,12 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local catEvent = ReplicatedStorage:WaitForChild("PiankaEvent") :: RemoteEvent
+local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -253,24 +255,41 @@ new("TextLabel", {
 	ZIndex = 12,
 	Parent = card,
 })
-local playButton = new("TextButton", {
-	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -24),
-	Size = UDim2.fromOffset(180, 56),
-	BackgroundColor3 = GREEN,
-	Font = FONT,
-	TextSize = 30,
-	TextColor3 = Color3.fromRGB(20, 40, 20),
-	Text = "Play",
-	ZIndex = 12,
-	Parent = card,
-})
-round(playButton, UDim.new(0, 14))
 local playing = false
-playButton.Activated:Connect(function()
-	playing = true
-	intro:Destroy()
-end)
+local hard = false
+local nextGlitch = 0
+local glitchUntil = 0
+
+local function modeButton(text: string, color: Color3, x: number, isHard: boolean)
+	local button = new("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, x, 1, -24),
+		Size = UDim2.fromOffset(160, 56),
+		BackgroundColor3 = color,
+		Font = FONT,
+		TextSize = 30,
+		TextColor3 = Color3.fromRGB(20, 20, 20),
+		Text = text,
+		ZIndex = 12,
+		Parent = card,
+	})
+	round(button, UDim.new(0, 14))
+	button.Activated:Connect(function()
+		playing = true
+		hard = isHard
+		modeEvent:FireServer(isHard)
+		if isHard then
+			nextGlitch = os.clock() + 12
+			local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+			if atmosphere then
+				atmosphere.Density = 0.7
+			end
+		end
+		intro:Destroy()
+	end)
+end
+modeButton("Easy", GREEN, -90, false)
+modeButton("Hard", Color3.fromRGB(255, 120, 90), 90, true)
 
 -- Events
 local function nameOf(who: Player?): string
@@ -298,6 +317,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, seconds: num
 		end)
 	elseif kind == "lost" then
 		showBanner("Oh no! " .. cat .. " ran away!", 3)
+	elseif kind == "fled" then
+		showBanner(cat .. " ran off! Chase her!", 2)
 	end
 end)
 
@@ -332,6 +353,23 @@ RunService.RenderStepped:Connect(function()
 		end
 		return
 	end
+
+	if hard then
+		local now = os.clock()
+		if now > nextGlitch then
+			glitchUntil = now + math.random(3, 5)
+			nextGlitch = glitchUntil + math.random(10, 18)
+		end
+		if now < glitchUntil then
+			local static = math.random(20, 60)
+			radar.BackgroundColor3 = Color3.fromRGB(static, static, static)
+			catDot.Visible = false
+			distanceLabel.Text = "No signal"
+			hintLabel.Text = "..."
+			return
+		end
+	end
+	radar.BackgroundColor3 = Color3.fromRGB(15, 45, 22)
 
 	local offset = target - root.Position
 	offset = Vector3.new(offset.X, 0, offset.Z)

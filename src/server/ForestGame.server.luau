@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 
@@ -12,6 +13,13 @@ local treeSpots: { Vector3 } = {}
 local catEvent = Instance.new("RemoteEvent")
 catEvent.Name = "PiankaEvent"
 catEvent.Parent = ReplicatedStorage
+
+local modeEvent = Instance.new("RemoteEvent")
+modeEvent.Name = "SetMode"
+modeEvent.Parent = ReplicatedStorage
+modeEvent.OnServerEvent:Connect(function(player, isHard)
+	player:SetAttribute("Hard", isHard == true)
+end)
 
 local function makePart(class: string, props: { [string]: any }): BasePart
 	local p = Instance.new(class) :: BasePart
@@ -264,6 +272,7 @@ type Cat = {
 	model: Model,
 	body: BasePart,
 	tail: BasePart,
+	tailRest: CFrame,
 	tagText: TextLabel,
 	sparkles: Sparkles,
 }
@@ -323,7 +332,24 @@ local function makeCat(base: CFrame, scale: number): Cat
 	sparkles.SparkleColor = Color3.fromRGB(255, 220, 120)
 	sparkles.Parent = body
 
-	return { model = model, body = body, tail = tail, tagText = tagText, sparkles = sparkles }
+	return {
+		model = model,
+		body = body,
+		tail = tail,
+		tailRest = body.CFrame:ToObjectSpace(tail.CFrame),
+		tagText = tagText,
+		sparkles = sparkles,
+	}
+end
+
+local function wagTail(tail: BasePart): Tween
+	local tween = TweenService:Create(
+		tail,
+		TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ CFrame = tail.CFrame * CFrame.Angles(0, math.rad(30), 0) }
+	)
+	tween:Play()
+	return tween
 end
 
 local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
@@ -336,12 +362,6 @@ local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = cat.body
 	cat.model.Parent = workspace
-
-	TweenService:Create(
-		cat.tail,
-		TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{ CFrame = cat.tail.CFrame * CFrame.Angles(0, math.rad(30), 0) }
-	):Play()
 	return cat, prompt
 end
 
@@ -388,6 +408,10 @@ local function findCatSpot(): Vector3
 end
 
 local round = 0
+local wildPrompt: ProximityPrompt? = nil
+local wildTween: Tween? = nil
+local fleesLeft = 0
+local fleeing = false
 local wildCat: Cat? = nil
 local carried: Cat? = nil
 local homeCat: Cat? = nil
@@ -400,6 +424,57 @@ local function removeCat(cat: Cat?)
 end
 
 local newRound: () -> ()
+
+local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from: Vector3)
+	local start = cat.model:GetPivot()
+	local catPos = Vector3.new(start.X, 0, start.Z)
+	local away = Vector3.new(catPos.X - from.X, 0, catPos.Z - from.Z)
+	away = if away.Magnitude > 0.1 then away.Unit else Vector3.new(1, 0, 0)
+
+	local target: Vector3? = nil
+	for i = 1, 16 do
+		local spread = if i <= 6 then 0.8 else math.pi
+		local dir = CFrame.Angles(0, rng:NextNumber(-spread, spread), 0):VectorToWorldSpace(away)
+		local pos = catPos + dir * rng:NextNumber(40, 60)
+		if math.abs(pos.X) < half - 15 and math.abs(pos.Z) < half - 15 and isFree(pos, 5) then
+			target = pos
+			break
+		end
+	end
+	if not target then
+		return
+	end
+
+	fleeing = true
+	fleesLeft -= 1
+	prompt.Enabled = false
+	if wildTween then
+		wildTween:Cancel()
+	end
+	cat.tail.CFrame = cat.body.CFrame * cat.tailRest
+	catEvent:FireClient(player, "fled")
+
+	local lift = Vector3.new(0, start.Y, 0)
+	local dir = (target - catPos).Unit
+	local fromCf = CFrame.lookAt(start.Position, start.Position + dir)
+	local goalCf = CFrame.lookAt(target + lift, target + lift + dir)
+	local t0 = os.clock()
+	local alpha = 0
+	while alpha < 1 and cat.model.Parent do
+		alpha = math.min((os.clock() - t0) / 1.5, 1)
+		local hop = math.abs(math.sin(alpha * math.pi * 6)) * 0.8
+		local cf = fromCf:Lerp(goalCf, alpha)
+		cat.model:PivotTo(cf + Vector3.new(0, hop, 0))
+		workspace:SetAttribute("CatPosition", Vector3.new(cf.X, 0, cf.Z))
+		RunService.Heartbeat:Wait()
+	end
+
+	if wildCat == cat then
+		wildTween = wagTail(cat.tail)
+		prompt.Enabled = true
+	end
+	fleeing = false
+end
 
 local function loseCat()
 	local myRound = round
@@ -449,13 +524,17 @@ function newRound()
 	local pos = findCatSpot()
 	local cat, prompt = spawnWildCat(pos)
 	wildCat = cat
+	wildPrompt = prompt
+	wildTween = wagTail(cat.tail)
+	fleesLeft = Config.HardFlees
+	fleeing = false
 	workspace:SetAttribute("CatPosition", pos)
 	workspace:SetAttribute("Carrier", nil)
 	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
 
 	prompt.Triggered:Connect(function(player)
 		local character = player.Character
-		if wildCat ~= cat or not character then
+		if wildCat ~= cat or fleeing or not character then
 			return
 		end
 		local newCarried = carryCat(character)
@@ -504,6 +583,18 @@ end)
 task.spawn(function()
 	while true do
 		task.wait(0.2)
+		local cat, prompt = wildCat, wildPrompt
+		if cat and prompt and not fleeing and fleesLeft > 0 then
+			local catPos = cat.model:GetPivot().Position
+			for _, p in Players:GetPlayers() do
+				local r = p.Character and p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if p:GetAttribute("Hard") and r and (r.Position - catPos).Magnitude < Config.FleeDistance then
+					task.spawn(fleeFrom, cat, prompt, p, r.Position)
+					break
+				end
+			end
+		end
+
 		local player = carrier
 		local root = player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if player and root then

@@ -15,4 +15,7 @@ return {
 	HomeRadius = 8,
 
 	GpsRange = 200,
+
+	FleeDistance = 20,
+	HardFlees = 3,
 }
