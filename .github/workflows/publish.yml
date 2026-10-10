@@ -1,0 +1,56 @@
+name: Publish to Roblox
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/roblox-forest-cat-game-qr4nzd]
+    paths: [FindPianka.rbxlx, music/**, sounds/**, tools/roblox.py]
+
+permissions:
+  contents: write
+
+concurrency: publish
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+      UNIVERSE_ID: ${{ vars.UNIVERSE_ID }}
+      PLACE_ID: ${{ vars.PLACE_ID }}
+      ROBLOX_USERNAME: ${{ vars.ROBLOX_USERNAME }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check setup
+        id: check
+        run: |
+          if [ -z "$ROBLOX_API_KEY" ] || [ -z "$UNIVERSE_ID" ] || [ -z "$PLACE_ID" ]; then
+            echo "Not set up yet. Add the ROBLOX_API_KEY secret and the UNIVERSE_ID and PLACE_ID variables." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload sounds
+        if: steps.check.outputs.ready == 'true'
+        run: python3 tools/roblox.py audio | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Rebuild with sound ids
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          if ! git diff --quiet; then
+            curl -sSL -o rojo.zip https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+            unzip -o rojo.zip
+            ./rojo build default.project.json -o FindPianka.rbxlx
+            rm -f rojo rojo.zip
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src/shared/Config.luau FindPianka.rbxlx
+            git commit -m "Set uploaded sound ids"
+            git push
+          fi
+
+      - name: Publish place
+        if: steps.check.outputs.ready == 'true'
+        run: python3 tools/roblox.py publish | tee -a "$GITHUB_STEP_SUMMARY"

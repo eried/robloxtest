@@ -32,4 +32,20 @@ return {
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
 	MusicId = 0,
+
+	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
+	SoundsId = 0,
+	Meow = { 0.6, 2.55 },
+	Mew = { 3.75, 2.05 },
+	Bark = { 6.4, 2.28 },
+	Lines = {
+		{ 9.28, 2.736, "Hva gjør du her?", "What are you doing here?" },
+		{ 12.616, 2.722, "Hvem er du?", "Who are you?" },
+		{ 15.938, 3.203, "Dette er min skog.", "This is my forest." },
+		{ 19.741, 3.642, "Gå hjem, barn.", "Go home, kid." },
+		{ 23.983, 3.189, "Har du sett katten min?", "Have you seen my cat?" },
+		{ 27.772, 5.358, "Det er sent. Du burde ikke være ute nå.", "It is late. You should not be out now." },
+		{ 33.73, 2.708, "Jeg ser deg.", "I see you." },
+		{ 37.038, 4.381, "Hysj! Ikke vekk hundene.", "Shh! Do not wake the dogs." },
+	},
 }
