@@ -2,7 +2,8 @@ return {
 	GameName = "Find Pianka",
 	Creator = "Mr. Scientist 84",
 	CatName = "Pianka",
-	CatColor = Color3.fromRGB(255, 150, 60),
+	CatColor = Color3.fromRGB(25, 25, 28),
+	EyeColor = Color3.fromRGB(255, 210, 40),
 
 	ForestSize = 600,
 	TreeCount = 350,

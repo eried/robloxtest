@@ -286,10 +286,10 @@ local function makeCat(base: CFrame, scale: number): Cat
 
 	local body = add("Body", "Part", Vector3.new(1.6, 1.4, 2.6), Vector3.new(0, 1.4, 0))
 	local head = add("Head", "Part", Vector3.new(1.5, 1.3, 1.3), Vector3.new(0, 2.3, -1.5))
-	add("Muzzle", "Part", Vector3.new(0.8, 0.5, 0.2), Vector3.new(0, 2.05, -2.2), Color3.fromRGB(255, 245, 235))
-	add("Nose", "Part", Vector3.new(0.25, 0.2, 0.1), Vector3.new(0, 2.25, -2.32), Color3.fromRGB(255, 130, 160))
+	add("Muzzle", "Part", Vector3.new(0.8, 0.5, 0.2), Vector3.new(0, 2.05, -2.2))
+	add("Nose", "Part", Vector3.new(0.25, 0.2, 0.1), Vector3.new(0, 2.25, -2.32), Color3.fromRGB(55, 55, 60))
 	for _, x in { -0.38, 0.38 } do
-		local eye = add("Eye", "Part", Vector3.new(0.3, 0.3, 0.3), Vector3.new(x, 2.55, -2.15), Color3.fromRGB(80, 220, 90)) :: Part
+		local eye = add("Eye", "Part", Vector3.new(0.3, 0.3, 0.3), Vector3.new(x, 2.55, -2.15), Config.EyeColor) :: Part
 		eye.Shape = Enum.PartType.Ball
 		eye.Material = Enum.Material.Neon
 	end
