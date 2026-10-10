@@ -43,11 +43,26 @@
 	KittenTime = 150,
 	KittenHomeMin = 120,
 
-	DogCount = 8,
-	DogSpeedFactor = 1.18,
-	DogCatch = 3.5,
-	DogSpawnMin = 60,
-	DogSpawnMax = 100,
+	Dogs = {
+		Easy = {
+			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8,
+			chaseFactor = 1.1, chaseTime = 2.5, catch = 3,
+			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
+			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+		},
+		Normal = {
+			patrolCount = 6, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.6,
+			chaseFactor = 1.15, chaseTime = 3.5, catch = 3,
+			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
+			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+		},
+		Umulig = {
+			patrolCount = 6, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5,
+			chaseFactor = 1.25, chaseTime = 4, catch = 3,
+			packCount = 6, packConeRange = 10, packSpeedFactor = 1.08, packGap = 15, packGapMin = 6,
+			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+		},
+	},
 
 	DayMinutes = 10,
 	NightShare = 0.55,
@@ -106,17 +121,462 @@
 ]]></string>
         </Properties>
       </Item>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">DogBrain</string>
+          <string name="Source"><![CDATA[-- Dog brains, shared by the game and the tests
+local DogBrain = {}
+
+export type Settings = {
+	patrolCount: number,
+	patrolSpeed: number,
+	coneAngle: number,
+	coneRange: number,
+	alertDelay: number,
+	chaseFactor: number,
+	chaseTime: number,
+	catch: number,
+	packCount: number,
+	packConeRange: number,
+	packSpeedFactor: number,
+	packGap: number,
+	packGapMin: number,
+	packClose: number,
+	lungeFactor: number,
+	lungeTime: number,
+	restTime: number,
+}
+
+export type Runner = {
+	id: number,
+	pos: Vector3,
+	heading: Vector3,
+	speed: number,
+	safe: boolean,
+}
+
+export type Dog = {
+	kind: string,
+	state: string,
+	pos: Vector3,
+	dir: Vector3,
+	untilTime: number,
+	a: Vector3,
+	b: Vector3,
+	toB: boolean,
+	turnFrom: Vector3,
+	side: number,
+	back: number,
+	target: number?,
+}
+
+export type World = {
+	trees: { Vector3 },
+	cabins: { Vector3 },
+	half: number,
+	grid: { [number]: { Vector3 } }?,
+}
+
+local CELL = 16
+
+local function cellKey(x: number, z: number): number
+	return (x + 512) * 1024 + (z + 512)
+end
+
+-- Builds a lookup so only nearby trees are checked
+function DogBrain.index(world: World)
+	local grid = {}
+	for _, t in world.trees do
+		local key = cellKey(math.floor(t.X / CELL), math.floor(t.Z / CELL))
+		local list = grid[key]
+		if not list then
+			list = {}
+			grid[key] = list
+		end
+		table.insert(list, t)
+	end
+	world.grid = grid
+end
+
+-- Trees near a box around two points
+function DogBrain.treesNear(world: World, a: Vector3, b: Vector3, pad: number): { Vector3 }
+	local grid = world.grid
+	if not grid then
+		return world.trees
+	end
+	local found = {}
+	local x0 = math.floor((math.min(a.X, b.X) - pad) / CELL)
+	local x1 = math.floor((math.max(a.X, b.X) + pad) / CELL)
+	local z0 = math.floor((math.min(a.Z, b.Z) - pad) / CELL)
+	local z1 = math.floor((math.max(a.Z, b.Z) + pad) / CELL)
+	for x = x0, x1 do
+		for z = z0, z1 do
+			local list = grid[cellKey(x, z)]
+			if list then
+				for _, t in list do
+					table.insert(found, t)
+				end
+			end
+		end
+	end
+	return found
+end
+
+local function flat(v: Vector3): Vector3
+	return Vector3.new(v.X, 0, v.Z)
+end
+
+local function rotateY(v: Vector3, angle: number): Vector3
+	local c, s = math.cos(angle), math.sin(angle)
+	return Vector3.new(v.X * c + v.Z * s, 0, -v.X * s + v.Z * c)
+end
+
+local function closestOnSegment(a: Vector3, b: Vector3, p: Vector3): Vector3
+	local ab = b - a
+	local len2 = ab:Dot(ab)
+	if len2 < 1e-6 then
+		return a
+	end
+	local t = math.clamp((p - a):Dot(ab) / len2, 0, 1)
+	return a + ab * t
+end
+
+local function findRunner(runners: { Runner }, id: number?): Runner?
+	for _, r in runners do
+		if r.id == id then
+			return r
+		end
+	end
+	return nil
+end
+
+function DogBrain.blocked(world: World, from: Vector3, to: Vector3): boolean
+	local d = to - from
+	local len = d.Magnitude
+	if len < 2 then
+		return false
+	end
+	local u = d / len
+	for _, t in DogBrain.treesNear(world, from, to, 2) do
+		local rel = t - from
+		local along = rel:Dot(u)
+		if along > 1.5 and along < len - 1.5 and (rel - u * along).Magnitude < 1.6 then
+			return true
+		end
+	end
+	for _, c in world.cabins do
+		local rel = c - from
+		local along = rel:Dot(u)
+		if along > 0 and along < len and (rel - u * along).Magnitude < 6 then
+			return true
+		end
+	end
+	return false
+end
+
+function DogBrain.sees(dog: Dog, target: Vector3, range: number, halfAngle: number, world: World): boolean
+	local to = flat(target) - dog.pos
+	local dist = to.Magnitude
+	if dist > range then
+		return false
+	end
+	if dist < 2.5 then
+		return true
+	end
+	if dog.dir:Dot(to / dist) < math.cos(math.rad(halfAngle)) then
+		return false
+	end
+	return not DogBrain.blocked(world, dog.pos, flat(target))
+end
+
+local function moveTo(dog: Dog, goal: Vector3, speed: number, dt: number, world: World)
+	local delta = goal - dog.pos
+	local dist = delta.Magnitude
+	if dist < 0.05 or speed <= 0 then
+		return
+	end
+	local dir = delta / dist
+	local nextPos = dog.pos + dir * math.min(speed * dt, dist)
+	for _, t in DogBrain.treesNear(world, nextPos, nextPos, 3) do
+		local away = nextPos - t
+		local m = away.Magnitude
+		if m < 2.5 and m > 0.01 then
+			nextPos = t + away / m * 2.5
+		end
+	end
+	for _, c in world.cabins do
+		local away = nextPos - c
+		local m = away.Magnitude
+		if m < 9 and m > 0.01 then
+			nextPos = c + away / m * 9
+		end
+	end
+	local edge = world.half - 3
+	dog.pos = Vector3.new(math.clamp(nextPos.X, -edge, edge), 0, math.clamp(nextPos.Z, -edge, edge))
+	dog.dir = dir
+end
+
+function DogBrain.newPatrol(a: Vector3, b: Vector3): Dog
+	return {
+		kind = "patrol",
+		state = "patrol",
+		pos = a,
+		dir = (b - a).Unit,
+		untilTime = 0,
+		a = a,
+		b = b,
+		toB = true,
+		turnFrom = (b - a).Unit,
+		side = 0,
+		back = 0,
+		target = nil,
+	}
+end
+
+function DogBrain.newPack(pos: Vector3, side: number, back: number, target: number): Dog
+	return {
+		kind = "pack",
+		state = "follow",
+		pos = pos,
+		dir = Vector3.new(0, 0, -1),
+		untilTime = 0,
+		a = pos,
+		b = pos,
+		toB = true,
+		turnFrom = Vector3.new(0, 0, -1),
+		side = side,
+		back = back,
+		target = target,
+	}
+end
+
+-- Slots of a V formation: front dog first, then pairs further back
+function DogBrain.formation(count: number): { { side: number, back: number } }
+	local slots = {}
+	for i = 1, count do
+		local row = i // 2
+		local sign = if i % 2 == 0 then 1 else -1
+		table.insert(slots, { side = if i == 1 then 0 else sign * row * 4, back = row * 4 })
+	end
+	return slots
+end
+
+local function spot(dog: Dog, s: Settings, runners: { Runner }, world: World, now: number): (string?, number?)
+	for _, r in runners do
+		if not r.safe and DogBrain.sees(dog, r.pos, s.coneRange, s.coneAngle, world) then
+			dog.state = "alert"
+			dog.untilTime = now + s.alertDelay
+			dog.target = r.id
+			return "alert", r.id
+		end
+	end
+	return nil, nil
+end
+
+local function stepPatrol(dog: Dog, dt: number, now: number, runners: { Runner }, world: World, s: Settings): (string?, number?)
+	if dog.state == "patrol" or dog.state == "turn" then
+		local event, id = spot(dog, s, runners, world, now)
+		if event then
+			return event, id
+		end
+		if dog.state == "turn" then
+			local alpha = math.clamp(1 - (dog.untilTime - now) / 1.4, 0, 1)
+			dog.dir = rotateY(dog.turnFrom, math.pi * alpha)
+			if now >= dog.untilTime then
+				dog.state = "patrol"
+				dog.toB = not dog.toB
+			end
+			return nil, nil
+		end
+		local goal = if dog.toB then dog.b else dog.a
+		if (goal - dog.pos).Magnitude < 0.5 then
+			dog.state = "turn"
+			dog.untilTime = now + 1.4
+			dog.turnFrom = dog.dir
+		else
+			moveTo(dog, goal, s.patrolSpeed, dt, world)
+		end
+	elseif dog.state == "alert" then
+		local r = findRunner(runners, dog.target)
+		if not r or r.safe then
+			dog.state = "return"
+			return "lost", nil
+		end
+		local to = flat(r.pos) - dog.pos
+		if to.Magnitude > 0.1 then
+			dog.dir = to.Unit
+		end
+		if now >= dog.untilTime then
+			dog.state = "chase"
+			dog.untilTime = now + s.chaseTime
+			return "chase", r.id
+		end
+	elseif dog.state == "chase" then
+		local r = findRunner(runners, dog.target)
+		if not r or r.safe or now >= dog.untilTime then
+			dog.state = "return"
+			dog.untilTime = now + 2
+			return "lost", nil
+		end
+		moveTo(dog, flat(r.pos), r.speed * s.chaseFactor, dt, world)
+		if (flat(r.pos) - dog.pos).Magnitude < s.catch then
+			dog.state = "return"
+			dog.untilTime = now + 3
+			return "caught", r.id
+		end
+	elseif dog.state == "return" then
+		if now >= dog.untilTime then
+			local event, id = spot(dog, s, runners, world, now)
+			if event then
+				return event, id
+			end
+		end
+		local goal = closestOnSegment(dog.a, dog.b, dog.pos)
+		if (goal - dog.pos).Magnitude < 0.5 then
+			dog.state = "patrol"
+		else
+			moveTo(dog, goal, s.patrolSpeed * 1.5, dt, world)
+		end
+	end
+	return nil, nil
+end
+
+local function stepPack(dog: Dog, dt: number, now: number, runners: { Runner }, world: World, s: Settings, gap: number): (string?, number?)
+	local r = findRunner(runners, dog.target)
+	if not r then
+		return nil, nil
+	end
+	local rpos = flat(r.pos)
+	local function face()
+		local to = rpos - dog.pos
+		if to.Magnitude > 0.1 then
+			dog.dir = to.Unit
+		end
+	end
+	if dog.state == "rest" then
+		face()
+		if now >= dog.untilTime then
+			dog.state = "follow"
+		end
+		return nil, nil
+	elseif dog.state == "lunge" then
+		moveTo(dog, rpos, r.speed * s.lungeFactor, dt, world)
+		if (rpos - dog.pos).Magnitude < s.catch then
+			return "caught", r.id
+		end
+		if now >= dog.untilTime then
+			dog.state = "rest"
+			dog.untilTime = now + s.restTime
+		end
+		return nil, nil
+	end
+	local heading = r.heading
+	local right = Vector3.new(-heading.Z, 0, heading.X)
+	local slot = rpos - heading * (gap + dog.back) + right * dog.side
+	moveTo(dog, slot, r.speed * s.packSpeedFactor, dt, world)
+	face()
+	if not r.safe and DogBrain.sees(dog, r.pos, s.packConeRange, s.coneAngle, world) then
+		dog.state = "lunge"
+		dog.untilTime = now + s.lungeTime
+		return "lunge", r.id
+	end
+	return nil, nil
+end
+
+-- Moves one dog. Returns an event ("alert", "chase", "lost", "caught", "lunge") and a runner id.
+function DogBrain.step(dog: Dog, dt: number, now: number, runners: { Runner }, world: World, s: Settings, gap: number): (string?, number?)
+	if dog.kind == "pack" then
+		return stepPack(dog, dt, now, runners, world, s, gap)
+	end
+	return stepPatrol(dog, dt, now, runners, world, s)
+end
+
+-- Pack gap shrinks over time so the pack slowly closes in
+function DogBrain.gap(s: Settings, elapsed: number): number
+	return math.max(s.packGapMin, s.packGap - s.packClose * elapsed)
+end
+
+-- Picks straight patrol paths. Some cross the way from home to Pianka, some guard her.
+function DogBrain.patrolPaths(
+	rand: (number, number) -> number,
+	world: World,
+	catPos: Vector3,
+	home: Vector3,
+	count: number,
+	safeRadius: number
+): { { a: Vector3, b: Vector3 } }
+	local paths: { { a: Vector3, b: Vector3 } } = {}
+	local toCat = flat(catPos - home)
+	local line = if toCat.Magnitude > 1 then toCat.Unit else Vector3.new(1, 0, 0)
+	for i = 1, count do
+		for _ = 1, 80 do
+			local center: Vector3
+			local dir: Vector3
+			if i % 3 == 1 then
+				center = flat(home):Lerp(flat(catPos), rand(0.35, 0.8)) + Vector3.new(rand(-15, 15), 0, rand(-15, 15))
+				dir = rotateY(line, math.pi / 2 + rand(-0.35, 0.35))
+			elseif i % 3 == 2 then
+				center = flat(catPos) + rotateY(Vector3.new(1, 0, 0), rand(0, math.pi * 2)) * rand(22, 40)
+				dir = rotateY(Vector3.new(1, 0, 0), rand(0, math.pi * 2))
+			else
+				center = Vector3.new(rand(-world.half + 40, world.half - 40), 0, rand(-world.half + 40, world.half - 40))
+				dir = rotateY(Vector3.new(1, 0, 0), rand(0, math.pi * 2))
+			end
+			local len = rand(30, 50)
+			local a = center - dir * (len / 2)
+			local b = center + dir * (len / 2)
+			local edge = world.half - 15
+			local ok = math.abs(a.X) < edge and math.abs(a.Z) < edge and math.abs(b.X) < edge and math.abs(b.Z) < edge
+			ok = ok and (closestOnSegment(a, b, flat(home)) - flat(home)).Magnitude > safeRadius + 12
+			ok = ok and (closestOnSegment(a, b, flat(catPos)) - flat(catPos)).Magnitude > 14
+			if ok then
+				for _, t in DogBrain.treesNear(world, a, b, 4) do
+					if (closestOnSegment(a, b, t) - t).Magnitude < 3 then
+						ok = false
+						break
+					end
+				end
+			end
+			if ok then
+				for _, c in world.cabins do
+					if (closestOnSegment(a, b, c) - c).Magnitude < 12 then
+						ok = false
+						break
+					end
+				end
+			end
+			if ok then
+				for _, other in paths do
+					if ((other.a + other.b) / 2 - center).Magnitude < 28 then
+						ok = false
+						break
+					end
+				end
+			end
+			if ok then
+				table.insert(paths, { a = a, b = b })
+				break
+			end
+		end
+	end
+	return paths
+end
+
+return DogBrain
+]]></string>
+        </Properties>
+      </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="4">
+  <Item class="ServerScriptService" referent="5">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="5">
+    <Item class="Folder" referent="6">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="Script" referent="6">
+      <Item class="Script" referent="7">
         <Properties>
           <string name="Name">ForestGame</string>
           <token name="RunContext">0</token>
@@ -127,6 +587,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local DogBrain = require(ReplicatedStorage.Shared.DogBrain)
 
 local rng = Random.new()
 local half = Config.ForestSize / 2
@@ -877,12 +1338,40 @@ dogFolder.Name = "Dogs"
 dogFolder.Parent = workspace
 local escapeConn: RBXScriptConnection? = nil
 
+type LiveDog = {
+	brain: DogBrain.Dog,
+	model: Model,
+	body: BasePart,
+	bark: TextLabel,
+	cone: { BasePart },
+	light: SpotLight,
+	barkUntil: number,
+	angry: boolean,
+}
+local liveDogs: { LiveDog } = {}
+local packStart = 0
+
+local function clearDogs(kind: string?)
+	for i = #liveDogs, 1, -1 do
+		local dog = liveDogs[i]
+		if not kind or dog.brain.kind == kind then
+			dog.model:Destroy()
+			table.remove(liveDogs, i)
+		end
+	end
+end
+
+local function dogSettings(): DogBrain.Settings
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	return Config.Dogs[mode] or Config.Dogs.Easy
+end
+
 local function clearUmulig()
 	if escapeConn then
 		escapeConn:Disconnect()
 		escapeConn = nil
 	end
-	dogFolder:ClearAllChildren()
+	clearDogs("pack")
 	workspace:SetAttribute("Escape", nil)
 	for player, stack in stacks do
 		for _, kitten in stack do
@@ -1407,6 +1896,8 @@ local function spawnMushrooms()
 				if round == myRound then
 					taken = false
 					model.Parent = mushroomFolder
+				else
+					model:Destroy()
 				end
 			end)
 		end
@@ -1561,7 +2052,11 @@ local function stackKitten(player: Player): boolean
 	return true
 end
 
-local function makeDog(pos: Vector3): (Model, TextLabel)
+local CONE_CALM = Color3.fromRGB(255, 220, 90)
+local CONE_PACK = Color3.fromRGB(255, 150, 60)
+local CONE_ANGRY = Color3.fromRGB(255, 60, 50)
+
+local function makeDog(pos: Vector3, range: number, angle: number, coneColor: Color3): (Model, TextLabel, { BasePart }, SpotLight)
 	local dog = Instance.new("Model")
 	dog.Name = "Dog"
 	local fur = ({ Color3.fromRGB(120, 80, 45), Color3.fromRGB(90, 60, 40), Color3.fromRGB(160, 120, 80), Color3.fromRGB(60, 55, 50) })[rng:NextInteger(1, 4)]
@@ -1594,6 +2089,33 @@ local function makeDog(pos: Vector3): (Model, TextLabel)
 		end
 	end
 	add("Tail", Vector3.new(0.3, 0.3, 1.4), Vector3.new(0, 2.6, 2.1))
+
+	local cone: { BasePart } = {}
+	local nose = Vector3.new(0, 0.12, -3.4)
+	local spread = math.rad(angle)
+	local function edge(from: Vector3, to: Vector3)
+		local mid = (from + to) / 2
+		local part = makePart("Part", {
+			Name = "Cone",
+			Size = Vector3.new(0.18, 0.06, (to - from).Magnitude),
+			CFrame = base * CFrame.lookAt(mid, to),
+			Color = coneColor,
+			Material = Enum.Material.Neon,
+			Transparency = 0.35,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			CastShadow = false,
+			Parent = dog,
+		})
+		table.insert(cone, part)
+	end
+	local left = nose + Vector3.new(-math.sin(spread), 0, -math.cos(spread)) * range
+	local right = nose + Vector3.new(math.sin(spread), 0, -math.cos(spread)) * range
+	edge(nose, left)
+	edge(nose, right)
+	edge(left, right)
+
 	dog.PrimaryPart = body
 	for _, part in dog:GetChildren() do
 		if part:IsA("BasePart") and part ~= body then
@@ -1623,8 +2145,48 @@ local function makeDog(pos: Vector3): (Model, TextLabel)
 	bark.Visible = false
 	bark.Parent = bubble
 
+	local light = Instance.new("SpotLight")
+	light.Face = Enum.NormalId.Front
+	light.Angle = angle * 2
+	light.Range = range
+	light.Brightness = 2
+	light.Color = coneColor
+	light.Shadows = false
+	light.Parent = body
+
 	dog.Parent = dogFolder
-	return dog, bark
+	return dog, bark, cone, light
+end
+
+local function addDog(brain: DogBrain.Dog, range: number, angle: number)
+	local color = if brain.kind == "pack" then CONE_PACK else CONE_CALM
+	local model, bark, cone, light = makeDog(brain.pos, range, angle, color)
+	table.insert(liveDogs, {
+		brain = brain,
+		model = model,
+		body = model.PrimaryPart :: BasePart,
+		bark = bark,
+		cone = cone,
+		light = light,
+		barkUntil = 0,
+		angry = false,
+	})
+end
+
+local brainWorld: DogBrain.World = { trees = treeSpots, cabins = cabinSpots, half = half }
+DogBrain.index(brainWorld)
+
+local function spawnPatrols(catPos: Vector3)
+	clearDogs()
+	local s = dogSettings()
+	local paths = DogBrain.patrolPaths(function(a: number, b: number): number
+		return rng:NextNumber(a, b)
+	end, brainWorld, catPos, home, s.patrolCount, Config.RatSafeRadius)
+	for _, path in paths do
+		local brain = DogBrain.newPatrol(path.a, path.b)
+		brain.pos = path.a:Lerp(path.b, rng:NextNumber())
+		addDog(brain, s.coneRange, s.coneAngle)
+	end
 end
 
 local function startEscape()
@@ -1645,44 +2207,27 @@ local function startEscape()
 		return
 	end
 
-	type Dog = { model: Model, bark: TextLabel, pos: Vector3, dir: Vector3, speed: number, restUntil: number, nextRest: number, barkUntil: number }
-	local dogs: { Dog } = {}
-	local now = os.clock()
-	for i = 1, Config.DogCount do
+	local s = dogSettings()
+	local slots = DogBrain.formation(s.packCount)
+	for i, slot in slots do
 		local runner = runners[(i - 1) % #runners + 1]
 		local root = getRoot(runner)
-		local center = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else Vector3.zero
-		local angle = i / Config.DogCount * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
-		local pos = center
-		for _ = 1, 12 do
-			pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(Config.DogSpawnMin, Config.DogSpawnMax)
-			pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
-			if (pos - center).Magnitude >= 40 then
-				break
-			end
-			angle = rng:NextNumber(0, math.pi * 2)
-		end
-		local model, bark = makeDog(pos)
-		table.insert(dogs, {
-			model = model,
-			bark = bark,
-			pos = pos,
-			dir = (center - pos).Unit,
-			speed = Config.DogSpeedFactor * rng:NextNumber(0.95, 1.05),
-			restUntil = now + rng:NextNumber(2.5, 3),
-			nextRest = now + rng:NextNumber(5, 8),
-			barkUntil = 0,
-		})
+		local center = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else Vector3.new(home.X, 0, home.Z)
+		local toHome = Vector3.new(home.X, 0, home.Z) - center
+		local heading = if toHome.Magnitude > 1 then toHome.Unit else Vector3.new(0, 0, -1)
+		local right = Vector3.new(-heading.Z, 0, heading.X)
+		local pos = center - heading * (s.packGap + 6 + slot.back) + right * slot.side
+		pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
+		addDog(DogBrain.newPack(pos, slot.side, slot.back, runner.UserId), s.packConeRange, s.coneAngle)
 	end
+	packStart = os.clock()
 
 	local delivered = 0
 	local finished = false
-	escapeConn = RunService.Heartbeat:Connect(function(dt)
+	escapeConn = RunService.Heartbeat:Connect(function()
 		if finished or round ~= myRound then
 			return
 		end
-		local t = os.clock()
-		local targets: { [Player]: Vector3 } = {}
 		for player, stack in stacks do
 			if #stack > 0 then
 				local root = getRoot(player)
@@ -1708,7 +2253,7 @@ local function startEscape()
 							escapeConn:Disconnect()
 							escapeConn = nil
 						end
-						dogFolder:ClearAllChildren()
+						clearDogs("pack")
 						workspace:SetAttribute("Escape", nil)
 						catEvent:FireAllClients("escaped", player, seconds)
 						giveFish(player, Config.Reward.Umulig * (if twist == "golden" then 2 else 1))
@@ -1720,69 +2265,8 @@ local function startEscape()
 						end)
 						return
 					end
-				else
-					targets[player] = pos
 				end
 			end
-		end
-
-		for _, dog in dogs do
-			local best: Vector3? = nil
-			local bestPlayer: Player? = nil
-			local bestDistance = math.huge
-			for player, pos in targets do
-				local distance = (pos - dog.pos).Magnitude
-				if distance < bestDistance then
-					best, bestPlayer, bestDistance = pos, player, distance
-				end
-			end
-			if best and bestDistance < Config.DogCatch then
-				finished = true
-				failUmulig(bestPlayer)
-				return
-			end
-
-			local targetHumanoid = bestPlayer and bestPlayer.Character and bestPlayer.Character:FindFirstChildOfClass("Humanoid")
-			local calm = bestPlayer ~= nil and bestPlayer:GetAttribute("Hero") == "Milena"
-			if t >= dog.nextRest and bestDistance < 30 then
-				dog.restUntil = t + rng:NextNumber(1.2, 2) * (if calm then 2 else 1)
-				dog.nextRest = dog.restUntil + rng:NextNumber(5, 8)
-			end
-			local running = best ~= nil and t >= dog.restUntil
-			if best and running then
-				local dir = (best - dog.pos).Unit
-				local walkSpeed = if targetHumanoid then targetHumanoid.WalkSpeed else 16
-				local nextPos = dog.pos + dir * walkSpeed * dog.speed * dt
-				for _, tree in treeSpots do
-					local away = nextPos - tree
-					if away.Magnitude < 3 and away.Magnitude > 0.01 then
-						nextPos = tree + away.Unit * 3
-					end
-				end
-				for _, cabin in cabinSpots do
-					local away = nextPos - cabin
-					if away.Magnitude < 9 and away.Magnitude > 0.01 then
-						nextPos = cabin + away.Unit * 9
-					end
-				end
-				for _, other in dogs do
-					local away = nextPos - other.pos
-					if other ~= dog and away.Magnitude < 3 and away.Magnitude > 0.01 then
-						nextPos += away.Unit * (3 - away.Magnitude) * 0.5
-					end
-				end
-				dog.dir = dir
-				dog.pos = Vector3.new(math.clamp(nextPos.X, -half + 3, half - 3), 0, math.clamp(nextPos.Z, -half + 3, half - 3))
-			end
-
-			if t > dog.barkUntil and rng:NextNumber() < dt * 0.3 then
-				dog.barkUntil = t + 0.6
-			end
-			dog.bark.Visible = t < dog.barkUntil
-			local hop = if running then math.abs(math.sin(t * 14)) * 0.5 else 0
-			local at = dog.pos + Vector3.new(0, 1.9 + hop, 0)
-			local body = dog.model.PrimaryPart :: BasePart
-			body.CFrame = CFrame.lookAt(at, at + dog.dir)
 		end
 	end)
 end
@@ -2001,6 +2485,7 @@ function newRound()
 	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
 	placeWildCat(pos, if twist == "tree" then buildTree(pos) else 0)
 	spawnRats(pos)
+	spawnPatrols(pos)
 	spawnFish()
 	spawnMushrooms()
 	spawnMud(pos)
@@ -2389,7 +2874,7 @@ task.spawn(function()
 			local inMud = false
 			if r then
 				for _, puddle in mudSpots do
-					if (Vector3.new(r.Position.X, 0, r.Position.Z) - puddle.pos).Magnitude < puddle.radius and r.Position.Y < 5 then
+					if (Vector3.new(r.Position.X, 0, r.Position.Z) - puddle.pos).Magnitude < puddle.radius and r.Position.Y < 11 then
 						inMud = true
 						break
 					end
@@ -2537,7 +3022,7 @@ local function speak(n: Neighbor)
 	end)
 end
 
-RunService.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function(dt: number)
 	local now = os.clock()
 	for _, n in neighbors do
 		local pos = n.root.Position
@@ -2583,7 +3068,7 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
-RunService.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function(dt: number)
 	local now = os.clock()
 	if #rats == 0 then
 		return
@@ -2690,7 +3175,7 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 local lastRainbow = 0
-RunService.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function(dt: number)
 	for player, pet in pets do
 		local root = getRoot(player)
 		if root and pet.cat.model.Parent then
@@ -2728,25 +3213,131 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
+local headings: { [Player]: { pos: Vector3, heading: Vector3 } } = {}
+
+local function onDogEvent(dog: LiveDog, event: string, player: Player?, now: number)
+	if event == "alert" then
+		dog.bark.Text = "!"
+		dog.barkUntil = now + 0.8
+		if player then
+			catEvent:FireClient(player, "spotted")
+		end
+	elseif event == "chase" or event == "lunge" then
+		dog.bark.Text = "WOOF!"
+		dog.barkUntil = now + 1
+		if player and event == "lunge" then
+			catEvent:FireClient(player, "lunge")
+		end
+	elseif event == "caught" and player then
+		dog.bark.Text = "WOOF!"
+		dog.barkUntil = now + 1
+		local stack = stacks[player]
+		if workspace:GetAttribute("Escape") and stack and #stack > 0 then
+			failUmulig(player)
+			return
+		end
+		local root = getRoot(player)
+		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
+		if root and humanoid then
+			humanoid:TakeDamage(math.max(0, math.min(15, humanoid.Health - 1)))
+			player:SetAttribute("SlowUntil", now + 2)
+			applyHero(player)
+			task.delay(2.1, applyHero, player)
+			local away = Vector3.new(root.Position.X, 0, root.Position.Z) - dog.brain.pos
+			catEvent:FireClient(player, "dogbite", nil, if away.Magnitude > 0.1 then away.Unit else Vector3.new(0, 0, 1))
+		end
+		if carrier == player then
+			dropCat(player)
+		end
+	end
+end
+
+RunService.Heartbeat:Connect(function(dt: number)
+	if #liveDogs == 0 then
+		return
+	end
+	local now = os.clock()
+	local s = dogSettings()
+	local homeFlat = Vector3.new(home.X, 0, home.Z)
+	local runners: { DogBrain.Runner } = {}
+	local byId: { [number]: Player } = {}
+	for _, player in Players:GetPlayers() do
+		local root = getRoot(player)
+		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
+		if root and humanoid then
+			local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
+			local track = headings[player]
+			local heading = if track then track.heading else Vector3.new(0, 0, -1)
+			if track and (pos - track.pos).Magnitude > 0.05 then
+				heading = (pos - track.pos).Unit
+			end
+			headings[player] = { pos = pos, heading = heading }
+			local calm = if player:GetAttribute("Hero") == "Milena" then 0.92 else 1
+			table.insert(runners, {
+				id = player.UserId,
+				pos = pos,
+				heading = heading,
+				speed = humanoid.WalkSpeed * calm,
+				safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7,
+			})
+			byId[player.UserId] = player
+		end
+	end
+	for player in headings do
+		if not player.Parent then
+			headings[player] = nil
+		end
+	end
+	local gap = DogBrain.gap(s, now - packStart)
+	for _, dog in table.clone(liveDogs) do
+		if not dog.model.Parent then
+			continue
+		end
+		local event, id = DogBrain.step(dog.brain, dt, now, runners, brainWorld, s, gap)
+		if event then
+			onDogEvent(dog, event, if id then byId[id] else nil, now)
+			if not dog.model.Parent then
+				continue
+			end
+		end
+		local state = dog.brain.state
+		local angry = state == "alert" or state == "chase" or state == "lunge"
+		if angry ~= dog.angry then
+			dog.angry = angry
+			local color = if angry then CONE_ANGRY elseif dog.brain.kind == "pack" then CONE_PACK else CONE_CALM
+			for _, part in dog.cone do
+				part.Color = color
+			end
+			dog.light.Color = color
+		end
+		dog.bark.Visible = now < dog.barkUntil
+		local fast = state == "chase" or state == "lunge"
+		local moving = state ~= "turn" and state ~= "alert" and state ~= "rest"
+		local hop = if moving then math.abs(math.sin(now * (if fast then 14 else 8))) * (if fast then 0.4 else 0.15) else 0
+		local at = dog.brain.pos + Vector3.new(0, 1.9 + hop, 0)
+		dog.body.CFrame = CFrame.lookAt(at, at + dog.brain.dir)
+	end
+end)
+
 newRound()
 ]]></string>
         </Properties>
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="7">
+  <Item class="StarterPlayer" referent="8">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="8">
+    <Item class="StarterPlayerScripts" referent="9">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="9">
+      <Item class="Folder" referent="10">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="10">
+        <Item class="LocalScript" referent="11">
           <Properties>
             <string name="Name">GPS</string>
             <string name="Source"><![CDATA[local Players = game:GetService("Players")
@@ -3511,7 +4102,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		glitchUntil = 0
 		nextGlitch = os.clock() + 8
 		local runner = ((player:GetAttribute("Kittens") :: number?) or 0) > 0
-		showBanner(if runner then "🐕 Dogs! Run home!" else "🐕 Dogs! Watch out!", 2)
+		showBanner(if runner then "🐕 Dogs! Run home!\nStay out of their light!" else "🐕 Dogs! Watch out!", 3)
 	elseif kind == "caught" then
 		showBanner("The dogs got " .. (if who == player then "you" else nameOf(who)) .. "! 🐕\nThe kittens ran home.", 5)
 		tryAgain(5)
@@ -3558,6 +4149,20 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		else
 			popText("Confetti! 🎉", Color3.fromRGB(255, 210, 90))
 			confetti()
+		end
+	elseif kind == "spotted" then
+		popText("A dog saw you! Run! 🐕", Color3.fromRGB(255, 170, 80))
+		note(1.6)
+	elseif kind == "lunge" then
+		popText("Watch out! 🐕", Color3.fromRGB(255, 120, 100))
+	elseif kind == "dogbite" then
+		flash.BackgroundTransparency = 0.5
+		TweenService:Create(flash, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
+		popText("Woof! 🐕", Color3.fromRGB(255, 120, 120))
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and typeof(value) == "Vector3" then
+			root.AssemblyLinearVelocity = value * 45 + Vector3.new(0, 25, 0)
 		end
 	elseif kind == "squash" then
 		popText("Squash! 🐀", Color3.fromRGB(150, 255, 150))
@@ -3650,7 +4255,10 @@ local function showDogs(from: Vector3?, right: Vector3?)
 		local dogs = workspace:FindFirstChild("Dogs")
 		if dogs then
 			for _, dog in dogs:GetChildren() do
-				table.insert(marks, { pos = (dog :: Model):GetPivot().Position, icon = "🐕" })
+				local pos = (dog :: Model):GetPivot().Position
+				if (pos - from).Magnitude < 100 then
+					table.insert(marks, { pos = pos, icon = "🐕" })
+				end
 			end
 		end
 		local ratFolder = workspace:FindFirstChild("Rats")
@@ -3890,7 +4498,7 @@ end)
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="11">
+  <Item class="Workspace" referent="12">
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="NeedsPivotMigration">false</bool>

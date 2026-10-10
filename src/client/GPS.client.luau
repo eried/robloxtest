@@ -760,7 +760,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		glitchUntil = 0
 		nextGlitch = os.clock() + 8
 		local runner = ((player:GetAttribute("Kittens") :: number?) or 0) > 0
-		showBanner(if runner then "🐕 Dogs! Run home!" else "🐕 Dogs! Watch out!", 2)
+		showBanner(if runner then "🐕 Dogs! Run home!\nStay out of their light!" else "🐕 Dogs! Watch out!", 3)
 	elseif kind == "caught" then
 		showBanner("The dogs got " .. (if who == player then "you" else nameOf(who)) .. "! 🐕\nThe kittens ran home.", 5)
 		tryAgain(5)
@@ -807,6 +807,20 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		else
 			popText("Confetti! 🎉", Color3.fromRGB(255, 210, 90))
 			confetti()
+		end
+	elseif kind == "spotted" then
+		popText("A dog saw you! Run! 🐕", Color3.fromRGB(255, 170, 80))
+		note(1.6)
+	elseif kind == "lunge" then
+		popText("Watch out! 🐕", Color3.fromRGB(255, 120, 100))
+	elseif kind == "dogbite" then
+		flash.BackgroundTransparency = 0.5
+		TweenService:Create(flash, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
+		popText("Woof! 🐕", Color3.fromRGB(255, 120, 120))
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and typeof(value) == "Vector3" then
+			root.AssemblyLinearVelocity = value * 45 + Vector3.new(0, 25, 0)
 		end
 	elseif kind == "squash" then
 		popText("Squash! 🐀", Color3.fromRGB(150, 255, 150))
@@ -899,7 +913,10 @@ local function showDogs(from: Vector3?, right: Vector3?)
 		local dogs = workspace:FindFirstChild("Dogs")
 		if dogs then
 			for _, dog in dogs:GetChildren() do
-				table.insert(marks, { pos = (dog :: Model):GetPivot().Position, icon = "🐕" })
+				local pos = (dog :: Model):GetPivot().Position
+				if (pos - from).Magnitude < 100 then
+					table.insert(marks, { pos = pos, icon = "🐕" })
+				end
 			end
 		end
 		local ratFolder = workspace:FindFirstChild("Rats")

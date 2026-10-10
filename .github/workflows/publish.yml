@@ -9,7 +9,7 @@ on:
         default: false
   push:
     branches: [claude/roblox-forest-cat-game-qr4nzd]
-    paths: [src/**, default.project.json, FindPianka.rbxlx, music/**, sounds/**, tools/roblox.py, .github/workflows/publish.yml]
+    paths: [src/**, tests/**, default.project.json, FindPianka.rbxlx, music/**, sounds/**, tools/roblox.py, .github/workflows/publish.yml]
 
 permissions:
   contents: write
@@ -40,6 +40,12 @@ jobs:
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Playtest dogs with bots
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/lune.zip" https://github.com/lune-org/lune/releases/download/v0.8.9/lune-0.8.9-linux-x86_64.zip
+          unzip -o "$RUNNER_TEMP/lune.zip" -d "$RUNNER_TEMP"
+          "$RUNNER_TEMP/lune" run tests/dogs.spec.luau 60 | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Get Rojo
         if: steps.check.outputs.ready == 'true'

@@ -16,6 +16,10 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 - **Normal**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. And there is a surprise when you catch her!
 - **Umulig** (almost impossible): like Normal, plus dogs.
 
+Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
+
+In Umulig a pack of dogs follows behind you in a V. They only attack if you get into their light, so keep running and avoid mud.
+
 Watch out for rats! They nibble and slow you down. Jump on them to squash them, or click your lantern to scare them away.
 
 Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten pet.
@@ -40,3 +44,7 @@ Spooky neighbors live in cabins and talk in Norwegian. Listen for meows. Your re
 - `src/client/GPS.client.luau` GPS, menus, night, sounds
 
 Rebuild after changes: `rojo build -o FindPianka.rbxlx`
+
+## Tests
+
+`lune run tests/dogs.spec.luau 200` plays thousands of rounds with bots (careful and naive) and checks that the dogs work and the modes stay balanced. It also runs before every publish.

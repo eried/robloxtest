@@ -23,11 +23,26 @@ return {
 	KittenTime = 150,
 	KittenHomeMin = 120,
 
-	DogCount = 8,
-	DogSpeedFactor = 1.18,
-	DogCatch = 3.5,
-	DogSpawnMin = 60,
-	DogSpawnMax = 100,
+	Dogs = {
+		Easy = {
+			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8,
+			chaseFactor = 1.1, chaseTime = 2.5, catch = 3,
+			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
+			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+		},
+		Normal = {
+			patrolCount = 6, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.6,
+			chaseFactor = 1.15, chaseTime = 3.5, catch = 3,
+			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
+			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+		},
+		Umulig = {
+			patrolCount = 6, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5,
+			chaseFactor = 1.25, chaseTime = 4, catch = 3,
+			packCount = 6, packConeRange = 10, packSpeedFactor = 1.08, packGap = 15, packGapMin = 6,
+			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+		},
+	},
 
 	DayMinutes = 10,
 	NightShare = 0.55,
