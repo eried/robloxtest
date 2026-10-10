@@ -1260,7 +1260,8 @@ local function spawnFish()
 		local taken = false
 		fish.Touched:Connect(function(hit)
 			local player = if taken then nil else playerFromHit(hit)
-			if not player then
+			local root = player and getRoot(player)
+			if not player or not root or (root.Position - fish.Position).Magnitude > 10 then
 				return
 			end
 			taken = true
@@ -1566,7 +1567,7 @@ local function startEscape()
 						dogFolder:ClearAllChildren()
 						workspace:SetAttribute("Escape", nil)
 						catEvent:FireAllClients("escaped", player, seconds)
-						giveFish(player, Config.Reward.Umulig)
+						giveFish(player, Config.Reward.Umulig * (if twist == "golden" then 2 else 1))
 						fireworks()
 						task.delay(8, function()
 							if round == myRound then
@@ -1661,7 +1662,7 @@ local function collectKitten(kitten: Cat, player: Player)
 	if count then
 		count.Value += 1
 	end
-	giveFish(player, Config.Reward.Kitten)
+	giveFish(player, Config.Reward.Kitten * (if twist == "golden" then 2 else 1))
 	workspace:SetAttribute("KittensLeft", kittensLeft)
 	catEvent:FireAllClients("kitten", player, kittensLeft)
 
@@ -1844,6 +1845,9 @@ function newRound()
 		elseif roll < 0.84 then "ratparty"
 		elseif roll < 0.92 then "fullmoon"
 		else "golden"
+	if twist == "tree" and isHardMode() then
+		twist = nil
+	end
 	zoomies = twist == "zoomies"
 	workspace:SetAttribute("Twist", twist)
 
@@ -2341,14 +2345,14 @@ RunService.Heartbeat:Connect(function(dt)
 		for _, t in targets do
 			local distance = (t.pos - rat.pos).Magnitude
 			nearest = math.min(nearest, distance)
-			if distance < 2.4 and t.root.AssemblyLinearVelocity.Y < -2 and t.root.Position.Y > 3.3 then
+			if distance < 2.4 and t.root.AssemblyLinearVelocity.Y < -2 and t.root.Position.Y > 3.3 and t.root.Position.Y < 8 then
 				squash(rat, t.player)
 				squashed = true
 				break
 			end
 			local safe = (t.pos - homeFlat).Magnitude < Config.RatSafeRadius
 			local inLeash = (t.pos - rat.nest).Magnitude < Config.RatLeash
-			if distance < targetDistance and inLeash and not safe and t.humanoid.Health > 25 then
+			if distance < targetDistance and inLeash and not safe and t.humanoid.Health > 25 and t.root.Position.Y < 5.5 then
 				target, targetDistance = t, distance
 			end
 		end
