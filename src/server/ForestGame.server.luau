@@ -9,9 +9,9 @@ local rng = Random.new()
 local half = Config.ForestSize / 2
 local treeSpots: { Vector3 } = {}
 
-local foundEvent = Instance.new("RemoteEvent")
-foundEvent.Name = "PiankaFound"
-foundEvent.Parent = ReplicatedStorage
+local catEvent = Instance.new("RemoteEvent")
+catEvent.Name = "PiankaEvent"
+catEvent.Parent = ReplicatedStorage
 
 local function makePart(class: string, props: { [string]: any }): BasePart
 	local p = Instance.new(class) :: BasePart
@@ -99,8 +99,43 @@ signText.BackgroundTransparency = 1
 signText.Font = Enum.Font.FredokaOne
 signText.TextScaled = true
 signText.TextColor3 = Color3.new(1, 1, 1)
-signText.Text = "Lost cat: " .. Config.CatName .. "!\nUse your GPS"
+signText.Text = "Lost cat: " .. Config.CatName .. "!\nFind her and bring her home"
 signText.Parent = signGui
+
+-- Cat bed
+local home = Config.HomePosition
+makePart("Part", {
+	Name = "BedRim",
+	Shape = Enum.PartType.Cylinder,
+	Size = Vector3.new(1.4, 7, 7),
+	CFrame = CFrame.new(home + Vector3.new(0, 0.7, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+	Color = Color3.fromRGB(120, 60, 140),
+	Material = Enum.Material.Fabric,
+	Parent = camp,
+})
+local cushion = makePart("Part", {
+	Name = "BedCushion",
+	Shape = Enum.PartType.Cylinder,
+	Size = Vector3.new(1, 5.6, 5.6),
+	CFrame = CFrame.new(home + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+	Color = Color3.fromRGB(230, 170, 220),
+	Material = Enum.Material.Fabric,
+	Parent = camp,
+})
+local bedTag = Instance.new("BillboardGui")
+bedTag.Size = UDim2.fromOffset(200, 40)
+bedTag.StudsOffset = Vector3.new(0, 4, 0)
+bedTag.MaxDistance = 80
+bedTag.Parent = cushion
+local bedText = Instance.new("TextLabel")
+bedText.Size = UDim2.fromScale(1, 1)
+bedText.BackgroundTransparency = 1
+bedText.Font = Enum.Font.FredokaOne
+bedText.TextScaled = true
+bedText.TextColor3 = Color3.fromRGB(255, 200, 240)
+bedText.TextStrokeTransparency = 0.3
+bedText.Text = Config.CatName .. "'s bed"
+bedText.Parent = bedTag
 
 -- Forest
 local forest = Instance.new("Folder")
@@ -225,51 +260,48 @@ for _, side in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 
 end
 
 -- Pianka
-local function makeCat(pos: Vector3): (Model, ProximityPrompt, TextLabel, Sparkles)
-	local cat = Instance.new("Model")
-	cat.Name = Config.CatName
-	local base = CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+type Cat = {
+	model: Model,
+	body: BasePart,
+	tail: BasePart,
+	tagText: TextLabel,
+	sparkles: Sparkles,
+}
 
-	local function add(name: string, class: string, size: Vector3, offset: CFrame, color: Color3?, shape: Enum.PartType?): BasePart
-		local p = makePart(class, {
+local function makeCat(base: CFrame, scale: number): Cat
+	local model = Instance.new("Model")
+	model.Name = Config.CatName
+
+	local function add(name: string, class: string, size: Vector3, pos: Vector3, color: Color3?, rotation: CFrame?): BasePart
+		return makePart(class, {
 			Name = name,
-			Size = size,
-			CFrame = base * offset,
+			Size = size * scale,
+			CFrame = base * CFrame.new(pos * scale) * (rotation or CFrame.identity),
 			Color = color or Config.CatColor,
 			Material = Enum.Material.SmoothPlastic,
 			CanCollide = false,
-			Parent = cat,
+			Parent = model,
 		})
-		if shape then
-			(p :: Part).Shape = shape
-		end
-		return p
 	end
 
-	local white = Color3.fromRGB(255, 245, 235)
-	local body = add("Body", "Part", Vector3.new(1.6, 1.4, 2.6), CFrame.new(0, 1.4, 0))
-	local head = add("Head", "Part", Vector3.new(1.5, 1.3, 1.3), CFrame.new(0, 2.3, -1.5))
-	add("Muzzle", "Part", Vector3.new(0.8, 0.5, 0.2), CFrame.new(0, 2.05, -2.2), white)
-	add("Nose", "Part", Vector3.new(0.25, 0.2, 0.1), CFrame.new(0, 2.25, -2.32), Color3.fromRGB(255, 130, 160))
-	add("EyeL", "Part", Vector3.new(0.3, 0.3, 0.3), CFrame.new(-0.38, 2.55, -2.15), Color3.fromRGB(80, 220, 90), Enum.PartType.Ball).Material =
-		Enum.Material.Neon
-	add("EyeR", "Part", Vector3.new(0.3, 0.3, 0.3), CFrame.new(0.38, 2.55, -2.15), Color3.fromRGB(80, 220, 90), Enum.PartType.Ball).Material =
-		Enum.Material.Neon
-	add("EarL", "WedgePart", Vector3.new(0.4, 0.6, 0.5), CFrame.new(-0.45, 3.25, -1.5) * CFrame.Angles(0, math.rad(90), 0))
-	add("EarR", "WedgePart", Vector3.new(0.4, 0.6, 0.5), CFrame.new(0.45, 3.25, -1.5) * CFrame.Angles(0, math.rad(-90), 0))
+	local body = add("Body", "Part", Vector3.new(1.6, 1.4, 2.6), Vector3.new(0, 1.4, 0))
+	local head = add("Head", "Part", Vector3.new(1.5, 1.3, 1.3), Vector3.new(0, 2.3, -1.5))
+	add("Muzzle", "Part", Vector3.new(0.8, 0.5, 0.2), Vector3.new(0, 2.05, -2.2), Color3.fromRGB(255, 245, 235))
+	add("Nose", "Part", Vector3.new(0.25, 0.2, 0.1), Vector3.new(0, 2.25, -2.32), Color3.fromRGB(255, 130, 160))
+	for _, x in { -0.38, 0.38 } do
+		local eye = add("Eye", "Part", Vector3.new(0.3, 0.3, 0.3), Vector3.new(x, 2.55, -2.15), Color3.fromRGB(80, 220, 90)) :: Part
+		eye.Shape = Enum.PartType.Ball
+		eye.Material = Enum.Material.Neon
+	end
+	add("EarL", "WedgePart", Vector3.new(0.4, 0.6, 0.5), Vector3.new(-0.45, 3.25, -1.5), nil, CFrame.Angles(0, math.rad(90), 0))
+	add("EarR", "WedgePart", Vector3.new(0.4, 0.6, 0.5), Vector3.new(0.45, 3.25, -1.5), nil, CFrame.Angles(0, math.rad(-90), 0))
 	for _, x in { -0.5, 0.5 } do
 		for _, z in { -0.9, 0.9 } do
-			add("Leg", "Part", Vector3.new(0.4, 0.8, 0.4), CFrame.new(x, 0.4, z))
+			add("Leg", "Part", Vector3.new(0.4, 0.8, 0.4), Vector3.new(x, 0.4, z))
 		end
 	end
-	local tail = add("Tail", "Part", Vector3.new(0.3, 0.3, 1.8), CFrame.new(0, 2, 1.7) * CFrame.Angles(math.rad(-50), 0, 0))
-	cat.PrimaryPart = body
-
-	TweenService:Create(
-		tail,
-		TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{ CFrame = tail.CFrame * CFrame.Angles(0, math.rad(30), 0) }
-	):Play()
+	local tail = add("Tail", "Part", Vector3.new(0.3, 0.3, 1.8), Vector3.new(0, 2, 1.7), nil, CFrame.Angles(math.rad(-50), 0, 0))
+	model.PrimaryPart = body
 
 	local tag = Instance.new("BillboardGui")
 	tag.Size = UDim2.fromOffset(160, 40)
@@ -278,7 +310,6 @@ local function makeCat(pos: Vector3): (Model, ProximityPrompt, TextLabel, Sparkl
 	tag.AlwaysOnTop = true
 	tag.Parent = head
 	local tagText = Instance.new("TextLabel")
-	tagText.Name = "Text"
 	tagText.Size = UDim2.fromScale(1, 1)
 	tagText.BackgroundTransparency = 1
 	tagText.Font = Enum.Font.FredokaOne
@@ -292,16 +323,48 @@ local function makeCat(pos: Vector3): (Model, ProximityPrompt, TextLabel, Sparkl
 	sparkles.SparkleColor = Color3.fromRGB(255, 220, 120)
 	sparkles.Parent = body
 
+	return { model = model, body = body, tail = tail, tagText = tagText, sparkles = sparkles }
+end
+
+local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
+	local cat = makeCat(CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), 1)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = "Pick up"
 	prompt.ObjectText = Config.CatName
 	prompt.HoldDuration = 0.5
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
-	prompt.Parent = body
+	prompt.Parent = cat.body
+	cat.model.Parent = workspace
 
-	cat.Parent = workspace
-	return cat, prompt, tagText, sparkles
+	TweenService:Create(
+		cat.tail,
+		TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ CFrame = cat.tail.CFrame * CFrame.Angles(0, math.rad(30), 0) }
+	):Play()
+	return cat, prompt
+end
+
+local function carryCat(character: Model): Cat?
+	local head = character:FindFirstChild("Head") :: BasePart?
+	if not head then
+		return nil
+	end
+	local cat = makeCat(head.CFrame * CFrame.new(0, head.Size.Y / 2, 0), 0.6)
+	for _, part in cat.model:GetChildren() do
+		if part:IsA("BasePart") then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = if part == cat.body then head else cat.body
+			weld.Part1 = part
+			weld.Parent = part
+			part.Anchored = false
+			part.Massless = true
+			part.CanQuery = false
+			part.CanTouch = false
+		end
+	end
+	cat.model.Parent = character
+	return cat
 end
 
 local function farFromPlayers(pos: Vector3): boolean
@@ -324,39 +387,97 @@ local function findCatSpot(): Vector3
 	return randomSpot(15)
 end
 
-local currentCat: Model? = nil
+local round = 0
+local wildCat: Cat? = nil
+local carried: Cat? = nil
+local homeCat: Cat? = nil
+local carrier: Player? = nil
 
-local function newRound()
-	if currentCat then
-		currentCat:Destroy()
+local function removeCat(cat: Cat?)
+	if cat then
+		cat.model:Destroy()
 	end
+end
+
+local newRound: () -> ()
+
+local function loseCat()
+	local myRound = round
+	removeCat(carried)
+	carried, carrier = nil, nil
+	workspace:SetAttribute("Carrier", nil)
+	catEvent:FireAllClients("lost")
+	task.wait(2)
+	if round == myRound then
+		newRound()
+	end
+end
+
+local function deliver(player: Player)
+	local myRound = round
+	removeCat(carried)
+	carried, carrier = nil, nil
+	workspace:SetAttribute("Carrier", nil)
+
+	local stats = player:FindFirstChild("leaderstats")
+	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
+	if count then
+		count.Value += 1
+	end
+
+	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
+	local cat = homeCat :: Cat
+	cat.tagText.Text = "Home! ❤️"
+	cat.sparkles.SparkleColor = Color3.fromRGB(255, 120, 180)
+	cat.model.Parent = workspace
+
+	local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
+	catEvent:FireAllClients("home", player, seconds)
+	task.wait(6)
+	if round == myRound then
+		newRound()
+	end
+end
+
+function newRound()
+	removeCat(wildCat)
+	removeCat(carried)
+	removeCat(homeCat)
+	wildCat, carried, homeCat, carrier = nil, nil, nil, nil
+	round += 1
+
 	local pos = findCatSpot()
-	local cat, prompt, tagText, sparkles = makeCat(pos)
-	currentCat = cat
+	local cat, prompt = spawnWildCat(pos)
+	wildCat = cat
 	workspace:SetAttribute("CatPosition", pos)
+	workspace:SetAttribute("Carrier", nil)
 	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
 
-	local done = false
 	prompt.Triggered:Connect(function(player)
-		if done then
+		local character = player.Character
+		if wildCat ~= cat or not character then
 			return
 		end
-		done = true
-		prompt.Enabled = false
-		local stats = player:FindFirstChild("leaderstats")
-		local count = stats and stats:FindFirstChild("Found") :: IntValue?
-		if count then
-			count.Value += 1
+		local newCarried = carryCat(character)
+		if not newCarried then
+			return
 		end
-		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
+		removeCat(cat)
+		wildCat = nil
+		carried = newCarried
+		carrier = player
 		workspace:SetAttribute("CatPosition", nil)
-		foundEvent:FireAllClients(player, seconds)
+		workspace:SetAttribute("Carrier", player.UserId)
+		catEvent:FireAllClients("picked", player)
 
-		tagText.Text = "Meow! ❤️"
-		sparkles.SparkleColor = Color3.fromRGB(255, 120, 180)
-
-		task.wait(5)
-		newRound()
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.Died:Once(function()
+				if carrier == player then
+					loseCat()
+				end
+			end)
+		end
 	end)
 end
 
@@ -364,7 +485,7 @@ local function addStats(player: Player)
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
 	local count = Instance.new("IntValue")
-	count.Name = "Found"
+	count.Name = "Rescued"
 	count.Parent = stats
 	stats.Parent = player
 end
@@ -373,5 +494,25 @@ Players.PlayerAdded:Connect(addStats)
 for _, player in Players:GetPlayers() do
 	addStats(player)
 end
+
+Players.PlayerRemoving:Connect(function(player)
+	if carrier == player then
+		loseCat()
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		local player = carrier
+		local root = player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if player and root then
+			local offset = root.Position - home
+			if Vector3.new(offset.X, 0, offset.Z).Magnitude < Config.HomeRadius then
+				deliver(player)
+			end
+		end
+	end
+end)
 
 newRound()

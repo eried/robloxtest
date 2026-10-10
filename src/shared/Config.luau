@@ -10,6 +10,8 @@ return {
 	RockCount = 60,
 	SpawnClearRadius = 30,
 	MinCatDistance = 150,
+	HomePosition = Vector3.new(10, 0, 0),
+	HomeRadius = 8,
 
 	GpsRange = 200,
 }

@@ -2,7 +2,7 @@
 
 A Roblox game by Mr. Scientist 84.
 
-Pianka the cat is lost in the forest. Use your GPS to find her!
+Pianka the cat is lost in the forest. Use your GPS to find her and bring her home!
 
 ## Play it
 

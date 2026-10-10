@@ -4,7 +4,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
-local foundEvent = ReplicatedStorage:WaitForChild("PiankaFound") :: RemoteEvent
+local catEvent = ReplicatedStorage:WaitForChild("PiankaEvent") :: RemoteEvent
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -107,11 +107,11 @@ local catDot = new("TextLabel", {
 })
 
 local distanceLabel = new("TextLabel", {
-	Position = UDim2.new(0, 0, 1, -50),
-	Size = UDim2.new(1, 0, 0, 24),
+	Position = UDim2.new(0, 8, 1, -50),
+	Size = UDim2.new(1, -16, 0, 22),
 	BackgroundTransparency = 1,
 	Font = FONT,
-	TextSize = 20,
+	TextScaled = true,
 	TextColor3 = Color3.new(1, 1, 1),
 	Text = "",
 	Parent = device,
@@ -249,7 +249,7 @@ new("TextLabel", {
 	TextSize = 22,
 	TextWrapped = true,
 	TextColor3 = Color3.new(1, 1, 1),
-	Text = Config.CatName .. " the cat is lost in the forest! Use your GPS to find her.",
+	Text = Config.CatName .. " the cat is lost in the forest! Use your GPS to find her and bring her home.",
 	ZIndex = 12,
 	Parent = card,
 })
@@ -272,19 +272,33 @@ playButton.Activated:Connect(function()
 	intro:Destroy()
 end)
 
--- Found
-foundEvent.OnClientEvent:Connect(function(finder: Player, seconds: number)
-	local time = formatTime(seconds)
-	if finder == player then
-		showBanner("You found " .. Config.CatName .. "! 🎉\nTime: " .. time, 5)
-		confetti()
-	else
-		local name = if finder then finder.DisplayName else "Someone"
-		showBanner(name .. " found " .. Config.CatName .. "!\nTime: " .. time, 5)
+-- Events
+local function nameOf(who: Player?): string
+	return if who then who.DisplayName else "Someone"
+end
+
+catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, seconds: number?)
+	local cat = Config.CatName
+	if kind == "picked" then
+		if who == player then
+			showBanner("You found " .. cat .. "! 🐱\nBring her home to her bed.", 4)
+		else
+			showBanner(nameOf(who) .. " found " .. cat .. "!", 3)
+		end
+	elseif kind == "home" then
+		local time = formatTime(seconds or 0)
+		if who == player then
+			showBanner(cat .. " is home! 🎉\nTime: " .. time, 5)
+			confetti()
+		else
+			showBanner(nameOf(who) .. " brought " .. cat .. " home!\nTime: " .. time, 5)
+		end
+		task.delay(6, function()
+			showBanner(cat .. " ran away again! Use your GPS.", 3)
+		end)
+	elseif kind == "lost" then
+		showBanner("Oh no! " .. cat .. " ran away!", 3)
 	end
-	task.delay(5, function()
-		showBanner(Config.CatName .. " ran away again! Use your GPS.", 3)
-	end)
 end)
 
 -- Update loop
@@ -292,22 +306,34 @@ local lastBeep = 0
 local lastForward = Vector3.new(0, 0, -1)
 
 RunService.RenderStepped:Connect(function()
-	local start = workspace:GetAttribute("RoundStart")
-	local catPos = workspace:GetAttribute("CatPosition")
-	if start and catPos then
+	local start = workspace:GetAttribute("RoundStart") :: number?
+	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
+	local carrierId = workspace:GetAttribute("Carrier") :: number?
+	if start and (catPos or carrierId) then
 		timerLabel.Text = "⏱ " .. formatTime(workspace:GetServerTimeNow() - start)
+	end
+
+	local target: Vector3?, goingHome = nil, false
+	if catPos then
+		target, goingHome = catPos, false
+	elseif carrierId == player.UserId then
+		target, goingHome = Config.HomePosition, true
 	end
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root or not catPos then
+	if not root or not target then
 		catDot.Visible = false
-		distanceLabel.Text = if catPos then "" else "Found!"
 		hintLabel.Text = ""
+		if carrierId then
+			distanceLabel.Text = nameOf(Players:GetPlayerByUserId(carrierId)) .. " has " .. Config.CatName
+		else
+			distanceLabel.Text = ""
+		end
 		return
 	end
 
-	local offset = catPos - root.Position
+	local offset = target - root.Position
 	offset = Vector3.new(offset.X, 0, offset.Z)
 	local distance = offset.Magnitude
 
@@ -326,11 +352,14 @@ RunService.RenderStepped:Connect(function()
 	end
 	local scale = (RADAR / 2 - 14) / Config.GpsRange
 	catDot.Visible = true
+	catDot.Text = if goingHome then "🏠" else "🐱"
 	catDot.Position = UDim2.new(0.5, x * scale, 0.5, y * scale)
 
 	local meters = math.floor(distance * 0.28)
-	distanceLabel.Text = Config.CatName .. ": " .. meters .. " m"
-	if distance < 15 then
+	distanceLabel.Text = (if goingHome then "Home" else Config.CatName) .. ": " .. meters .. " m"
+	if goingHome then
+		hintLabel.Text = if distance < 50 then "Almost home!" else "Bring her home!"
+	elseif distance < 15 then
 		hintLabel.Text = "She is right here!"
 	elseif distance < 50 then
 		hintLabel.Text = "Very close!"
