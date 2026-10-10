@@ -17,9 +17,25 @@ catEvent.Parent = ReplicatedStorage
 local modeEvent = Instance.new("RemoteEvent")
 modeEvent.Name = "SetMode"
 modeEvent.Parent = ReplicatedStorage
-modeEvent.OnServerEvent:Connect(function(player, isHard)
-	player:SetAttribute("Hard", isHard == true)
+modeEvent.OnServerEvent:Connect(function(player, mode)
+	if mode == "Easy" or mode == "Hard" or mode == "Umulig" then
+		player:SetAttribute("Mode", mode)
+	end
 end)
+
+local function isHard(player: Player): boolean
+	local mode = player:GetAttribute("Mode")
+	return mode == "Hard" or mode == "Umulig"
+end
+
+local function getRoot(player: Player): BasePart?
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not character or not humanoid or humanoid.Health <= 0 then
+		return nil
+	end
+	return character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
 
 local function makePart(class: string, props: { [string]: any }): BasePart
 	local p = Instance.new(class) :: BasePart
@@ -412,12 +428,12 @@ local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
 	return cat, prompt
 end
 
-local function carryCat(character: Model): Cat?
+local function carryCat(character: Model, scale: number, lift: number): Cat?
 	local head = character:FindFirstChild("Head") :: BasePart?
 	if not head then
 		return nil
 	end
-	local cat = makeCat(head.CFrame * CFrame.new(0, head.Size.Y / 2, 0), 0.6)
+	local cat = makeCat(head.CFrame * CFrame.new(0, head.Size.Y / 2 + lift, 0), scale)
 	for _, part in cat.model:GetChildren() do
 		if part:IsA("BasePart") then
 			local weld = Instance.new("WeldConstraint")
@@ -477,6 +493,47 @@ kittenFolder.Name = "Kittens"
 kittenFolder.Parent = workspace
 local kittens: { Cat } = {}
 local kittensLeft = 0
+local umulig = false
+local stacks: { [Player]: { Cat } } = {}
+
+local dogFolder = Instance.new("Folder")
+dogFolder.Name = "Dogs"
+dogFolder.Parent = workspace
+local escapeConn: RBXScriptConnection? = nil
+
+local function clearUmulig()
+	if escapeConn then
+		escapeConn:Disconnect()
+		escapeConn = nil
+	end
+	dogFolder:ClearAllChildren()
+	workspace:SetAttribute("Escape", nil)
+	for player, stack in stacks do
+		for _, kitten in stack do
+			removeCat(kitten)
+		end
+		player:SetAttribute("Kittens", nil)
+	end
+	table.clear(stacks)
+end
+
+local function failUmulig(player: Player?)
+	if not umulig then
+		return
+	end
+	local myRound = round
+	umulig = false
+	kittensLeft = 0
+	clearUmulig()
+	kittenFolder:ClearAllChildren()
+	workspace:SetAttribute("KittenDeadline", nil)
+	catEvent:FireAllClients("caught", player)
+	task.delay(5, function()
+		if round == myRound then
+			newRound()
+		end
+	end)
+end
 
 local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from: Vector3)
 	local start = cat.model:GetPivot()
@@ -595,17 +652,251 @@ local function makeKitten(cf: CFrame): Cat
 	return kitten
 end
 
+local function kittenAtHome(index: number)
+	local angle = index / Config.KittenCount * math.pi * 2
+	local spot = home + Vector3.new(math.cos(angle), 0, math.sin(angle)) * 5
+	makeKitten(CFrame.lookAt(spot, Vector3.new(home.X, 0, home.Z))).model.Parent = workspace
+end
+
+local function stackKitten(player: Player): boolean
+	local character = player.Character
+	if not character or not getRoot(player) then
+		return false
+	end
+	local stack = stacks[player]
+	if not stack then
+		stack = {}
+		stacks[player] = stack
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.Died:Once(function()
+				if stacks[player] == stack then
+					failUmulig(player)
+				end
+			end)
+		end
+	end
+	local kitten = carryCat(character, 0.45, #stack * 1.4)
+	if not kitten then
+		return false
+	end
+	kitten.model.Name = "Kitten"
+	local tag = kitten.tagText.Parent :: BillboardGui
+	tag:Destroy()
+	kitten.sparkles:Destroy()
+	table.insert(stack, kitten)
+	player:SetAttribute("Kittens", #stack)
+	return true
+end
+
+local function makeDog(pos: Vector3): (Model, TextLabel)
+	local dog = Instance.new("Model")
+	dog.Name = "Dog"
+	local fur = ({ Color3.fromRGB(120, 80, 45), Color3.fromRGB(90, 60, 40), Color3.fromRGB(160, 120, 80), Color3.fromRGB(60, 55, 50) })[rng:NextInteger(1, 4)]
+	local base = CFrame.new(pos)
+	local function add(name: string, size: Vector3, offset: Vector3, color: Color3?): BasePart
+		return makePart("Part", {
+			Name = name,
+			Size = size,
+			CFrame = base * CFrame.new(offset),
+			Color = color or fur,
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+			CanQuery = false,
+			Parent = dog,
+		})
+	end
+	local body = add("Body", Vector3.new(1.8, 1.5, 3.4), Vector3.new(0, 1.9, 0))
+	add("Head", Vector3.new(1.5, 1.4, 1.5), Vector3.new(0, 2.9, -2.1))
+	add("Snout", Vector3.new(0.9, 0.7, 0.9), Vector3.new(0, 2.6, -3.1))
+	add("Nose", Vector3.new(0.4, 0.3, 0.2), Vector3.new(0, 2.85, -3.6), Color3.fromRGB(20, 20, 20))
+	add("Tongue", Vector3.new(0.4, 0.1, 0.5), Vector3.new(0, 2.2, -3.4), Color3.fromRGB(230, 90, 110))
+	for _, x in { -0.4, 0.4 } do
+		add("Eye", Vector3.new(0.25, 0.25, 0.1), Vector3.new(x, 3.15, -2.88), Color3.fromRGB(20, 20, 20))
+		add("Ear", Vector3.new(0.3, 0.9, 0.6), Vector3.new(x * 2, 3.0, -1.9))
+	end
+	for _, x in { -0.6, 0.6 } do
+		for _, z in { -1.2, 1.2 } do
+			add("Leg", Vector3.new(0.5, 1.3, 0.5), Vector3.new(x, 0.65, z))
+		end
+	end
+	add("Tail", Vector3.new(0.3, 0.3, 1.4), Vector3.new(0, 2.6, 2.1))
+	dog.PrimaryPart = body
+
+	local bubble = Instance.new("BillboardGui")
+	bubble.Size = UDim2.fromOffset(120, 40)
+	bubble.StudsOffset = Vector3.new(0, 4.5, 0)
+	bubble.MaxDistance = 120
+	bubble.AlwaysOnTop = true
+	bubble.Parent = body
+	local bark = Instance.new("TextLabel")
+	bark.Size = UDim2.fromScale(1, 1)
+	bark.BackgroundTransparency = 1
+	bark.Font = Enum.Font.FredokaOne
+	bark.TextScaled = true
+	bark.TextColor3 = Color3.fromRGB(255, 80, 60)
+	bark.TextStrokeTransparency = 0.2
+	bark.Text = "WOOF!"
+	bark.Visible = false
+	bark.Parent = bubble
+
+	dog.Parent = dogFolder
+	return dog, bark
+end
+
+local function startEscape()
+	local myRound = round
+	workspace:SetAttribute("KittenDeadline", nil)
+	workspace:SetAttribute("Escape", true)
+	catEvent:FireAllClients("dogs")
+
+	local runners: { Player } = {}
+	for player, stack in stacks do
+		if #stack > 0 then
+			table.insert(runners, player)
+		end
+	end
+	if #runners == 0 then
+		failUmulig(nil)
+		return
+	end
+
+	type Dog = { model: Model, bark: TextLabel, pos: Vector3, dir: Vector3, speed: number, restUntil: number, nextRest: number, barkUntil: number }
+	local dogs: { Dog } = {}
+	local now = os.clock()
+	for i = 1, Config.DogCount do
+		local runner = runners[(i - 1) % #runners + 1]
+		local root = getRoot(runner)
+		local center = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else Vector3.zero
+		local angle = i / Config.DogCount * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
+		local pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(Config.DogSpawnMin, Config.DogSpawnMax)
+		pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
+		local model, bark = makeDog(pos)
+		table.insert(dogs, {
+			model = model,
+			bark = bark,
+			pos = pos,
+			dir = (center - pos).Unit,
+			speed = Config.DogSpeed * rng:NextNumber(0.92, 1.08),
+			restUntil = now + rng:NextNumber(0.5, 1.5),
+			nextRest = now + rng:NextNumber(5, 8),
+			barkUntil = 0,
+		})
+	end
+
+	local delivered = 0
+	local finished = false
+	escapeConn = RunService.Heartbeat:Connect(function(dt)
+		if finished or round ~= myRound then
+			return
+		end
+		local t = os.clock()
+		local targets: { [Player]: Vector3 } = {}
+		for player, stack in stacks do
+			if #stack > 0 then
+				local root = getRoot(player)
+				if not root or not player.Parent then
+					finished = true
+					failUmulig(player)
+					return
+				end
+				local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
+				if (pos - Vector3.new(home.X, 0, home.Z)).Magnitude < Config.HomeRadius then
+					for _, kitten in stack do
+						removeCat(kitten)
+						delivered += 1
+						kittenAtHome(delivered)
+					end
+					table.clear(stack)
+					player:SetAttribute("Kittens", 0)
+					if delivered >= Config.KittenCount then
+						finished = true
+						umulig = false
+						local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
+						if escapeConn then
+							escapeConn:Disconnect()
+							escapeConn = nil
+						end
+						dogFolder:ClearAllChildren()
+						workspace:SetAttribute("Escape", nil)
+						catEvent:FireAllClients("escaped", player, seconds)
+						task.delay(8, function()
+							if round == myRound then
+								newRound()
+							end
+						end)
+						return
+					end
+				else
+					targets[player] = pos
+				end
+			end
+		end
+
+		for _, dog in dogs do
+			local best: Vector3? = nil
+			local bestPlayer: Player? = nil
+			local bestDistance = math.huge
+			for player, pos in targets do
+				local distance = (pos - dog.pos).Magnitude
+				if distance < bestDistance then
+					best, bestPlayer, bestDistance = pos, player, distance
+				end
+			end
+			if best and bestDistance < Config.DogCatch then
+				finished = true
+				failUmulig(bestPlayer)
+				return
+			end
+
+			if t >= dog.nextRest then
+				dog.restUntil = t + rng:NextNumber(1.2, 2)
+				dog.nextRest = dog.restUntil + rng:NextNumber(5, 8)
+			end
+			local running = best ~= nil and t >= dog.restUntil
+			if best and running then
+				local dir = (best - dog.pos).Unit
+				local nextPos = dog.pos + dir * dog.speed * dt
+				for _, tree in treeSpots do
+					local away = nextPos - tree
+					if away.Magnitude < 3 and away.Magnitude > 0.01 then
+						nextPos = tree + away.Unit * 3
+					end
+				end
+				for _, other in dogs do
+					local away = nextPos - other.pos
+					if other ~= dog and away.Magnitude < 3 and away.Magnitude > 0.01 then
+						nextPos += away.Unit * (3 - away.Magnitude) * 0.5
+					end
+				end
+				dog.dir = dir
+				dog.pos = Vector3.new(math.clamp(nextPos.X, -half + 3, half - 3), 0, math.clamp(nextPos.Z, -half + 3, half - 3))
+			end
+
+			if t > dog.barkUntil and rng:NextNumber() < dt * 1.2 then
+				dog.barkUntil = t + 0.6
+			end
+			dog.bark.Visible = t < dog.barkUntil
+			local hop = if running then math.abs(math.sin(t * 14)) * 0.5 else 0
+			local at = dog.pos + Vector3.new(0, 1.9 + hop, 0)
+			dog.model:PivotTo(CFrame.lookAt(at, at + dog.dir))
+		end
+	end)
+end
+
 local function collectKitten(kitten: Cat, player: Player)
 	if kitten.model.Parent ~= kittenFolder or kittensLeft <= 0 then
+		return
+	end
+	if umulig and not stackKitten(player) then
 		return
 	end
 	local myRound = round
 	removeCat(kitten)
 	kittensLeft -= 1
-
-	local angle = (Config.KittenCount - kittensLeft) / Config.KittenCount * math.pi * 2
-	local spot = home + Vector3.new(math.cos(angle), 0, math.sin(angle)) * 5
-	makeKitten(CFrame.lookAt(spot, Vector3.new(home.X, 0, home.Z))).model.Parent = workspace
+	if not umulig then
+		kittenAtHome(Config.KittenCount - kittensLeft)
+	end
 
 	local stats = player:FindFirstChild("leaderstats")
 	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
@@ -615,7 +906,9 @@ local function collectKitten(kitten: Cat, player: Player)
 	workspace:SetAttribute("KittensLeft", kittensLeft)
 	catEvent:FireAllClients("kitten", player, kittensLeft)
 
-	if kittensLeft == 0 then
+	if kittensLeft == 0 and umulig then
+		startEscape()
+	elseif kittensLeft == 0 then
 		workspace:SetAttribute("KittenDeadline", nil)
 		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 		catEvent:FireAllClients("allKittens", player, seconds)
@@ -626,8 +919,9 @@ local function collectKitten(kitten: Cat, player: Player)
 	end
 end
 
-local function startKittens(cat: Cat)
+local function startKittens(cat: Cat, ultra: boolean)
 	local myRound = round
+	umulig = ultra
 	local center = cat.model:GetPivot().Position
 	removeCat(cat)
 	wildCat = nil
@@ -670,6 +964,8 @@ local function startKittens(cat: Cat)
 	task.wait(Config.KittenTime)
 	if round == myRound and kittensLeft > 0 then
 		kittensLeft = 0
+		umulig = false
+		clearUmulig()
 		kittenFolder:ClearAllChildren()
 		workspace:SetAttribute("KittenDeadline", nil)
 		catEvent:FireAllClients("timeUp")
@@ -689,6 +985,8 @@ function newRound()
 	end
 	table.clear(kittens)
 	kittensLeft = 0
+	umulig = false
+	clearUmulig()
 	workspace:SetAttribute("KittensLeft", nil)
 	workspace:SetAttribute("KittenDeadline", nil)
 	wildCat, carried, homeCat, carrier = nil, nil, nil, nil
@@ -710,11 +1008,11 @@ function newRound()
 		if wildCat ~= cat or fleeing or not character then
 			return
 		end
-		if player:GetAttribute("Hard") then
-			startKittens(cat)
+		if isHard(player) then
+			startKittens(cat, player:GetAttribute("Mode") == "Umulig")
 			return
 		end
-		local newCarried = carryCat(character)
+		local newCarried = carryCat(character, 0.6, 0)
 		if not newCarried then
 			return
 		end
@@ -762,6 +1060,9 @@ Players.PlayerRemoving:Connect(function(player)
 	if carrier == player then
 		loseCat()
 	end
+	if stacks[player] then
+		failUmulig(player)
+	end
 end)
 
 task.spawn(function()
@@ -772,7 +1073,7 @@ task.spawn(function()
 			local catPos = cat.model:GetPivot().Position
 			for _, p in Players:GetPlayers() do
 				local r = p.Character and p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-				if p:GetAttribute("Hard") and r and (r.Position - catPos).Magnitude < Config.FleeDistance then
+				if isHard(p) and r and (r.Position - catPos).Magnitude < Config.FleeDistance then
 					task.spawn(fleeFrom, cat, prompt, p, r.Position)
 					break
 				end

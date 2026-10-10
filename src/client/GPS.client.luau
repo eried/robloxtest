@@ -285,15 +285,16 @@ local hard = false
 local nextGlitch = 0
 local glitchUntil = 0
 
-local function modeButton(text: string, color: Color3, x: number, isHard: boolean)
+local function modeButton(text: string, color: Color3, x: number, mode: string)
+	local isHard = mode ~= "Easy"
 	local button = new("TextButton", {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, x, 1, -24),
-		Size = UDim2.fromOffset(160, 56),
+		Size = UDim2.fromOffset(130, 56),
 		BackgroundColor3 = color,
 		Font = FONT,
-		TextSize = 30,
-		TextColor3 = Color3.fromRGB(20, 20, 20),
+		TextSize = 28,
+		TextColor3 = if mode == "Umulig" then Color3.new(1, 1, 1) else Color3.fromRGB(20, 20, 20),
 		Text = text,
 		ZIndex = 12,
 		Parent = card,
@@ -302,7 +303,7 @@ local function modeButton(text: string, color: Color3, x: number, isHard: boolea
 	button.Activated:Connect(function()
 		playing = true
 		hard = isHard
-		modeEvent:FireServer(isHard)
+		modeEvent:FireServer(mode)
 		if Config.MusicId ~= 0 then
 			music:Play()
 		end
@@ -310,14 +311,15 @@ local function modeButton(text: string, color: Color3, x: number, isHard: boolea
 			nextGlitch = os.clock() + 12
 			local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 			if atmosphere then
-				atmosphere.Density = 0.7
+				atmosphere.Density = if mode == "Umulig" then 0.8 else 0.7
 			end
 		end
 		intro:Destroy()
 	end)
 end
-modeButton("Easy", GREEN, -90, false)
-modeButton("Hard", Color3.fromRGB(255, 120, 90), 90, true)
+modeButton("Easy", GREEN, -140, "Easy")
+modeButton("Hard", Color3.fromRGB(255, 120, 90), 0, "Hard")
+modeButton("Umulig", Color3.fromRGB(150, 25, 40), 140, "Umulig")
 
 -- Events
 local function nameOf(who: Player?): string
@@ -354,6 +356,16 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: numbe
 		showBanner(finder .. " found a kitten! 🐾\n" .. (value or 0) .. " left", 2)
 	elseif kind == "allKittens" then
 		showBanner("All kittens found! 🎉\nTime: " .. formatTime(value or 0), 6)
+		confetti()
+		task.delay(8, function()
+			showBanner(cat .. " ran away again! Use your GPS.", 3)
+		end)
+	elseif kind == "dogs" then
+		showBanner("🐕 Dogs! Run home with the kittens!", 4)
+	elseif kind == "caught" then
+		showBanner("The dogs got " .. (if who == player then "you" else nameOf(who)) .. "! 🐕\nThe kittens ran home.", 5)
+	elseif kind == "escaped" then
+		showBanner("You beat UMULIG! 🏆\nTime: " .. formatTime(value or 0), 6)
 		confetti()
 		task.delay(8, function()
 			showBanner(cat .. " ran away again! Use your GPS.", 3)
@@ -403,6 +415,45 @@ end
 -- Update loop
 local lastBeep = 0
 local lastForward = Vector3.new(0, 0, -1)
+local dogDots: { TextLabel } = {}
+
+local function radarPos(offset: Vector3, right: Vector3): UDim2
+	local distance = offset.Magnitude
+	local x = offset:Dot(right)
+	local y = -offset:Dot(lastForward)
+	if distance > Config.GpsRange then
+		x = x / distance * Config.GpsRange
+		y = y / distance * Config.GpsRange
+	end
+	local scale = (RADAR / 2 - 14) / Config.GpsRange
+	return UDim2.new(0.5, x * scale, 0.5, y * scale)
+end
+
+local function showDogs(from: Vector3?, right: Vector3?)
+	local dogs = workspace:FindFirstChild("Dogs")
+	local list: { Instance } = if dogs and from and right then dogs:GetChildren() else {}
+	for i, dog in list do
+		local dot = dogDots[i]
+		if not dot then
+			dot = new("TextLabel", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Size = UDim2.fromOffset(20, 20),
+				BackgroundTransparency = 1,
+				TextSize = 16,
+				Text = "🐕",
+				ZIndex = 4,
+				Parent = radar,
+			})
+			dogDots[i] = dot
+		end
+		local pos = (dog :: Model):GetPivot().Position - (from :: Vector3)
+		dot.Position = radarPos(Vector3.new(pos.X, 0, pos.Z), right :: Vector3)
+		dot.Visible = true
+	end
+	for i = #list + 1, #dogDots do
+		dogDots[i].Visible = false
+	end
+end
 
 RunService.RenderStepped:Connect(function()
 	updateSky()
@@ -428,6 +479,8 @@ RunService.RenderStepped:Connect(function()
 	local kittensLeft = 0
 	if catPos then
 		target = catPos
+	elseif workspace:GetAttribute("Escape") then
+		target, mode = Config.HomePosition, "escape"
 	elseif deadline and root then
 		target, kittensLeft = nearestKitten(root.Position)
 		mode = "kitten"
@@ -436,6 +489,7 @@ RunService.RenderStepped:Connect(function()
 	end
 
 	if not root or not target then
+		showDogs(nil, nil)
 		catDot.Visible = false
 		hintLabel.Text = ""
 		if carrierId then
@@ -456,6 +510,7 @@ RunService.RenderStepped:Connect(function()
 			local static = math.random(20, 60)
 			radar.BackgroundColor3 = Color3.fromRGB(static, static, static)
 			catDot.Visible = false
+			showDogs(nil, nil)
 			distanceLabel.Text = "No signal"
 			hintLabel.Text = "..."
 			return
@@ -474,21 +529,17 @@ RunService.RenderStepped:Connect(function()
 	end
 	local right = Vector3.new(-lastForward.Z, 0, lastForward.X)
 
-	local x = offset:Dot(right)
-	local y = -offset:Dot(lastForward)
-	if distance > Config.GpsRange then
-		x = x / distance * Config.GpsRange
-		y = y / distance * Config.GpsRange
-	end
-	local scale = (RADAR / 2 - 14) / Config.GpsRange
+	showDogs(root.Position, right)
 	catDot.Visible = true
-	catDot.Text = if mode == "home" then "🏠" elseif mode == "kitten" then "🐾" else "🐱"
-	catDot.Position = UDim2.new(0.5, x * scale, 0.5, y * scale)
+	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" else "🐱"
+	catDot.Position = radarPos(offset, right)
 
 	local meters = math.floor(distance * 0.28)
-	local label = if mode == "home" then "Home" elseif mode == "kitten" then "Kitten" else Config.CatName
+	local label = if mode == "home" or mode == "escape" then "Home" elseif mode == "kitten" then "Kitten" else Config.CatName
 	distanceLabel.Text = label .. ": " .. meters .. " m"
-	if mode == "home" then
+	if mode == "escape" then
+		hintLabel.Text = "Run! 🐕🐕🐕"
+	elseif mode == "home" then
 		hintLabel.Text = if distance < 50 then "Almost home!" else "Bring her home!"
 	elseif mode == "kitten" then
 		hintLabel.Text = kittensLeft .. " of " .. Config.KittenCount .. " kittens left"

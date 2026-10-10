@@ -21,6 +21,12 @@ return {
 	KittenCount = 7,
 	KittenTime = 180,
 
+	DogCount = 8,
+	DogSpeed = 17.5,
+	DogCatch = 3.5,
+	DogSpawnMin = 60,
+	DogSpawnMax = 100,
+
 	DayMinutes = 8,
 	StartClock = 15,
 
