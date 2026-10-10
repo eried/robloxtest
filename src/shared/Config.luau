@@ -44,7 +44,7 @@ return {
 	},
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
-	MusicId = 0,
+	MusicId = 139972511482001,
 
 	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
 	SoundsId = 0,
