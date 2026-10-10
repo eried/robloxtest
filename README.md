@@ -13,8 +13,8 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 ## Modes (same for everyone on a server)
 
 - **Easy**: find Pianka with the GPS and bring her home.
-- **Hard**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. When you catch her she pops into 7 black kittens. Find them before the timer ends.
-- **Umulig** (almost impossible): like Hard, but the kittens stack on your head and 8 dogs chase you home.
+- **Normal**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. And there is a surprise when you catch her!
+- **Umulig** (almost impossible): like Normal, plus dogs.
 
 Night lasts most of the time. Spooky neighbors live in cabins and talk in Norwegian. Listen for meows.
 

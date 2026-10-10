@@ -1384,7 +1384,7 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 			applyHero(player)
 		end
 	end
-	if (mode == "Easy" or mode == "Hard" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
+	if (mode == "Easy" or mode == "Normal" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
 		local alone = #Players:GetPlayers() <= 1
 		local tooSoon = not alone and now - (lastChangeBy[player] or -math.huge) < 60
 		if (busy and not alone) or tooSoon or now - lastModeChange < 5 then

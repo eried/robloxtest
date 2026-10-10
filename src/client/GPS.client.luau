@@ -414,7 +414,7 @@ local playing = false
 local DARK = Color3.fromRGB(20, 20, 20)
 local MODES = {
 	{ mode = "Easy", color = GREEN, note = "Find her", text = DARK },
-	{ mode = "Hard", color = Color3.fromRGB(255, 120, 90), note = "7 kittens!", text = DARK },
+	{ mode = "Normal", color = Color3.fromRGB(255, 120, 90), note = "Tricky!", text = DARK },
 	{ mode = "Umulig", color = Color3.fromRGB(150, 25, 40), note = "Almost impossible", text = WHITE },
 }
 for i, info in MODES do
@@ -616,7 +616,7 @@ local function updateSky(): number
 	local mode = workspace:GetAttribute("Mode")
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		local base = if mode == "Umulig" then 0.75 elseif mode == "Hard" then 0.65 else 0.45
+		local base = if mode == "Umulig" then 0.75 elseif mode == "Normal" then 0.65 else 0.45
 		atmosphere.Density = base + 0.1 * dark
 		atmosphere.Color = Color3.fromRGB(40, 48, 70):Lerp(Color3.fromRGB(190, 215, 190), daylight)
 		atmosphere.Decay = Color3.fromRGB(20, 25, 40):Lerp(Color3.fromRGB(90, 120, 90), daylight)
