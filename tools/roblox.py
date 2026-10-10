@@ -26,12 +26,18 @@ def call(method, url, data=None, headers=None, auth=True):
     all_headers = dict(headers or {})
     if auth:
         all_headers["x-api-key"] = KEY
-    req = urllib.request.Request(url, data=data, method=method, headers=all_headers)
-    try:
-        with urllib.request.urlopen(req) as res:
-            return json.loads(res.read() or b"{}")
-    except urllib.error.HTTPError as err:
-        sys.exit(f"{method} {url} failed: {err.code} {err.read().decode(errors='replace')}")
+    for attempt in range(6):
+        req = urllib.request.Request(url, data=data, method=method, headers=all_headers)
+        try:
+            with urllib.request.urlopen(req) as res:
+                return json.loads(res.read() or b"{}")
+        except urllib.error.HTTPError as err:
+            body = err.read().decode(errors="replace")
+            if err.code in (409, 429, 500, 503) and attempt < 5:
+                print(f"Roblox is busy ({err.code}), trying again in 30 s")
+                time.sleep(30)
+                continue
+            sys.exit(f"{method} {url} failed: {err.code} {body}")
 
 
 def user_id():
