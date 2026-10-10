@@ -160,5 +160,13 @@ def status():
     print(f"https://www.roblox.com/games/{place}")
 
 
+def make_public():
+    universe = universe_id(place_id())
+    body = json.dumps({"visibility": "PUBLIC"}).encode()
+    url = f"{API}/cloud/v2/universes/{universe}?updateMask=visibility"
+    res = call("PATCH", url, body, {"Content-Type": "application/json"})
+    print("Visibility:", res.get("visibility"))
+
+
 if __name__ == "__main__":
-    {"audio": audio, "publish": publish, "status": status}[sys.argv[1]]()
+    {"audio": audio, "publish": publish, "status": status, "public": make_public}[sys.argv[1]]()

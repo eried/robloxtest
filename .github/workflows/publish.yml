@@ -2,6 +2,11 @@ name: Publish to Roblox
 
 on:
   workflow_dispatch:
+    inputs:
+      make_public:
+        description: Make the game public
+        type: boolean
+        default: false
   push:
     branches: [claude/roblox-forest-cat-game-qr4nzd]
     paths: [src/**, default.project.json, FindPianka.rbxlx, music/**, sounds/**, tools/roblox.py, .github/workflows/publish.yml]
@@ -66,6 +71,13 @@ jobs:
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 tools/roblox.py publish | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Make public
+        if: steps.check.outputs.ready == 'true' && inputs.make_public
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 tools/roblox.py public | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Game status
         if: steps.check.outputs.ready == 'true'

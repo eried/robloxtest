@@ -16,7 +16,7 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 - **Normal**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. And there is a surprise when you catch her!
 - **Umulig** (almost impossible): like Normal, plus dogs.
 
-Night lasts most of the time. Spooky neighbors live in cabins and talk in Norwegian. Listen for meows.
+Night lasts most of the time. Spooky neighbors live in cabins and talk in Norwegian. Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
 
 ## Publish
 

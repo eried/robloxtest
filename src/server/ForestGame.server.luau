@@ -999,8 +999,15 @@ local function startEscape()
 		local root = getRoot(runner)
 		local center = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else Vector3.zero
 		local angle = i / Config.DogCount * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
-		local pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(Config.DogSpawnMin, Config.DogSpawnMax)
-		pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
+		local pos = center
+		for _ = 1, 12 do
+			pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(Config.DogSpawnMin, Config.DogSpawnMax)
+			pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
+			if (pos - center).Magnitude >= 40 then
+				break
+			end
+			angle = rng:NextNumber(0, math.pi * 2)
+		end
 		local model, bark = makeDog(pos)
 		table.insert(dogs, {
 			model = model,
@@ -1303,6 +1310,34 @@ function newRound()
 	end)
 end
 
+local DataStoreService = game:GetService("DataStoreService")
+local okStore, saves = pcall(function()
+	return DataStoreService:GetDataStore("FindPianka1")
+end)
+local okBoard, ranking = pcall(function()
+	return DataStoreService:GetOrderedDataStore("Rescued1")
+end)
+local loaded: { [Player]: boolean } = {}
+
+local function savePlayer(player: Player)
+	local stats = player:FindFirstChild("leaderstats")
+	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
+	if not count or not loaded[player] then
+		return
+	end
+	local key = tostring(player.UserId)
+	if okStore then
+		pcall(function()
+			saves:SetAsync(key, { rescued = count.Value })
+		end)
+	end
+	if okBoard and count.Value > 0 then
+		pcall(function()
+			ranking:SetAsync(key, count.Value)
+		end)
+	end
+end
+
 local function addPlayer(player: Player)
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
@@ -1310,6 +1345,18 @@ local function addPlayer(player: Player)
 	count.Name = "Rescued"
 	count.Parent = stats
 	stats.Parent = player
+
+	task.spawn(function()
+		if okStore then
+			local ok, data = pcall(function()
+				return saves:GetAsync(tostring(player.UserId))
+			end)
+			if ok and type(data) == "table" and type(data.rescued) == "number" then
+				count.Value += data.rescued
+			end
+			loaded[player] = ok
+		end
+	end)
 
 	player.CharacterAdded:Connect(function(character)
 		giveLantern(player, character)
@@ -1328,6 +1375,10 @@ local lastCall: { [Player]: number } = {}
 local lastChangeBy: { [Player]: number } = {}
 
 Players.PlayerRemoving:Connect(function(player)
+	task.spawn(function()
+		savePlayer(player)
+		loaded[player] = nil
+	end)
 	lastCall[player] = nil
 	lastChangeBy[player] = nil
 	pendingHero[player] = nil
@@ -1396,6 +1447,69 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 		workspace:SetAttribute("Mode", mode)
 		catEvent:FireAllClients("mode", player, mode)
 		newRound()
+	end
+end)
+
+game:BindToClose(function()
+	for _, player in Players:GetPlayers() do
+		savePlayer(player)
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(120)
+		for _, player in Players:GetPlayers() do
+			savePlayer(player)
+		end
+	end
+end)
+
+-- Leaderboard sign at camp
+local board = makePart("Part", {
+	Name = "Leaderboard",
+	Size = Vector3.new(7, 9, 0.5),
+	CFrame = CFrame.lookAt(Vector3.new(-11, 5, -3), Vector3.new(0, 5, 0)),
+	Color = Color3.fromRGB(70, 50, 35),
+	Material = Enum.Material.Wood,
+	Parent = workspace:FindFirstChild("Camp"),
+})
+local boardGui = Instance.new("SurfaceGui")
+boardGui.Face = Enum.NormalId.Front
+boardGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+boardGui.Parent = board
+local boardText = Instance.new("TextLabel")
+boardText.Size = UDim2.fromScale(0.9, 0.92)
+boardText.Position = UDim2.fromScale(0.05, 0.04)
+boardText.BackgroundTransparency = 1
+boardText.Font = Enum.Font.FredokaOne
+boardText.TextScaled = true
+boardText.TextColor3 = Color3.fromRGB(255, 220, 150)
+boardText.TextYAlignment = Enum.TextYAlignment.Top
+boardText.Text = "Top rescuers\n..."
+boardText.Parent = boardGui
+
+local names: { [number]: string } = {}
+task.spawn(function()
+	while okBoard do
+		local ok, pages = pcall(function()
+			return ranking:GetSortedAsync(false, 10)
+		end)
+		if ok then
+			local lines = { "Top rescuers 🐱" }
+			for i, entry in pages:GetCurrentPage() do
+				local id = tonumber(entry.key) or 0
+				if not names[id] then
+					local got, name = pcall(function()
+						return Players:GetNameFromUserIdAsync(id)
+					end)
+					names[id] = if got then name else "?"
+				end
+				table.insert(lines, i .. ". " .. names[id] .. "  " .. entry.value)
+			end
+			boardText.Text = table.concat(lines, "\n")
+		end
+		task.wait(60)
 	end
 end)
 
