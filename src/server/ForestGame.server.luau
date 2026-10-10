@@ -46,7 +46,8 @@ local function randomSpot(margin: number): Vector3
 end
 
 -- Sky and fog
-Lighting.ClockTime = 14
+Lighting.ClockTime = Config.StartClock
+workspace:SetAttribute("DayStart", workspace:GetServerTimeNow())
 Lighting.Brightness = 2
 Lighting.OutdoorAmbient = Color3.fromRGB(120, 140, 120)
 local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
@@ -267,6 +268,52 @@ for _, side in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 
 	})
 end
 
+-- Lantern
+local lantern = Instance.new("Tool")
+lantern.Name = "Lantern"
+lantern.CanBeDropped = false
+lantern.GripPos = Vector3.new(0, 0.9, 0)
+local lanternHandle = makePart("Part", {
+	Name = "Handle",
+	Size = Vector3.new(0.7, 0.9, 0.7),
+	Color = Color3.fromRGB(255, 200, 90),
+	Material = Enum.Material.Neon,
+	Anchored = false,
+	CanCollide = false,
+	Massless = true,
+	Parent = lantern,
+})
+for _, y in { 0.55, -0.55 } do
+	local cap = makePart("Part", {
+		Name = "Cap",
+		Size = Vector3.new(0.9, 0.2, 0.9),
+		CFrame = CFrame.new(0, y, 0),
+		Color = Color3.fromRGB(40, 35, 30),
+		Material = Enum.Material.Metal,
+		Anchored = false,
+		CanCollide = false,
+		Massless = true,
+		Parent = lantern,
+	})
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = lanternHandle
+	weld.Part1 = cap
+	weld.Parent = cap
+end
+local lanternLight = Instance.new("PointLight")
+lanternLight.Range = 30
+lanternLight.Brightness = 2.5
+lanternLight.Color = Color3.fromRGB(255, 190, 110)
+lanternLight.Shadows = true
+lanternLight.Parent = lanternHandle
+
+local function giveLantern(player: Player, character: Model)
+	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+	local tool = lantern:Clone()
+	tool.Parent = player:WaitForChild("Backpack")
+	humanoid:EquipTool(tool)
+end
+
 -- Pianka
 type Cat = {
 	model: Model,
@@ -425,6 +472,12 @@ end
 
 local newRound: () -> ()
 
+local kittenFolder = Instance.new("Folder")
+kittenFolder.Name = "Kittens"
+kittenFolder.Parent = workspace
+local kittens: { Cat } = {}
+local kittensLeft = 0
+
 local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from: Vector3)
 	local start = cat.model:GetPivot()
 	local catPos = Vector3.new(start.X, 0, start.Z)
@@ -514,10 +567,130 @@ local function deliver(player: Player)
 	end
 end
 
+local function kittenSpot(center: Vector3, taken: { Vector3 }): Vector3
+	for _ = 1, 200 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(40, 160)
+		local ok = math.abs(pos.X) < half - 10 and math.abs(pos.Z) < half - 10 and isFree(pos, 4)
+		for _, other in taken do
+			if (other - pos).Magnitude < 25 then
+				ok = false
+			end
+		end
+		if ok then
+			return pos
+		end
+	end
+	return randomSpot(15)
+end
+
+local function makeKitten(cf: CFrame): Cat
+	local kitten = makeCat(cf, 0.45)
+	kitten.model.Name = "Kitten"
+	kitten.tagText.Text = "Kitten"
+	local tag = kitten.tagText.Parent :: BillboardGui
+	tag.MaxDistance = 25
+	kitten.sparkles:Destroy()
+	table.insert(kittens, kitten)
+	return kitten
+end
+
+local function collectKitten(kitten: Cat, player: Player)
+	if kitten.model.Parent ~= kittenFolder or kittensLeft <= 0 then
+		return
+	end
+	local myRound = round
+	removeCat(kitten)
+	kittensLeft -= 1
+
+	local angle = (Config.KittenCount - kittensLeft) / Config.KittenCount * math.pi * 2
+	local spot = home + Vector3.new(math.cos(angle), 0, math.sin(angle)) * 5
+	makeKitten(CFrame.lookAt(spot, Vector3.new(home.X, 0, home.Z))).model.Parent = workspace
+
+	local stats = player:FindFirstChild("leaderstats")
+	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
+	if count then
+		count.Value += 1
+	end
+	workspace:SetAttribute("KittensLeft", kittensLeft)
+	catEvent:FireAllClients("kitten", player, kittensLeft)
+
+	if kittensLeft == 0 then
+		workspace:SetAttribute("KittenDeadline", nil)
+		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
+		catEvent:FireAllClients("allKittens", player, seconds)
+		task.wait(8)
+		if round == myRound then
+			newRound()
+		end
+	end
+end
+
+local function startKittens(cat: Cat)
+	local myRound = round
+	local center = cat.model:GetPivot().Position
+	removeCat(cat)
+	wildCat = nil
+	workspace:SetAttribute("CatPosition", nil)
+
+	local boom = Instance.new("Explosion")
+	boom.Position = center
+	boom.BlastPressure = 0
+	boom.DestroyJointRadiusPercent = 0
+	boom.ExplosionType = Enum.ExplosionType.NoCraters
+	boom.Parent = workspace
+
+	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
+	local mom = homeCat :: Cat
+	mom.tagText.Text = "Mama " .. Config.CatName
+	mom.model.Parent = workspace
+
+	local taken: { Vector3 } = {}
+	for _ = 1, Config.KittenCount do
+		local pos = kittenSpot(Vector3.new(center.X, 0, center.Z), taken)
+		table.insert(taken, pos)
+		local kitten = makeKitten(CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = "Pick up"
+		prompt.ObjectText = "Kitten"
+		prompt.HoldDuration = 0.2
+		prompt.MaxActivationDistance = 8
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = kitten.body
+		prompt.Triggered:Connect(function(player)
+			collectKitten(kitten, player)
+		end)
+		kitten.model.Parent = kittenFolder
+	end
+	kittensLeft = Config.KittenCount
+	workspace:SetAttribute("KittensLeft", kittensLeft)
+	workspace:SetAttribute("KittenDeadline", workspace:GetServerTimeNow() + Config.KittenTime)
+	catEvent:FireAllClients("kittens")
+
+	task.wait(Config.KittenTime)
+	if round == myRound and kittensLeft > 0 then
+		kittensLeft = 0
+		kittenFolder:ClearAllChildren()
+		workspace:SetAttribute("KittenDeadline", nil)
+		catEvent:FireAllClients("timeUp")
+		task.wait(4)
+		if round == myRound then
+			newRound()
+		end
+	end
+end
+
 function newRound()
 	removeCat(wildCat)
 	removeCat(carried)
 	removeCat(homeCat)
+	for _, kitten in kittens do
+		removeCat(kitten)
+	end
+	table.clear(kittens)
+	kittensLeft = 0
+	workspace:SetAttribute("KittensLeft", nil)
+	workspace:SetAttribute("KittenDeadline", nil)
 	wildCat, carried, homeCat, carrier = nil, nil, nil, nil
 	round += 1
 
@@ -535,6 +708,10 @@ function newRound()
 	prompt.Triggered:Connect(function(player)
 		local character = player.Character
 		if wildCat ~= cat or fleeing or not character then
+			return
+		end
+		if player:GetAttribute("Hard") then
+			startKittens(cat)
 			return
 		end
 		local newCarried = carryCat(character)
@@ -560,18 +737,25 @@ function newRound()
 	end)
 end
 
-local function addStats(player: Player)
+local function addPlayer(player: Player)
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
 	local count = Instance.new("IntValue")
 	count.Name = "Rescued"
 	count.Parent = stats
 	stats.Parent = player
+
+	player.CharacterAdded:Connect(function(character)
+		giveLantern(player, character)
+	end)
+	if player.Character then
+		task.spawn(giveLantern, player, player.Character)
+	end
 end
 
-Players.PlayerAdded:Connect(addStats)
+Players.PlayerAdded:Connect(addPlayer)
 for _, player in Players:GetPlayers() do
-	addStats(player)
+	addPlayer(player)
 end
 
 Players.PlayerRemoving:Connect(function(player)

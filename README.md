@@ -7,7 +7,15 @@ Pianka the cat is lost in the forest. Use your GPS to find her and bring her hom
 ## Modes
 
 - **Easy**: find Pianka with the GPS and bring her home.
-- **Hard**: thick fog, the GPS loses signal sometimes, and Pianka runs away 3 times before you can catch her.
+- **Hard**: thick fog, the GPS loses signal sometimes, and Pianka runs away 3 times. When you catch her she explodes into 7 black kittens. Find them all before the timer ends.
+
+Night falls after a while. Use your lantern.
+
+## Music
+
+1. Upload `music/PiankaMystery.mp3` at create.roblox.com (Creations > Audio).
+2. Copy its id into `MusicId` in `src/shared/Config.luau`.
+3. Rebuild, or in Studio edit `ReplicatedStorage > Shared > Config` directly.
 
 ## Play it
 

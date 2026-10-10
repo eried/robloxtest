@@ -136,6 +136,14 @@ local beep = new("Sound", {
 	Parent = gui,
 })
 
+-- Music
+local music = new("Sound", {
+	SoundId = if Config.MusicId ~= 0 then "rbxassetid://" .. Config.MusicId else "",
+	Looped = true,
+	Volume = 0.5,
+	Parent = gui,
+})
+
 -- Timer
 local timerLabel = new("TextLabel", {
 	AnchorPoint = Vector2.new(0.5, 0),
@@ -150,6 +158,23 @@ local timerLabel = new("TextLabel", {
 	Parent = gui,
 })
 round(timerLabel, UDim.new(0, 12))
+
+local musicButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 100, 0, 10),
+	Size = UDim2.fromOffset(40, 40),
+	BackgroundColor3 = Color3.fromRGB(35, 40, 35),
+	BackgroundTransparency = 0.2,
+	TextSize = 22,
+	Text = "🎵",
+	Visible = Config.MusicId ~= 0,
+	Parent = gui,
+})
+round(musicButton, UDim.new(0, 12))
+musicButton.Activated:Connect(function()
+	music.Playing = not music.Playing
+	musicButton.Text = if music.Playing then "🎵" else "🔇"
+end)
 
 -- Banner
 local banner = new("TextLabel", {
@@ -278,6 +303,9 @@ local function modeButton(text: string, color: Color3, x: number, isHard: boolea
 		playing = true
 		hard = isHard
 		modeEvent:FireServer(isHard)
+		if Config.MusicId ~= 0 then
+			music:Play()
+		end
 		if isHard then
 			nextGlitch = os.clock() + 12
 			local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
@@ -296,7 +324,7 @@ local function nameOf(who: Player?): string
 	return if who then who.DisplayName else "Someone"
 end
 
-catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, seconds: number?)
+catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: number?)
 	local cat = Config.CatName
 	if kind == "picked" then
 		if who == player then
@@ -305,7 +333,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, seconds: num
 			showBanner(nameOf(who) .. " found " .. cat .. "!", 3)
 		end
 	elseif kind == "home" then
-		local time = formatTime(seconds or 0)
+		local time = formatTime(value or 0)
 		if who == player then
 			showBanner(cat .. " is home! 🎉\nTime: " .. time, 5)
 			confetti()
@@ -319,30 +347,94 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, seconds: num
 		showBanner("Oh no! " .. cat .. " ran away!", 3)
 	elseif kind == "fled" then
 		showBanner(cat .. " ran off! Chase her!", 2)
+	elseif kind == "kittens" then
+		showBanner("💥 Surprise! " .. cat .. " had " .. Config.KittenCount .. " kittens!\nFind them before time runs out!", 5)
+	elseif kind == "kitten" then
+		local finder = if who == player then "You" else nameOf(who)
+		showBanner(finder .. " found a kitten! 🐾\n" .. (value or 0) .. " left", 2)
+	elseif kind == "allKittens" then
+		showBanner("All kittens found! 🎉\nTime: " .. formatTime(value or 0), 6)
+		confetti()
+		task.delay(8, function()
+			showBanner(cat .. " ran away again! Use your GPS.", 3)
+		end)
+	elseif kind == "timeUp" then
+		showBanner("Time's up! ⏰\nThe kittens ran home.", 4)
 	end
 end)
+
+-- Day and night
+local DAY_AMBIENT = Color3.fromRGB(120, 140, 120)
+local NIGHT_AMBIENT = Color3.fromRGB(25, 28, 45)
+
+local function updateSky()
+	local dayStart = workspace:GetAttribute("DayStart") :: number?
+	if not dayStart then
+		return
+	end
+	local hours = (workspace:GetServerTimeNow() - dayStart) / (Config.DayMinutes * 60) * 24
+	local clock = (Config.StartClock + hours) % 24
+	local daylight = math.clamp(math.sin((clock - 6) / 12 * math.pi) * 3, 0, 1)
+	Lighting.ClockTime = clock
+	Lighting.OutdoorAmbient = NIGHT_AMBIENT:Lerp(DAY_AMBIENT, daylight)
+	Lighting.Brightness = 0.3 + 1.7 * daylight
+end
+
+local function nearestKitten(from: Vector3): (Vector3?, number)
+	local folder = workspace:FindFirstChild("Kittens")
+	local best: Vector3? = nil
+	local bestDistance = math.huge
+	local count = 0
+	if folder then
+		for _, kitten in folder:GetChildren() do
+			if kitten:IsA("Model") then
+				count += 1
+				local pos = kitten:GetPivot().Position
+				local distance = (pos - from).Magnitude
+				if distance < bestDistance then
+					best, bestDistance = pos, distance
+				end
+			end
+		end
+	end
+	return best, count
+end
 
 -- Update loop
 local lastBeep = 0
 local lastForward = Vector3.new(0, 0, -1)
 
 RunService.RenderStepped:Connect(function()
+	updateSky()
+
 	local start = workspace:GetAttribute("RoundStart") :: number?
 	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
 	local carrierId = workspace:GetAttribute("Carrier") :: number?
-	if start and (catPos or carrierId) then
-		timerLabel.Text = "⏱ " .. formatTime(workspace:GetServerTimeNow() - start)
-	end
-
-	local target: Vector3?, goingHome = nil, false
-	if catPos then
-		target, goingHome = catPos, false
-	elseif carrierId == player.UserId then
-		target, goingHome = Config.HomePosition, true
+	local deadline = workspace:GetAttribute("KittenDeadline") :: number?
+	local serverNow = workspace:GetServerTimeNow()
+	if deadline then
+		local left = deadline - serverNow
+		timerLabel.Text = "⏳ " .. formatTime(left)
+		timerLabel.TextColor3 = if left < 30 then Color3.fromRGB(255, 90, 90) else Color3.new(1, 1, 1)
+	elseif start and (catPos or carrierId) then
+		timerLabel.Text = "⏱ " .. formatTime(serverNow - start)
+		timerLabel.TextColor3 = Color3.new(1, 1, 1)
 	end
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+
+	local target: Vector3?, mode = nil, "cat"
+	local kittensLeft = 0
+	if catPos then
+		target = catPos
+	elseif deadline and root then
+		target, kittensLeft = nearestKitten(root.Position)
+		mode = "kitten"
+	elseif carrierId == player.UserId then
+		target, mode = Config.HomePosition, "home"
+	end
+
 	if not root or not target then
 		catDot.Visible = false
 		hintLabel.Text = ""
@@ -390,13 +482,16 @@ RunService.RenderStepped:Connect(function()
 	end
 	local scale = (RADAR / 2 - 14) / Config.GpsRange
 	catDot.Visible = true
-	catDot.Text = if goingHome then "🏠" else "🐱"
+	catDot.Text = if mode == "home" then "🏠" elseif mode == "kitten" then "🐾" else "🐱"
 	catDot.Position = UDim2.new(0.5, x * scale, 0.5, y * scale)
 
 	local meters = math.floor(distance * 0.28)
-	distanceLabel.Text = (if goingHome then "Home" else Config.CatName) .. ": " .. meters .. " m"
-	if goingHome then
+	local label = if mode == "home" then "Home" elseif mode == "kitten" then "Kitten" else Config.CatName
+	distanceLabel.Text = label .. ": " .. meters .. " m"
+	if mode == "home" then
 		hintLabel.Text = if distance < 50 then "Almost home!" else "Bring her home!"
+	elseif mode == "kitten" then
+		hintLabel.Text = kittensLeft .. " of " .. Config.KittenCount .. " kittens left"
 	elseif distance < 15 then
 		hintLabel.Text = "She is right here!"
 	elseif distance < 50 then

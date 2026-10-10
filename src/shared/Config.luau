@@ -18,4 +18,12 @@ return {
 
 	FleeDistance = 20,
 	HardFlees = 3,
+	KittenCount = 7,
+	KittenTime = 180,
+
+	DayMinutes = 8,
+	StartClock = 15,
+
+	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
+	MusicId = 0,
 }
