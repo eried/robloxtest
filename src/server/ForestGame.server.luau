@@ -17,15 +17,14 @@ catEvent.Parent = ReplicatedStorage
 local modeEvent = Instance.new("RemoteEvent")
 modeEvent.Name = "SetMode"
 modeEvent.Parent = ReplicatedStorage
-modeEvent.OnServerEvent:Connect(function(player, mode)
-	if mode == "Easy" or mode == "Hard" or mode == "Umulig" then
-		player:SetAttribute("Mode", mode)
-	end
-end)
+local sayEvent = Instance.new("RemoteEvent")
+sayEvent.Name = "NeighborSay"
+sayEvent.Parent = ReplicatedStorage
 
-local function isHard(player: Player): boolean
-	local mode = player:GetAttribute("Mode")
-	return mode == "Hard" or mode == "Umulig"
+workspace:SetAttribute("Mode", "Easy")
+
+local function isHardMode(): boolean
+	return workspace:GetAttribute("Mode") ~= "Easy"
 end
 
 local function getRoot(player: Player): BasePart?
@@ -48,9 +47,16 @@ local function makePart(class: string, props: { [string]: any }): BasePart
 	return p
 end
 
+local cabinSpots: { Vector3 } = {}
+
 local function isFree(pos: Vector3, radius: number): boolean
 	for _, spot in treeSpots do
 		if (spot - pos).Magnitude < radius then
+			return false
+		end
+	end
+	for _, spot in cabinSpots do
+		if (spot - pos).Magnitude < radius + 10 then
 			return false
 		end
 	end
@@ -61,8 +67,26 @@ local function randomSpot(margin: number): Vector3
 	return Vector3.new(rng:NextNumber(-half + margin, half - margin), 0, rng:NextNumber(-half + margin, half - margin))
 end
 
+local home = Config.HomePosition
+
+for _ = 1, 300 do
+	if #cabinSpots >= Config.NeighborCount then
+		break
+	end
+	local pos = randomSpot(30)
+	local ok = pos.Magnitude > 80
+	for _, other in cabinSpots do
+		if (other - pos).Magnitude < 110 then
+			ok = false
+		end
+	end
+	if ok then
+		table.insert(cabinSpots, pos)
+	end
+end
+
 -- Sky and fog
-Lighting.ClockTime = Config.StartClock
+Lighting.ClockTime = 18
 workspace:SetAttribute("DayStart", workspace:GetServerTimeNow())
 Lighting.Brightness = 2
 Lighting.OutdoorAmbient = Color3.fromRGB(120, 140, 120)
@@ -73,6 +97,12 @@ atmosphere.Color = Color3.fromRGB(190, 215, 190)
 atmosphere.Decay = Color3.fromRGB(90, 120, 90)
 atmosphere.Haze = 2
 atmosphere.Parent = Lighting
+
+local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
+bloom.Intensity = 0.5
+bloom.Size = 24
+bloom.Threshold = 2
+bloom.Parent = Lighting
 
 -- Ground
 local baseplate = workspace:FindFirstChild("Baseplate")
@@ -117,9 +147,11 @@ makePart("Part", {
 })
 local signGui = Instance.new("SurfaceGui")
 signGui.Face = Enum.NormalId.Back
+signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 signGui.Parent = sign
 local signText = Instance.new("TextLabel")
-signText.Size = UDim2.fromScale(1, 1)
+signText.Size = UDim2.fromScale(0.92, 0.9)
+signText.Position = UDim2.fromScale(0.04, 0.05)
 signText.BackgroundTransparency = 1
 signText.Font = Enum.Font.FredokaOne
 signText.TextScaled = true
@@ -128,7 +160,6 @@ signText.Text = "Lost cat: " .. Config.CatName .. "!\nFind her and bring her hom
 signText.Parent = signGui
 
 -- Cat bed
-local home = Config.HomePosition
 makePart("Part", {
 	Name = "BedRim",
 	Shape = Enum.PartType.Cylinder,
@@ -142,7 +173,7 @@ local cushion = makePart("Part", {
 	Name = "BedCushion",
 	Shape = Enum.PartType.Cylinder,
 	Size = Vector3.new(1, 5.6, 5.6),
-	CFrame = CFrame.new(home + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+	CFrame = CFrame.new(home + Vector3.new(0, 0.95, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 	Color = Color3.fromRGB(230, 170, 220),
 	Material = Enum.Material.Fabric,
 	Parent = camp,
@@ -238,7 +269,7 @@ end
 
 for _ = 1, Config.BushCount do
 	local pos = randomSpot(5)
-	if pos.Magnitude > Config.SpawnClearRadius then
+	if pos.Magnitude > Config.SpawnClearRadius and isFree(pos, 0) then
 		local size = rng:NextNumber(3, 6)
 		makePart("Part", {
 			Name = "Bush",
@@ -255,7 +286,7 @@ end
 
 for _ = 1, Config.RockCount do
 	local pos = randomSpot(5)
-	if pos.Magnitude > Config.SpawnClearRadius then
+	if pos.Magnitude > Config.SpawnClearRadius and isFree(pos, 0) then
 		local size = Vector3.new(rng:NextNumber(2, 6), rng:NextNumber(1.5, 4), rng:NextNumber(2, 6))
 		makePart("Part", {
 			Name = "Rock",
@@ -284,6 +315,162 @@ for _, side in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 
 	})
 end
 
+-- Neighbors
+type Neighbor = {
+	root: BasePart,
+	head: BasePart,
+	bubble: BillboardGui,
+	lineNo: TextLabel,
+	lineEn: TextLabel,
+	spot: Vector3,
+	cooldown: number,
+	last: number,
+	pitch: number,
+}
+local neighbors: { Neighbor } = {}
+local neighborFolder = Instance.new("Folder")
+neighborFolder.Name = "Neighbors"
+neighborFolder.Parent = workspace
+
+local function makeCabin(pos: Vector3): CFrame
+	local base = CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+	local cabin = Instance.new("Model")
+	cabin.Name = "Cabin"
+	makePart("Part", {
+		Name = "Walls",
+		Size = Vector3.new(12, 8, 10),
+		CFrame = base * CFrame.new(0, 4, 0),
+		Color = Color3.fromRGB(70, 50, 38),
+		Material = Enum.Material.WoodPlanks,
+		Parent = cabin,
+	})
+	makePart("Part", {
+		Name = "Roof",
+		Size = Vector3.new(8.6, 8.6, 11),
+		CFrame = base * CFrame.new(0, 8, 0) * CFrame.Angles(0, 0, math.rad(45)),
+		Color = Color3.fromRGB(40, 32, 28),
+		Material = Enum.Material.Wood,
+		Parent = cabin,
+	})
+	makePart("Part", {
+		Name = "Door",
+		Size = Vector3.new(2.6, 5, 0.3),
+		CFrame = base * CFrame.new(-2, 2.5, -5.1),
+		Color = Color3.fromRGB(30, 22, 18),
+		Material = Enum.Material.Wood,
+		Parent = cabin,
+	})
+	local window = makePart("Part", {
+		Name = "Window",
+		Size = Vector3.new(2.2, 2, 0.3),
+		CFrame = base * CFrame.new(3, 4.5, -5.1),
+		Color = Color3.fromRGB(255, 160, 70),
+		Material = Enum.Material.Neon,
+		Parent = cabin,
+	})
+	local glow = Instance.new("PointLight")
+	glow.Range = 16
+	glow.Brightness = 1.5
+	glow.Color = Color3.fromRGB(255, 150, 70)
+	glow.Parent = window
+	cabin.Parent = neighborFolder
+	return base * CFrame.new(-2, 0, -8)
+end
+
+local function makeNeighbor(spot: CFrame)
+	local model = Instance.new("Model")
+	model.Name = "Neighbor"
+	local coat = ({ Color3.fromRGB(40, 40, 48), Color3.fromRGB(55, 40, 35), Color3.fromRGB(35, 45, 40) })[rng:NextInteger(1, 3)]
+	local skin = Color3.fromRGB(190, 198, 185)
+	local root = makePart("Part", {
+		Name = "Torso",
+		Size = Vector3.new(2.2, 2.4, 1.1),
+		CFrame = spot * CFrame.new(0, 3.6, 0),
+		Color = coat,
+		Material = Enum.Material.Fabric,
+		CanCollide = false,
+		Parent = model,
+	})
+	local function add(name: string, size: Vector3, offset: Vector3, color: Color3, material: Enum.Material?): BasePart
+		local part = makePart("Part", {
+			Name = name,
+			Size = size,
+			CFrame = root.CFrame * CFrame.new(offset),
+			Color = color,
+			Material = material or Enum.Material.SmoothPlastic,
+			Anchored = false,
+			CanCollide = false,
+			CanQuery = false,
+			Massless = true,
+			Parent = model,
+		})
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = part
+		weld.Parent = part
+		return part
+	end
+	for _, x in { -0.55, 0.55 } do
+		add("Leg", Vector3.new(1, 2.4, 1), Vector3.new(x, -2.4, 0), Color3.fromRGB(25, 25, 30))
+	end
+	for _, x in { -1.65, 1.65 } do
+		add("Arm", Vector3.new(1, 2.6, 1), Vector3.new(x, -0.1, 0), coat, Enum.Material.Fabric)
+	end
+	local head = add("Head", Vector3.new(1.3, 1.3, 1.3), Vector3.new(0, 1.9, 0), skin)
+	for _, x in { -0.3, 0.3 } do
+		add("Eye", Vector3.new(0.25, 0.2, 0.1), Vector3.new(x, 2.0, -0.66), Color3.fromRGB(180, 220, 255), Enum.Material.Neon)
+	end
+	add("HatBrim", Vector3.new(2, 0.15, 2), Vector3.new(0, 2.6, 0), Color3.fromRGB(20, 20, 22))
+	add("HatTop", Vector3.new(1.3, 1.1, 1.3), Vector3.new(0, 3.2, 0), Color3.fromRGB(20, 20, 22))
+
+	local bubble = Instance.new("BillboardGui")
+	bubble.Size = UDim2.fromOffset(280, 70)
+	bubble.StudsOffset = Vector3.new(0, 3.5, 0)
+	bubble.MaxDistance = 70
+	bubble.AlwaysOnTop = true
+	bubble.Enabled = false
+	bubble.Parent = head
+	local back = Instance.new("Frame")
+	back.Size = UDim2.fromScale(1, 1)
+	back.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+	back.BackgroundTransparency = 0.25
+	back.Parent = bubble
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = back
+	local lineNo = Instance.new("TextLabel")
+	lineNo.Size = UDim2.new(1, -16, 0.6, -4)
+	lineNo.Position = UDim2.fromOffset(8, 4)
+	lineNo.BackgroundTransparency = 1
+	lineNo.Font = Enum.Font.FredokaOne
+	lineNo.TextScaled = true
+	lineNo.TextColor3 = Color3.fromRGB(200, 225, 255)
+	lineNo.Parent = back
+	local lineEn = lineNo:Clone()
+	lineEn.Size = UDim2.new(1, -16, 0.4, -4)
+	lineEn.Position = UDim2.new(0, 8, 0.6, 0)
+	lineEn.TextColor3 = Color3.fromRGB(170, 170, 170)
+	lineEn.Parent = back
+
+	model.PrimaryPart = root
+	model.Parent = neighborFolder
+	table.insert(neighbors, {
+		root = root,
+		head = head,
+		bubble = bubble,
+		lineNo = lineNo,
+		lineEn = lineEn,
+		spot = spot.Position + Vector3.new(0, 3.6, 0),
+		cooldown = 0,
+		last = 0,
+		pitch = rng:NextNumber(0.85, 1.05),
+	})
+end
+
+for _, pos in cabinSpots do
+	makeNeighbor(makeCabin(pos))
+end
+
 -- Lantern
 local lantern = Instance.new("Tool")
 lantern.Name = "Lantern"
@@ -296,6 +483,7 @@ local lanternHandle = makePart("Part", {
 	Material = Enum.Material.Neon,
 	Anchored = false,
 	CanCollide = false,
+	CastShadow = false,
 	Massless = true,
 	Parent = lantern,
 })
@@ -323,11 +511,31 @@ lanternLight.Color = Color3.fromRGB(255, 190, 110)
 lanternLight.Shadows = true
 lanternLight.Parent = lanternHandle
 
+local function applyHero(player: Player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not character or not humanoid then
+		return
+	end
+	local hero = player:GetAttribute("Hero")
+	humanoid.WalkSpeed = if hero == "Patrick" then Config.PatrickSpeed else 16
+	humanoid.DisplayName = if type(hero) == "string" then hero else player.DisplayName
+	local backpack = player:FindFirstChild("Backpack")
+	local tool = character:FindFirstChild("Lantern") or (backpack and backpack:FindFirstChild("Lantern"))
+	local handle = tool and tool:FindFirstChild("Handle")
+	local light = handle and handle:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Range = if hero == "Milena" then 55 else 30
+		light.Brightness = if hero == "Milena" then 4 else 2.5
+	end
+end
+
 local function giveLantern(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	local tool = lantern:Clone()
 	tool.Parent = player:WaitForChild("Backpack")
 	humanoid:EquipTool(tool)
+	applyHero(player)
 end
 
 -- Pianka
@@ -424,6 +632,7 @@ local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = cat.body
+	cat.model:SetAttribute("Wild", true)
 	cat.model.Parent = workspace
 	return cat, prompt
 end
@@ -546,7 +755,8 @@ local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from:
 		local spread = if i <= 6 then 0.8 else math.pi
 		local dir = CFrame.Angles(0, rng:NextNumber(-spread, spread), 0):VectorToWorldSpace(away)
 		local pos = catPos + dir * rng:NextNumber(40, 60)
-		if math.abs(pos.X) < half - 15 and math.abs(pos.Z) < half - 15 and isFree(pos, 5) then
+		local farFromHome = (pos - home).Magnitude >= Config.MinCatDistance
+		if math.abs(pos.X) < half - 15 and math.abs(pos.Z) < half - 15 and farFromHome and isFree(pos, 5) then
 			target = pos
 			break
 		end
@@ -610,11 +820,12 @@ local function deliver(player: Player)
 		count.Value += 1
 	end
 
-	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
+	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.45, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
 	local cat = homeCat :: Cat
 	cat.tagText.Text = "Home! ❤️"
 	cat.sparkles.SparkleColor = Color3.fromRGB(255, 120, 180)
 	cat.model.Parent = workspace
+	wagTail(cat.tail)
 
 	local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 	catEvent:FireAllClients("home", player, seconds)
@@ -628,7 +839,10 @@ local function kittenSpot(center: Vector3, taken: { Vector3 }): Vector3
 	for _ = 1, 200 do
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(40, 160)
-		local ok = math.abs(pos.X) < half - 10 and math.abs(pos.Z) < half - 10 and isFree(pos, 4)
+		local ok = math.abs(pos.X) < half - 10
+			and math.abs(pos.Z) < half - 10
+			and (pos - home).Magnitude >= Config.KittenHomeMin
+			and isFree(pos, 4)
 		for _, other in taken do
 			if (other - pos).Magnitude < 25 then
 				ok = false
@@ -665,12 +879,13 @@ local function stackKitten(player: Player): boolean
 	end
 	local stack = stacks[player]
 	if not stack then
-		stack = {}
-		stacks[player] = stack
+		local fresh: { Cat } = {}
+		stack = fresh
+		stacks[player] = fresh
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
 			humanoid.Died:Once(function()
-				if stacks[player] == stack then
+				if stacks[player] == fresh and #fresh > 0 then
 					failUmulig(player)
 				end
 			end)
@@ -703,6 +918,7 @@ local function makeDog(pos: Vector3): (Model, TextLabel)
 			Material = Enum.Material.SmoothPlastic,
 			CanCollide = false,
 			CanQuery = false,
+			CanTouch = false,
 			Parent = dog,
 		})
 	end
@@ -712,7 +928,7 @@ local function makeDog(pos: Vector3): (Model, TextLabel)
 	add("Nose", Vector3.new(0.4, 0.3, 0.2), Vector3.new(0, 2.85, -3.6), Color3.fromRGB(20, 20, 20))
 	add("Tongue", Vector3.new(0.4, 0.1, 0.5), Vector3.new(0, 2.2, -3.4), Color3.fromRGB(230, 90, 110))
 	for _, x in { -0.4, 0.4 } do
-		add("Eye", Vector3.new(0.25, 0.25, 0.1), Vector3.new(x, 3.15, -2.88), Color3.fromRGB(20, 20, 20))
+		add("Eye", Vector3.new(0.25, 0.25, 0.1), Vector3.new(x, 3.15, -2.88), Color3.fromRGB(255, 90, 40)).Material = Enum.Material.Neon
 		add("Ear", Vector3.new(0.3, 0.9, 0.6), Vector3.new(x * 2, 3.0, -1.9))
 	end
 	for _, x in { -0.6, 0.6 } do
@@ -722,6 +938,16 @@ local function makeDog(pos: Vector3): (Model, TextLabel)
 	end
 	add("Tail", Vector3.new(0.3, 0.3, 1.4), Vector3.new(0, 2.6, 2.1))
 	dog.PrimaryPart = body
+	for _, part in dog:GetChildren() do
+		if part:IsA("BasePart") and part ~= body then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = body
+			weld.Part1 = part
+			weld.Parent = part
+			part.Anchored = false
+			part.Massless = true
+		end
+	end
 
 	local bubble = Instance.new("BillboardGui")
 	bubble.Size = UDim2.fromOffset(120, 40)
@@ -770,6 +996,9 @@ local function startEscape()
 		local center = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else Vector3.zero
 		local angle = i / Config.DogCount * math.pi * 2 + rng:NextNumber(-0.3, 0.3)
 		local pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(Config.DogSpawnMin, Config.DogSpawnMax)
+		if math.abs(pos.X) > half - 5 or math.abs(pos.Z) > half - 5 then
+			pos = center * 2 - pos
+		end
 		pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
 		local model, bark = makeDog(pos)
 		table.insert(dogs, {
@@ -777,8 +1006,8 @@ local function startEscape()
 			bark = bark,
 			pos = pos,
 			dir = (center - pos).Unit,
-			speed = Config.DogSpeed * rng:NextNumber(0.92, 1.08),
-			restUntil = now + rng:NextNumber(0.5, 1.5),
+			speed = Config.DogSpeedFactor * rng:NextNumber(0.95, 1.05),
+			restUntil = now + rng:NextNumber(2.5, 3),
 			nextRest = now + rng:NextNumber(5, 8),
 			barkUntil = 0,
 		})
@@ -849,18 +1078,27 @@ local function startEscape()
 				return
 			end
 
-			if t >= dog.nextRest then
-				dog.restUntil = t + rng:NextNumber(1.2, 2)
+			local targetHumanoid = bestPlayer and bestPlayer.Character and bestPlayer.Character:FindFirstChildOfClass("Humanoid")
+			local calm = bestPlayer ~= nil and bestPlayer:GetAttribute("Hero") == "Milena"
+			if t >= dog.nextRest and bestDistance < 30 then
+				dog.restUntil = t + rng:NextNumber(1.2, 2) * (if calm then 2 else 1)
 				dog.nextRest = dog.restUntil + rng:NextNumber(5, 8)
 			end
 			local running = best ~= nil and t >= dog.restUntil
 			if best and running then
 				local dir = (best - dog.pos).Unit
-				local nextPos = dog.pos + dir * dog.speed * dt
+				local walkSpeed = if targetHumanoid then targetHumanoid.WalkSpeed else 16
+				local nextPos = dog.pos + dir * walkSpeed * dog.speed * dt
 				for _, tree in treeSpots do
 					local away = nextPos - tree
 					if away.Magnitude < 3 and away.Magnitude > 0.01 then
 						nextPos = tree + away.Unit * 3
+					end
+				end
+				for _, cabin in cabinSpots do
+					local away = nextPos - cabin
+					if away.Magnitude < 9 and away.Magnitude > 0.01 then
+						nextPos = cabin + away.Unit * 9
 					end
 				end
 				for _, other in dogs do
@@ -879,7 +1117,8 @@ local function startEscape()
 			dog.bark.Visible = t < dog.barkUntil
 			local hop = if running then math.abs(math.sin(t * 14)) * 0.5 else 0
 			local at = dog.pos + Vector3.new(0, 1.9 + hop, 0)
-			dog.model:PivotTo(CFrame.lookAt(at, at + dog.dir))
+			local body = dog.model.PrimaryPart :: BasePart
+			body.CFrame = CFrame.lookAt(at, at + dog.dir)
 		end
 	end)
 end
@@ -934,10 +1173,11 @@ local function startKittens(cat: Cat, ultra: boolean)
 	boom.ExplosionType = Enum.ExplosionType.NoCraters
 	boom.Parent = workspace
 
-	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
+	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.45, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
 	local mom = homeCat :: Cat
 	mom.tagText.Text = "Mama " .. Config.CatName
 	mom.model.Parent = workspace
+	wagTail(mom.tail)
 
 	local taken: { Vector3 } = {}
 	for _ = 1, Config.KittenCount do
@@ -1005,11 +1245,14 @@ function newRound()
 
 	prompt.Triggered:Connect(function(player)
 		local character = player.Character
-		if wildCat ~= cat or fleeing or not character then
+		if wildCat ~= cat or fleeing or not character or not getRoot(player) then
 			return
 		end
-		if isHard(player) then
-			startKittens(cat, player:GetAttribute("Mode") == "Umulig")
+		if isHardMode() then
+			if wildTween then
+				wildTween:Cancel()
+			end
+			startKittens(cat, workspace:GetAttribute("Mode") == "Umulig")
 			return
 		end
 		local newCarried = carryCat(character, 0.6, 0)
@@ -1032,6 +1275,16 @@ function newRound()
 				end
 			end)
 		end
+		player.CharacterRemoving:Once(function()
+			if carrier == player then
+				loseCat()
+			end
+		end)
+		task.delay(Config.CarryTime, function()
+			if carried == newCarried then
+				loseCat()
+			end
+		end)
 	end)
 end
 
@@ -1060,7 +1313,8 @@ Players.PlayerRemoving:Connect(function(player)
 	if carrier == player then
 		loseCat()
 	end
-	if stacks[player] then
+	local stack = stacks[player]
+	if stack and #stack > 0 then
 		failUmulig(player)
 	end
 end)
@@ -1069,11 +1323,12 @@ task.spawn(function()
 	while true do
 		task.wait(0.2)
 		local cat, prompt = wildCat, wildPrompt
-		if cat and prompt and not fleeing and fleesLeft > 0 then
+		if cat and prompt and not fleeing and fleesLeft > 0 and isHardMode() then
 			local catPos = cat.model:GetPivot().Position
 			for _, p in Players:GetPlayers() do
-				local r = p.Character and p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-				if isHard(p) and r and (r.Position - catPos).Magnitude < Config.FleeDistance then
+				local r = getRoot(p)
+				local limit = if p:GetAttribute("Hero") == "Aurelia" then Config.HardFlees - 1 else 0
+				if r and fleesLeft > limit and (r.Position - catPos).Magnitude < Config.FleeDistance then
 					task.spawn(fleeFrom, cat, prompt, p, r.Position)
 					break
 				end
@@ -1085,8 +1340,81 @@ task.spawn(function()
 		if player and root then
 			local offset = root.Position - home
 			if Vector3.new(offset.X, 0, offset.Z).Magnitude < Config.HomeRadius then
-				deliver(player)
+				task.spawn(deliver, player)
 			end
+		end
+	end
+end)
+
+local lastModeChange = 0
+modeEvent.OnServerEvent:Connect(function(player, mode, hero)
+	if type(hero) == "string" and Config.Heroes[hero] then
+		player:SetAttribute("Hero", hero)
+		applyHero(player)
+	end
+	if (mode == "Easy" or mode == "Hard" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
+		local now = os.clock()
+		if now - lastModeChange < 5 then
+			return
+		end
+		lastModeChange = now
+		workspace:SetAttribute("Mode", mode)
+		catEvent:FireAllClients("mode", player, mode)
+		newRound()
+	end
+end)
+
+local function speak(n: Neighbor)
+	local index = rng:NextInteger(1, #Config.Lines)
+	if index == n.last then
+		index = index % #Config.Lines + 1
+	end
+	local line = Config.Lines[index]
+	n.last = index
+	n.cooldown = os.clock() + line[2] + rng:NextNumber(8, 14)
+	n.lineNo.Text = line[3]
+	n.lineEn.Text = line[4]
+	n.bubble.Enabled = true
+	sayEvent:FireAllClients(n.head, index, n.pitch)
+	task.delay(math.max(2, line[2] - 1), function()
+		n.bubble.Enabled = false
+	end)
+end
+
+RunService.Heartbeat:Connect(function(dt)
+	local now = os.clock()
+	for _, n in neighbors do
+		local pos = n.root.Position
+		local target: Vector3? = nil
+		local nearest = 40
+		for _, player in Players:GetPlayers() do
+			local root = getRoot(player)
+			if root then
+				local distance = (Vector3.new(root.Position.X, pos.Y, root.Position.Z) - pos).Magnitude
+				if distance < nearest then
+					target, nearest = Vector3.new(root.Position.X, pos.Y, root.Position.Z), distance
+				end
+			end
+		end
+		local nextPos = pos
+		local face: Vector3? = nil
+		if target then
+			face = target
+			if nearest > 7 then
+				local step = pos + (target - pos).Unit * Config.NeighborSpeed * dt
+				if (step - n.spot).Magnitude < 20 then
+					nextPos = step
+				end
+			end
+			if nearest < 28 and now > n.cooldown then
+				speak(n)
+			end
+		elseif (n.spot - pos).Magnitude > 0.5 then
+			nextPos = pos + (n.spot - pos).Unit * math.min((n.spot - pos).Magnitude, 4 * dt)
+			face = n.spot + (n.spot - pos)
+		end
+		if face and (Vector3.new(face.X, pos.Y, face.Z) - nextPos).Magnitude > 0.1 then
+			n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z))
 		end
 	end
 end)

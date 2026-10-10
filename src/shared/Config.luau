@@ -13,22 +13,35 @@ return {
 	MinCatDistance = 150,
 	HomePosition = Vector3.new(10, 0, 0),
 	HomeRadius = 8,
+	CarryTime = 150,
 
 	GpsRange = 200,
 
 	FleeDistance = 20,
 	HardFlees = 3,
 	KittenCount = 7,
-	KittenTime = 180,
+	KittenTime = 150,
+	KittenHomeMin = 120,
 
 	DogCount = 8,
-	DogSpeed = 17.5,
+	DogSpeedFactor = 1.18,
 	DogCatch = 3.5,
 	DogSpawnMin = 60,
 	DogSpawnMax = 100,
 
-	DayMinutes = 8,
-	StartClock = 15,
+	DayMinutes = 10,
+	NightShare = 0.75,
+
+	NeighborCount = 6,
+	NeighborSpeed = 3,
+
+	PatrickSpeed = 20,
+	HeroOrder = { "Patrick", "Aurelia", "Milena" },
+	Heroes = {
+		Patrick = { Emoji = "🏃", Skill = "Super fast" },
+		Aurelia = { Emoji = "🐱", Skill = "Cat friend" },
+		Milena = { Emoji = "🏮", Skill = "Big lantern, calm dogs" },
+	},
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
 	MusicId = 0,

@@ -23,6 +23,13 @@
       "$properties": {
         "StreamingEnabled": false
       }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1
+      }
     }
   }
 }

@@ -2,33 +2,33 @@
 
 A Roblox game by Mr. Scientist 84.
 
-Pianka the cat is lost in the forest. Use your GPS to find her and bring her home!
+Pianka the cat is lost in the dark forest. Use your GPS to find her!
 
-## Modes
+## Heroes
+
+- **Patrick** 🏃 super fast
+- **Aurelia** 🐱 cat friend: her GPS never loses signal and Pianka runs from her only once
+- **Milena** 🏮 big lantern, and dogs rest longer when chasing her
+
+## Modes (same for everyone on a server)
 
 - **Easy**: find Pianka with the GPS and bring her home.
-- **Hard**: thick fog, the GPS loses signal sometimes, and Pianka runs away 3 times. When you catch her she explodes into 7 black kittens. Find them all before the timer ends.
+- **Hard**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. When you catch her she pops into 7 black kittens. Find them before the timer ends.
+- **Umulig** (almost impossible): like Hard, but the kittens stack on your head and 8 dogs chase you home.
 
-- **Umulig** (almost impossible): like Hard, but the kittens stack on your head and 8 dogs chase you home. If a dog catches you, you lose.
+Night lasts most of the time. Spooky neighbors live in cabins and talk in Norwegian. Listen for meows.
 
-Night falls after a while. Use your lantern.
+## Publish
 
-## Music
-
-1. Upload `music/PiankaMystery.mp3` at create.roblox.com (Creations > Audio).
-2. Copy its id into `MusicId` in `src/shared/Config.luau`.
-3. Rebuild, or in Studio edit `ReplicatedStorage > Shared > Config` directly.
-
-## Play it
-
-1. Open `FindPianka.rbxlx` in Roblox Studio.
-2. Press **Play** to test.
-3. **File > Publish to Roblox** to put it on your account.
+1. Open `FindPianka.rbxlx` in Roblox Studio and use **File > Publish to Roblox** once.
+2. Make an API key at create.roblox.com/dashboard/credentials with **universe-places** (Write) for the game and **assets** (Read, Write). Accepted IP: `0.0.0.0/0`.
+3. In GitHub: **Settings > Secrets and variables > Actions**. Add secret `ROBLOX_API_KEY`, and variables `UNIVERSE_ID` and `PLACE_ID`.
+4. Run the **Publish to Roblox** action. It uploads the music and sounds, sets their ids and publishes. Later pushes publish automatically.
 
 ## Edit it
 
-- `src/shared/Config.luau` cat name, colors, forest size, Hard mode settings
-- `src/server/ForestGame.server.luau` forest and cat
-- `src/client/GPS.client.luau` GPS, timer, menus, Easy/Hard
+- `src/shared/Config.luau` names, colors, speeds, timers, heroes, sound ids
+- `src/server/ForestGame.server.luau` forest, cabins, neighbors, cat, kittens, dogs
+- `src/client/GPS.client.luau` GPS, menus, night, sounds
 
 Rebuild after changes: `rojo build -o FindPianka.rbxlx`
