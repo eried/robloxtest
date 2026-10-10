@@ -1,0 +1,805 @@
+<roblox version="4">
+  <Item class="ReplicatedStorage" referent="0">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="1">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="2">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[return {
+	GameName = "Find Pianka",
+	Creator = "Mr. Scientist 84",
+	CatName = "Pianka",
+	CatColor = Color3.fromRGB(255, 150, 60),
+
+	ForestSize = 600,
+	TreeCount = 350,
+	BushCount = 150,
+	RockCount = 60,
+	SpawnClearRadius = 30,
+	MinCatDistance = 150,
+
+	GpsRange = 200,
+}
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="3">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="4">
+      <Properties>
+        <string name="Name">Server</string>
+      </Properties>
+      <Item class="Script" referent="5">
+        <Properties>
+          <string name="Name">ForestGame</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local rng = Random.new()
+local half = Config.ForestSize / 2
+local treeSpots: { Vector3 } = {}
+
+local foundEvent = Instance.new("RemoteEvent")
+foundEvent.Name = "PiankaFound"
+foundEvent.Parent = ReplicatedStorage
+
+local function makePart(class: string, props: { [string]: any }): BasePart
+	local p = Instance.new(class) :: BasePart
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in props do
+		(p :: any)[key] = value
+	end
+	return p
+end
+
+local function isFree(pos: Vector3, radius: number): boolean
+	for _, spot in treeSpots do
+		if (spot - pos).Magnitude < radius then
+			return false
+		end
+	end
+	return true
+end
+
+local function randomSpot(margin: number): Vector3
+	return Vector3.new(rng:NextNumber(-half + margin, half - margin), 0, rng:NextNumber(-half + margin, half - margin))
+end
+
+-- Sky and fog
+Lighting.ClockTime = 14
+Lighting.Brightness = 2
+Lighting.OutdoorAmbient = Color3.fromRGB(120, 140, 120)
+local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+atmosphere.Density = 0.45
+atmosphere.Offset = 0.1
+atmosphere.Color = Color3.fromRGB(190, 215, 190)
+atmosphere.Decay = Color3.fromRGB(90, 120, 90)
+atmosphere.Haze = 2
+atmosphere.Parent = Lighting
+
+-- Ground
+local baseplate = workspace:FindFirstChild("Baseplate")
+if baseplate then
+	baseplate:Destroy()
+end
+local terrain = workspace.Terrain
+terrain:Clear()
+terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(80, 130, 55))
+terrain:FillBlock(CFrame.new(0, -6, 0), Vector3.new(Config.ForestSize + 40, 12, Config.ForestSize + 40), Enum.Material.Grass)
+
+-- Camp
+local camp = Instance.new("Folder")
+camp.Name = "Camp"
+camp.Parent = workspace
+
+local spawnPad = Instance.new("SpawnLocation")
+spawnPad.Anchored = true
+spawnPad.Size = Vector3.new(10, 1, 10)
+spawnPad.Position = Vector3.new(0, 0.5, 0)
+spawnPad.Color = Color3.fromRGB(140, 100, 60)
+spawnPad.Material = Enum.Material.WoodPlanks
+spawnPad.Neutral = true
+spawnPad.Duration = 0
+spawnPad.Parent = camp
+
+local sign = makePart("Part", {
+	Name = "Sign",
+	Size = Vector3.new(8, 4, 0.5),
+	Position = Vector3.new(0, 5, -8),
+	Color = Color3.fromRGB(160, 110, 60),
+	Material = Enum.Material.Wood,
+	Parent = camp,
+})
+makePart("Part", {
+	Name = "Post",
+	Size = Vector3.new(0.6, 3, 0.6),
+	Position = Vector3.new(0, 1.5, -8),
+	Color = Color3.fromRGB(110, 75, 40),
+	Material = Enum.Material.Wood,
+	Parent = camp,
+})
+local signGui = Instance.new("SurfaceGui")
+signGui.Face = Enum.NormalId.Back
+signGui.Parent = sign
+local signText = Instance.new("TextLabel")
+signText.Size = UDim2.fromScale(1, 1)
+signText.BackgroundTransparency = 1
+signText.Font = Enum.Font.FredokaOne
+signText.TextScaled = true
+signText.TextColor3 = Color3.new(1, 1, 1)
+signText.Text = "Lost cat: " .. Config.CatName .. "!\nUse your GPS"
+signText.Parent = signGui
+
+-- Forest
+local forest = Instance.new("Folder")
+forest.Name = "Forest"
+forest.Parent = workspace
+
+local leafColors = {
+	Color3.fromRGB(60, 120, 50),
+	Color3.fromRGB(75, 140, 60),
+	Color3.fromRGB(50, 105, 45),
+}
+
+local function makeTree(pos: Vector3)
+	local tree = Instance.new("Model")
+	tree.Name = "Tree"
+	local height = rng:NextNumber(10, 18)
+	local width = rng:NextNumber(1.6, 2.6)
+	makePart("Part", {
+		Name = "Trunk",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(height, width, width),
+		CFrame = CFrame.new(pos + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(100, 70, 45),
+		Material = Enum.Material.Wood,
+		Parent = tree,
+	})
+	if rng:NextNumber() < 0.5 then
+		local color = leafColors[rng:NextInteger(1, #leafColors)]
+		for _ = 1, 3 do
+			local size = rng:NextNumber(7, 11)
+			local offset = Vector3.new(rng:NextNumber(-2, 2), height + rng:NextNumber(-1, 2), rng:NextNumber(-2, 2))
+			makePart("Part", {
+				Name = "Leaves",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * size,
+				Position = pos + offset,
+				Color = color,
+				Material = Enum.Material.Grass,
+				CanCollide = false,
+				Parent = tree,
+			})
+		end
+	else
+		local size = rng:NextNumber(9, 12)
+		local y = height * 0.55
+		for i = 1, 4 do
+			makePart("Part", {
+				Name = "Needles",
+				Size = Vector3.new(size, 3, size),
+				CFrame = CFrame.new(pos + Vector3.new(0, y, 0)) * CFrame.Angles(0, math.rad(45 * i), 0),
+				Color = Color3.fromRGB(35, 85, 45),
+				Material = Enum.Material.Grass,
+				CanCollide = false,
+				Parent = tree,
+			})
+			size *= 0.72
+			y += 2.8
+		end
+	end
+	tree.Parent = forest
+end
+
+local placed = 0
+for _ = 1, Config.TreeCount * 5 do
+	if placed >= Config.TreeCount then
+		break
+	end
+	local pos = randomSpot(5)
+	if pos.Magnitude > Config.SpawnClearRadius and isFree(pos, 9) then
+		table.insert(treeSpots, pos)
+		makeTree(pos)
+		placed += 1
+	end
+end
+
+for _ = 1, Config.BushCount do
+	local pos = randomSpot(5)
+	if pos.Magnitude > Config.SpawnClearRadius then
+		local size = rng:NextNumber(3, 6)
+		makePart("Part", {
+			Name = "Bush",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * size,
+			Position = pos + Vector3.new(0, size * 0.3, 0),
+			Color = leafColors[rng:NextInteger(1, #leafColors)],
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+			Parent = forest,
+		})
+	end
+end
+
+for _ = 1, Config.RockCount do
+	local pos = randomSpot(5)
+	if pos.Magnitude > Config.SpawnClearRadius then
+		local size = Vector3.new(rng:NextNumber(2, 6), rng:NextNumber(1.5, 4), rng:NextNumber(2, 6))
+		makePart("Part", {
+			Name = "Rock",
+			Size = size,
+			CFrame = CFrame.new(pos + Vector3.new(0, size.Y * 0.35, 0))
+				* CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, math.pi), rng:NextNumber(-0.3, 0.3)),
+			Color = Color3.fromRGB(115, 115, 110),
+			Material = Enum.Material.Slate,
+			Parent = forest,
+		})
+	end
+end
+
+-- Invisible walls
+for _, side in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) } do
+	makePart("Part", {
+		Name = "Wall",
+		Size = Vector3.new(
+			if side.X ~= 0 then 2 else Config.ForestSize,
+			60,
+			if side.Z ~= 0 then 2 else Config.ForestSize
+		),
+		Position = side * half + Vector3.new(0, 30, 0),
+		Transparency = 1,
+		Parent = forest,
+	})
+end
+
+-- Pianka
+local function makeCat(pos: Vector3): (Model, ProximityPrompt, TextLabel, Sparkles)
+	local cat = Instance.new("Model")
+	cat.Name = Config.CatName
+	local base = CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+
+	local function add(name: string, class: string, size: Vector3, offset: CFrame, color: Color3?, shape: Enum.PartType?): BasePart
+		local p = makePart(class, {
+			Name = name,
+			Size = size,
+			CFrame = base * offset,
+			Color = color or Config.CatColor,
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+			Parent = cat,
+		})
+		if shape then
+			(p :: Part).Shape = shape
+		end
+		return p
+	end
+
+	local white = Color3.fromRGB(255, 245, 235)
+	local body = add("Body", "Part", Vector3.new(1.6, 1.4, 2.6), CFrame.new(0, 1.4, 0))
+	local head = add("Head", "Part", Vector3.new(1.5, 1.3, 1.3), CFrame.new(0, 2.3, -1.5))
+	add("Muzzle", "Part", Vector3.new(0.8, 0.5, 0.2), CFrame.new(0, 2.05, -2.2), white)
+	add("Nose", "Part", Vector3.new(0.25, 0.2, 0.1), CFrame.new(0, 2.25, -2.32), Color3.fromRGB(255, 130, 160))
+	add("EyeL", "Part", Vector3.new(0.3, 0.3, 0.3), CFrame.new(-0.38, 2.55, -2.15), Color3.fromRGB(80, 220, 90), Enum.PartType.Ball).Material =
+		Enum.Material.Neon
+	add("EyeR", "Part", Vector3.new(0.3, 0.3, 0.3), CFrame.new(0.38, 2.55, -2.15), Color3.fromRGB(80, 220, 90), Enum.PartType.Ball).Material =
+		Enum.Material.Neon
+	add("EarL", "WedgePart", Vector3.new(0.4, 0.6, 0.5), CFrame.new(-0.45, 3.25, -1.5) * CFrame.Angles(0, math.rad(90), 0))
+	add("EarR", "WedgePart", Vector3.new(0.4, 0.6, 0.5), CFrame.new(0.45, 3.25, -1.5) * CFrame.Angles(0, math.rad(-90), 0))
+	for _, x in { -0.5, 0.5 } do
+		for _, z in { -0.9, 0.9 } do
+			add("Leg", "Part", Vector3.new(0.4, 0.8, 0.4), CFrame.new(x, 0.4, z))
+		end
+	end
+	local tail = add("Tail", "Part", Vector3.new(0.3, 0.3, 1.8), CFrame.new(0, 2, 1.7) * CFrame.Angles(math.rad(-50), 0, 0))
+	cat.PrimaryPart = body
+
+	TweenService:Create(
+		tail,
+		TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ CFrame = tail.CFrame * CFrame.Angles(0, math.rad(30), 0) }
+	):Play()
+
+	local tag = Instance.new("BillboardGui")
+	tag.Size = UDim2.fromOffset(160, 40)
+	tag.StudsOffset = Vector3.new(0, 2, 0)
+	tag.MaxDistance = 40
+	tag.AlwaysOnTop = true
+	tag.Parent = head
+	local tagText = Instance.new("TextLabel")
+	tagText.Name = "Text"
+	tagText.Size = UDim2.fromScale(1, 1)
+	tagText.BackgroundTransparency = 1
+	tagText.Font = Enum.Font.FredokaOne
+	tagText.TextScaled = true
+	tagText.TextColor3 = Color3.new(1, 1, 1)
+	tagText.TextStrokeTransparency = 0.3
+	tagText.Text = Config.CatName .. " 🐱"
+	tagText.Parent = tag
+
+	local sparkles = Instance.new("Sparkles")
+	sparkles.SparkleColor = Color3.fromRGB(255, 220, 120)
+	sparkles.Parent = body
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Pick up"
+	prompt.ObjectText = Config.CatName
+	prompt.HoldDuration = 0.5
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = body
+
+	cat.Parent = workspace
+	return cat, prompt, tagText, sparkles
+end
+
+local function farFromPlayers(pos: Vector3): boolean
+	for _, player in Players:GetPlayers() do
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and (root.Position - pos).Magnitude < Config.MinCatDistance then
+			return false
+		end
+	end
+	return true
+end
+
+local function findCatSpot(): Vector3
+	for _ = 1, 300 do
+		local pos = randomSpot(15)
+		if pos.Magnitude >= Config.MinCatDistance and isFree(pos, 5) and farFromPlayers(pos) then
+			return pos
+		end
+	end
+	return randomSpot(15)
+end
+
+local currentCat: Model? = nil
+
+local function newRound()
+	if currentCat then
+		currentCat:Destroy()
+	end
+	local pos = findCatSpot()
+	local cat, prompt, tagText, sparkles = makeCat(pos)
+	currentCat = cat
+	workspace:SetAttribute("CatPosition", pos)
+	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
+
+	local done = false
+	prompt.Triggered:Connect(function(player)
+		if done then
+			return
+		end
+		done = true
+		prompt.Enabled = false
+		local stats = player:FindFirstChild("leaderstats")
+		local count = stats and stats:FindFirstChild("Found") :: IntValue?
+		if count then
+			count.Value += 1
+		end
+		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
+		workspace:SetAttribute("CatPosition", nil)
+		foundEvent:FireAllClients(player, seconds)
+
+		tagText.Text = "Meow! ❤️"
+		sparkles.SparkleColor = Color3.fromRGB(255, 120, 180)
+
+		task.wait(5)
+		newRound()
+	end)
+end
+
+local function addStats(player: Player)
+	local stats = Instance.new("Folder")
+	stats.Name = "leaderstats"
+	local count = Instance.new("IntValue")
+	count.Name = "Found"
+	count.Parent = stats
+	stats.Parent = player
+end
+
+Players.PlayerAdded:Connect(addStats)
+for _, player in Players:GetPlayers() do
+	addStats(player)
+end
+
+newRound()
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="6">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="7">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="Folder" referent="8">
+        <Properties>
+          <string name="Name">Client</string>
+        </Properties>
+        <Item class="LocalScript" referent="9">
+          <Properties>
+            <string name="Name">GPS</string>
+            <string name="Source"><![CDATA[local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local foundEvent = ReplicatedStorage:WaitForChild("PiankaFound") :: RemoteEvent
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local GREEN = Color3.fromRGB(90, 220, 110)
+local FONT = Enum.Font.FredokaOne
+
+local function new(class: string, props: { [string]: any }): any
+	local obj = Instance.new(class)
+	for key, value in props do
+		if key ~= "Parent" then
+			(obj :: any)[key] = value
+		end
+	end
+	obj.Parent = props.Parent
+	return obj
+end
+
+local function round(parent: Instance, radius: UDim)
+	new("UICorner", { CornerRadius = radius, Parent = parent })
+end
+
+local function formatTime(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+local gui = new("ScreenGui", {
+	Name = "GPS",
+	ResetOnSpawn = false,
+	Parent = player:WaitForChild("PlayerGui"),
+})
+
+-- GPS device
+local device = new("Frame", {
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, -20, 1, -20),
+	Size = UDim2.fromOffset(200, 260),
+	BackgroundColor3 = Color3.fromRGB(35, 40, 35),
+	Parent = gui,
+})
+round(device, UDim.new(0, 18))
+new("UIStroke", { Color = GREEN, Thickness = 3, Parent = device })
+
+new("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 28),
+	Position = UDim2.fromOffset(0, 4),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 22,
+	TextColor3 = GREEN,
+	Text = "GPS",
+	Parent = device,
+})
+
+local RADAR = 170
+local radar = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 34),
+	Size = UDim2.fromOffset(RADAR, RADAR),
+	BackgroundColor3 = Color3.fromRGB(15, 45, 22),
+	Parent = device,
+})
+round(radar, UDim.new(1, 0))
+
+for _, scale in { 0.33, 0.66 } do
+	local ring = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(scale, scale),
+		BackgroundTransparency = 1,
+		Parent = radar,
+	})
+	round(ring, UDim.new(1, 0))
+	new("UIStroke", { Color = GREEN, Transparency = 0.6, Parent = ring })
+end
+
+new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(20, 20),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 18,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "▲",
+	ZIndex = 3,
+	Parent = radar,
+})
+
+local catDot = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(28, 28),
+	BackgroundTransparency = 1,
+	TextSize = 24,
+	Text = "🐱",
+	ZIndex = 4,
+	Parent = radar,
+})
+
+local distanceLabel = new("TextLabel", {
+	Position = UDim2.new(0, 0, 1, -50),
+	Size = UDim2.new(1, 0, 0, 24),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 20,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "",
+	Parent = device,
+})
+
+local hintLabel = new("TextLabel", {
+	Position = UDim2.new(0, 0, 1, -28),
+	Size = UDim2.new(1, 0, 0, 20),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 16,
+	TextColor3 = GREEN,
+	Text = "",
+	Parent = device,
+})
+
+local beep = new("Sound", {
+	SoundId = "rbxasset://sounds/electronicpingshort.wav",
+	Volume = 0.3,
+	Parent = gui,
+})
+
+-- Timer
+local timerLabel = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 10),
+	Size = UDim2.fromOffset(140, 40),
+	BackgroundColor3 = Color3.fromRGB(35, 40, 35),
+	BackgroundTransparency = 0.2,
+	Font = FONT,
+	TextSize = 24,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "⏱ 0:00",
+	Parent = gui,
+})
+round(timerLabel, UDim.new(0, 12))
+
+-- Banner
+local banner = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.3),
+	Size = UDim2.fromOffset(560, 110),
+	BackgroundColor3 = Color3.fromRGB(35, 40, 35),
+	BackgroundTransparency = 0.15,
+	Font = FONT,
+	TextSize = 34,
+	TextColor3 = Color3.new(1, 1, 1),
+	TextWrapped = true,
+	Visible = false,
+	Parent = gui,
+})
+round(banner, UDim.new(0, 18))
+new("UIStroke", { Color = GREEN, Thickness = 3, Parent = banner })
+
+local bannerId = 0
+local function showBanner(text: string, duration: number)
+	bannerId += 1
+	local id = bannerId
+	banner.Text = text
+	banner.Visible = true
+	task.delay(duration, function()
+		if id == bannerId then
+			banner.Visible = false
+		end
+	end)
+end
+
+local function confetti()
+	local colors = { Color3.fromRGB(255, 90, 90), Color3.fromRGB(255, 210, 70), GREEN, Color3.fromRGB(90, 160, 255), Color3.fromRGB(255, 130, 200) }
+	for _ = 1, 60 do
+		local piece = new("Frame", {
+			Position = UDim2.new(math.random(), 0, 0, -20),
+			Size = UDim2.fromOffset(10, 16),
+			Rotation = math.random(0, 360),
+			BackgroundColor3 = colors[math.random(1, #colors)],
+			BorderSizePixel = 0,
+			Parent = gui,
+		})
+		local tween = TweenService:Create(piece, TweenInfo.new(math.random(20, 40) / 10, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.new(math.random(), 0, 1, 20),
+			Rotation = piece.Rotation + math.random(-360, 360),
+		})
+		tween.Completed:Once(function()
+			piece:Destroy()
+		end)
+		tween:Play()
+	end
+end
+
+-- Intro
+local intro = new("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 0.4,
+	ZIndex = 10,
+	Parent = gui,
+})
+local card = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(460, 300),
+	BackgroundColor3 = Color3.fromRGB(35, 40, 35),
+	ZIndex = 11,
+	Parent = intro,
+})
+round(card, UDim.new(0, 20))
+new("UIStroke", { Color = GREEN, Thickness = 4, Parent = card })
+new("TextLabel", {
+	Position = UDim2.fromOffset(0, 20),
+	Size = UDim2.new(1, 0, 0, 50),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 46,
+	TextColor3 = Color3.fromRGB(255, 180, 90),
+	Text = Config.GameName .. " 🐱",
+	ZIndex = 12,
+	Parent = card,
+})
+new("TextLabel", {
+	Position = UDim2.fromOffset(0, 72),
+	Size = UDim2.new(1, 0, 0, 22),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 18,
+	TextColor3 = Color3.fromRGB(180, 180, 180),
+	Text = "by " .. Config.Creator,
+	ZIndex = 12,
+	Parent = card,
+})
+new("TextLabel", {
+	Position = UDim2.fromOffset(30, 110),
+	Size = UDim2.new(1, -60, 0, 80),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 22,
+	TextWrapped = true,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = Config.CatName .. " the cat is lost in the forest! Use your GPS to find her.",
+	ZIndex = 12,
+	Parent = card,
+})
+local playButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -24),
+	Size = UDim2.fromOffset(180, 56),
+	BackgroundColor3 = GREEN,
+	Font = FONT,
+	TextSize = 30,
+	TextColor3 = Color3.fromRGB(20, 40, 20),
+	Text = "Play",
+	ZIndex = 12,
+	Parent = card,
+})
+round(playButton, UDim.new(0, 14))
+local playing = false
+playButton.Activated:Connect(function()
+	playing = true
+	intro:Destroy()
+end)
+
+-- Found
+foundEvent.OnClientEvent:Connect(function(finder: Player, seconds: number)
+	local time = formatTime(seconds)
+	if finder == player then
+		showBanner("You found " .. Config.CatName .. "! 🎉\nTime: " .. time, 5)
+		confetti()
+	else
+		local name = if finder then finder.DisplayName else "Someone"
+		showBanner(name .. " found " .. Config.CatName .. "!\nTime: " .. time, 5)
+	end
+	task.delay(5, function()
+		showBanner(Config.CatName .. " ran away again! Use your GPS.", 3)
+	end)
+end)
+
+-- Update loop
+local lastBeep = 0
+local lastForward = Vector3.new(0, 0, -1)
+
+RunService.RenderStepped:Connect(function()
+	local start = workspace:GetAttribute("RoundStart")
+	local catPos = workspace:GetAttribute("CatPosition")
+	if start and catPos then
+		timerLabel.Text = "⏱ " .. formatTime(workspace:GetServerTimeNow() - start)
+	end
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root or not catPos then
+		catDot.Visible = false
+		distanceLabel.Text = if catPos then "" else "Found!"
+		hintLabel.Text = ""
+		return
+	end
+
+	local offset = catPos - root.Position
+	offset = Vector3.new(offset.X, 0, offset.Z)
+	local distance = offset.Magnitude
+
+	local look = camera.CFrame.LookVector
+	local flatLook = Vector3.new(look.X, 0, look.Z)
+	if flatLook.Magnitude > 0.01 then
+		lastForward = flatLook.Unit
+	end
+	local right = Vector3.new(-lastForward.Z, 0, lastForward.X)
+
+	local x = offset:Dot(right)
+	local y = -offset:Dot(lastForward)
+	if distance > Config.GpsRange then
+		x = x / distance * Config.GpsRange
+		y = y / distance * Config.GpsRange
+	end
+	local scale = (RADAR / 2 - 14) / Config.GpsRange
+	catDot.Visible = true
+	catDot.Position = UDim2.new(0.5, x * scale, 0.5, y * scale)
+
+	local meters = math.floor(distance * 0.28)
+	distanceLabel.Text = Config.CatName .. ": " .. meters .. " m"
+	if distance < 15 then
+		hintLabel.Text = "She is right here!"
+	elseif distance < 50 then
+		hintLabel.Text = "Very close!"
+	elseif distance < 150 then
+		hintLabel.Text = "Getting closer"
+	else
+		hintLabel.Text = "Far away"
+	end
+
+	local interval = math.clamp(distance / 100, 0.15, 2)
+	local now = os.clock()
+	if playing and now - lastBeep > interval then
+		lastBeep = now
+		beep.PlaybackSpeed = if distance < 50 then 1.3 else 1
+		beep:Play()
+	end
+end)
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="10">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="NeedsPivotMigration">false</bool>
+      <bool name="StreamingEnabled">false</bool>
+    </Properties>
+  </Item>
+</roblox>
