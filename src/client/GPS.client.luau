@@ -10,6 +10,7 @@ local SoundService = game:GetService("SoundService")
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local catEvent = ReplicatedStorage:WaitForChild("PiankaEvent") :: RemoteEvent
 local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
+local shopEvent = ReplicatedStorage:WaitForChild("Shop") :: RemoteEvent
 local sayEvent = ReplicatedStorage:WaitForChild("NeighborSay") :: RemoteEvent
 
 local player = Players.LocalPlayer
@@ -237,6 +238,7 @@ round(timerLabel, UDim.new(0, 12))
 
 local menuButton = topButton("Menu", -120, 80)
 local musicButton = topButton("🎵", 100, 40)
+local shopButton = topButton("🐟 Shop", 175, 90)
 musicButton.Visible = Config.MusicId ~= 0
 musicButton.Activated:Connect(function()
 	music.Playing = not music.Playing
@@ -488,6 +490,202 @@ menuButton.Activated:Connect(function()
 	intro.Visible = true
 end)
 
+-- Shop
+local shop = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(420, 440),
+	BackgroundColor3 = PANEL,
+	Visible = false,
+	ZIndex = 20,
+	Parent = gui,
+})
+round(shop, UDim.new(0, 20))
+outline(shop, 4)
+if touch then
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 440, 0.5, 0.75), Parent = shop })
+end
+new("TextLabel", {
+	Position = UDim2.fromOffset(0, 12),
+	Size = UDim2.new(1, 0, 0, 40),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 34,
+	TextColor3 = Color3.fromRGB(255, 180, 90),
+	Text = "Shop 🐟",
+	ZIndex = 21,
+	Parent = shop,
+})
+local fishLabel = new("TextLabel", {
+	Position = UDim2.fromOffset(0, 52),
+	Size = UDim2.new(1, 0, 0, 22),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 18,
+	TextColor3 = Color3.fromRGB(200, 200, 200),
+	Text = "",
+	ZIndex = 21,
+	Parent = shop,
+})
+local shopClose = new("TextButton", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -10, 0, 10),
+	Size = UDim2.fromOffset(44, 44),
+	BackgroundColor3 = Color3.fromRGB(70, 75, 70),
+	Font = FONT,
+	TextSize = 26,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "X",
+	ZIndex = 22,
+	Parent = shop,
+})
+round(shopClose, UDim.new(0, 12))
+shopClose.Activated:Connect(function()
+	shop.Visible = false
+end)
+
+local shopRows: { { item: any, button: TextButton } } = {}
+for i, item in Config.Shop do
+	local row = new("Frame", {
+		Position = UDim2.fromOffset(20, 84 + (i - 1) * 56),
+		Size = UDim2.new(1, -40, 0, 48),
+		BackgroundColor3 = Color3.fromRGB(55, 62, 55),
+		ZIndex = 21,
+		Parent = shop,
+	})
+	round(row, UDim.new(0, 12))
+	new("Frame", {
+		Position = UDim2.fromOffset(10, 12),
+		Size = UDim2.fromOffset(24, 24),
+		BackgroundColor3 = item.color,
+		ZIndex = 22,
+		Parent = row,
+	})
+	new("TextLabel", {
+		Position = UDim2.fromOffset(44, 0),
+		Size = UDim2.new(1, -160, 1, 0),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = item.name,
+		ZIndex = 22,
+		Parent = row,
+	})
+	local button = new("TextButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -8, 0.5, 0),
+		Size = UDim2.fromOffset(100, 36),
+		BackgroundColor3 = GREEN,
+		Font = FONT,
+		TextSize = 20,
+		TextColor3 = Color3.fromRGB(20, 20, 20),
+		Text = "",
+		ZIndex = 22,
+		Parent = row,
+	})
+	round(button, UDim.new(0, 10))
+	table.insert(shopRows, { item = item, button = button })
+end
+
+local function fishCount(): number
+	local stats = player:FindFirstChild("leaderstats")
+	local fish = stats and stats:FindFirstChild("Fish") :: IntValue?
+	return if fish then fish.Value else 0
+end
+
+local function refreshShop()
+	local fish = fishCount()
+	fishLabel.Text = "You have " .. fish .. " fish. Find glowing fish in the forest!"
+	local owned = string.split((player:GetAttribute("Owned") :: string?) or "", ",")
+	for _, row in shopRows do
+		local id = row.item.id
+		local has = table.find(owned, id) ~= nil
+		local on = (row.item.kind == "lantern" and player:GetAttribute("Lantern") == id)
+			or (row.item.kind == "crown" and player:GetAttribute("Crown") == true)
+			or (row.item.kind == "pet" and player:GetAttribute("Pet") == true)
+		if not has then
+			row.button.Text = "🐟 " .. row.item.price
+			row.button.BackgroundColor3 = if fish >= row.item.price then GREEN else Color3.fromRGB(110, 110, 110)
+		elseif on then
+			row.button.Text = "On"
+			row.button.BackgroundColor3 = Color3.fromRGB(255, 210, 70)
+		else
+			row.button.Text = "Use"
+			row.button.BackgroundColor3 = Color3.fromRGB(140, 200, 255)
+		end
+	end
+end
+
+for _, row in shopRows do
+	row.button.Activated:Connect(function()
+		local owned = string.split((player:GetAttribute("Owned") :: string?) or "", ",")
+		shopEvent:FireServer(if table.find(owned, row.item.id) then "equip" else "buy", row.item.id)
+	end)
+end
+shopButton.Activated:Connect(function()
+	refreshShop()
+	shop.Visible = not shop.Visible
+end)
+for _, name in { "Owned", "Lantern", "Crown", "Pet" } do
+	player:GetAttributeChangedSignal(name):Connect(refreshShop)
+end
+task.spawn(function()
+	local stats = player:WaitForChild("leaderstats")
+	local fish = stats:WaitForChild("Fish") :: IntValue
+	fish.Changed:Connect(refreshShop)
+	refreshShop()
+end)
+
+-- Feedback
+local flash = new("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Color3.fromRGB(255, 40, 40),
+	BackgroundTransparency = 1,
+	ZIndex = 4,
+	Parent = gui,
+})
+
+local function popText(text: string, color: Color3)
+	local label = new("TextLabel", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.45),
+		Size = UDim2.fromOffset(300, 50),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextSize = 36,
+		TextColor3 = color,
+		TextStrokeTransparency = 0.3,
+		Text = text,
+		ZIndex = 6,
+		Parent = gui,
+	})
+	local tween = TweenService:Create(label, TweenInfo.new(1.2), { Position = UDim2.fromScale(0.5, 0.33), TextTransparency = 1, TextStrokeTransparency = 1 })
+	tween.Completed:Once(function()
+		label:Destroy()
+	end)
+	tween:Play()
+end
+
+local function note(speed: number)
+	local sound = beep:Clone()
+	sound.PlaybackSpeed = speed
+	sound.Parent = gui
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+end
+
+local TWISTS = {
+	tree = "Twist: Pianka is up a tree! 🌳\nClimb the steps.",
+	zoomies = "Twist: Pianka has the zoomies! 💨",
+	ratparty = "Twist: Rat party! 🐀🐀🐀",
+	fullmoon = "Twist: Full moon tonight! 🌕",
+	golden = "Twist: Golden Pianka! ✨\nDouble rewards!",
+}
+
 -- Events
 local nextGlitch = 0
 local glitchUntil = 0
@@ -579,6 +777,37 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		showBanner("You will be " .. tostring(value) .. "\nnext round.", 3)
 	elseif kind == "modeLocked" then
 		showBanner("Wait! Someone is saving " .. cat .. ".\nTry again soon.", 3)
+	elseif kind == "fish" then
+		popText("+" .. seconds .. " 🐟", Color3.fromRGB(255, 190, 80))
+		note(2)
+	elseif kind == "bitten" then
+		flash.BackgroundTransparency = 0.6
+		TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+		popText("Ouch! 🐀", Color3.fromRGB(255, 120, 120))
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and clipSound then
+			playClip(root, Config.Mew, 1, 2.3, 60)
+		else
+			note(2.5)
+		end
+	elseif kind == "squash" then
+		popText("Squash! 🐀", Color3.fromRGB(150, 255, 150))
+		note(0.6)
+	elseif kind == "twist" then
+		local text = TWISTS[tostring(value)]
+		if text then
+			task.delay(1, function()
+				showBanner(text, 4)
+			end)
+		end
+	elseif kind == "dropped" then
+		showBanner(if who == player then "The rats scared " .. cat .. "!\nGet her back!" else cat .. " jumped down!", 3)
+	elseif kind == "poor" then
+		showBanner("Not enough fish 🐟\nFind more in the forest!", 2)
+	elseif kind == "bought" then
+		showBanner("You got " .. tostring(value) .. "! 🎉", 2)
+		chime()
 	elseif kind == "mode" then
 		showBanner((if who == player then "You" else nameOf(who)) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end
@@ -592,9 +821,9 @@ sayEvent.OnClientEvent:Connect(function(head: BasePart, index: number, pitch: nu
 end)
 
 -- Day and night
-local START_PHASE = Config.NightShare + (1 - Config.NightShare) * 10.5 / 12
+local START_PHASE = Config.NightShare + (1 - Config.NightShare) * 7 / 12
 local DAY_AMBIENT = Color3.fromRGB(120, 140, 120)
-local NIGHT_AMBIENT = Color3.fromRGB(8, 10, 20)
+local NIGHT_AMBIENT = Color3.fromRGB(46, 54, 80)
 local tint = new("ColorCorrectionEffect", { Parent = Lighting })
 
 local function updateSky(): number
@@ -607,22 +836,26 @@ local function updateSky(): number
 		then (18 + 12 * phase / Config.NightShare) % 24
 		else 6 + 12 * (phase - Config.NightShare) / (1 - Config.NightShare)
 	local daylight = math.clamp(math.sin((clock - 6) / 12 * math.pi) * 3, 0, 1)
+	if workspace:GetAttribute("Twist") == "fullmoon" then
+		daylight = math.max(daylight, 0.35)
+	end
 	local dark = 1 - daylight
 	Lighting.ClockTime = clock
-	Lighting.Brightness = 0.05 + 1.95 * daylight
+	Lighting.Brightness = 0.8 + 1.2 * daylight
 	Lighting.OutdoorAmbient = NIGHT_AMBIENT:Lerp(DAY_AMBIENT, daylight)
-	Lighting.Ambient = Color3.fromRGB(5, 6, 12):Lerp(Color3.fromRGB(70, 75, 70), daylight)
+	Lighting.Ambient = Color3.fromRGB(28, 32, 48):Lerp(Color3.fromRGB(70, 75, 70), daylight)
 
 	local mode = workspace:GetAttribute("Mode")
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	if atmosphere then
-		local base = if mode == "Umulig" then 0.75 elseif mode == "Normal" then 0.65 else 0.45
-		atmosphere.Density = base + 0.1 * dark
-		atmosphere.Color = Color3.fromRGB(40, 48, 70):Lerp(Color3.fromRGB(190, 215, 190), daylight)
-		atmosphere.Decay = Color3.fromRGB(20, 25, 40):Lerp(Color3.fromRGB(90, 120, 90), daylight)
+		local base = if mode == "Umulig" then 0.56 elseif mode == "Normal" then 0.48 else 0.36
+		atmosphere.Density = base + 0.06 * dark
+		atmosphere.Color = Color3.fromRGB(85, 96, 125):Lerp(Color3.fromRGB(190, 215, 190), daylight)
+		atmosphere.Decay = Color3.fromRGB(40, 46, 68):Lerp(Color3.fromRGB(90, 120, 90), daylight)
 	end
-	tint.TintColor = Color3.fromRGB(200, 210, 255):Lerp(Color3.new(1, 1, 1), daylight)
-	tint.Saturation = -0.2 * dark
+	tint.TintColor = Color3.fromRGB(215, 222, 255):Lerp(Color3.new(1, 1, 1), daylight)
+	tint.Saturation = -0.15 * dark
+	tint.Brightness = 0.03 * dark
 	return daylight
 end
 
@@ -644,9 +877,25 @@ local function radarPos(offset: Vector3, right: Vector3): UDim2
 end
 
 local function showDogs(from: Vector3?, right: Vector3?)
-	local dogs = workspace:FindFirstChild("Dogs")
-	local list: { Instance } = if dogs and from and right then dogs:GetChildren() else {}
-	for i, dog in list do
+	local marks: { { pos: Vector3, icon: string } } = {}
+	if from and right then
+		local dogs = workspace:FindFirstChild("Dogs")
+		if dogs then
+			for _, dog in dogs:GetChildren() do
+				table.insert(marks, { pos = (dog :: Model):GetPivot().Position, icon = "🐕" })
+			end
+		end
+		local ratFolder = workspace:FindFirstChild("Rats")
+		if ratFolder then
+			for _, rat in ratFolder:GetChildren() do
+				local pos = (rat :: Model):GetPivot().Position
+				if (pos - from).Magnitude < 60 then
+					table.insert(marks, { pos = pos, icon = "🐀" })
+				end
+			end
+		end
+	end
+	for i, mark in marks do
 		local dot = dogDots[i]
 		if not dot then
 			dot = new("TextLabel", {
@@ -654,17 +903,17 @@ local function showDogs(from: Vector3?, right: Vector3?)
 				Size = UDim2.fromOffset(20, 20),
 				BackgroundTransparency = 1,
 				TextSize = 16,
-				Text = "🐕",
 				ZIndex = 4,
 				Parent = radar,
 			})
 			dogDots[i] = dot
 		end
-		local pos = (dog :: Model):GetPivot().Position - (from :: Vector3)
-		dot.Position = radarPos(Vector3.new(pos.X, 0, pos.Z), right :: Vector3)
+		local offset = mark.pos - (from :: Vector3)
+		dot.Text = mark.icon
+		dot.Position = radarPos(Vector3.new(offset.X, 0, offset.Z), right :: Vector3)
 		dot.Visible = true
 	end
-	for i = #list + 1, #dogDots do
+	for i = #marks + 1, #dogDots do
 		dogDots[i].Visible = false
 	end
 end
@@ -735,9 +984,17 @@ local function animalSounds()
 end
 
 -- Update loop
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(dt: number)
 	updateSky()
 	animalSounds()
+	local fishFolder = workspace:FindFirstChild("Fish")
+	if fishFolder then
+		for _, fish in fishFolder:GetChildren() do
+			if fish:IsA("BasePart") then
+				fish.CFrame *= CFrame.Angles(0, dt * 2, 0)
+			end
+		end
+	end
 
 	local start = workspace:GetAttribute("RoundStart") :: number?
 	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
@@ -831,7 +1088,11 @@ RunService.RenderStepped:Connect(function()
 	local meters = math.floor(distance * 0.28)
 	local label = if mode == "home" or mode == "escape" then "Home" elseif mode == "kitten" then "Kitten" else Config.CatName
 	distanceLabel.Text = label .. ": " .. meters .. " m"
-	if mode == "escape" then
+	if (mode == "cat" or mode == "kitten") and distance < 30 then
+		catDot.Visible = false
+		distanceLabel.Text = label .. ": close!"
+		hintLabel.Text = "Look around 👀"
+	elseif mode == "escape" then
 		hintLabel.Text = "Run! 🐕🐕🐕"
 	elseif mode == "home" then
 		hintLabel.Text = if distance < 50 then "Almost home!" else "Bring her home!"

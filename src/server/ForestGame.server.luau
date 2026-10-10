@@ -92,16 +92,16 @@ Lighting.Brightness = 2
 Lighting.OutdoorAmbient = Color3.fromRGB(120, 140, 120)
 local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
 atmosphere.Density = 0.45
-atmosphere.Offset = 0.1
+atmosphere.Offset = 0.25
 atmosphere.Color = Color3.fromRGB(190, 215, 190)
 atmosphere.Decay = Color3.fromRGB(90, 120, 90)
-atmosphere.Haze = 2
+atmosphere.Haze = 1.5
 atmosphere.Parent = Lighting
 
 local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
-bloom.Intensity = 0.5
-bloom.Size = 24
-bloom.Threshold = 2
+bloom.Intensity = 0.7
+bloom.Size = 18
+bloom.Threshold = 1.3
 bloom.Parent = Lighting
 
 -- Ground
@@ -369,8 +369,8 @@ local function makeCabin(pos: Vector3): CFrame
 		Parent = cabin,
 	})
 	local glow = Instance.new("PointLight")
-	glow.Range = 16
-	glow.Brightness = 1.5
+	glow.Range = 24
+	glow.Brightness = 2
 	glow.Color = Color3.fromRGB(255, 150, 70)
 	glow.Parent = window
 	cabin.Parent = neighborFolder
@@ -505,8 +505,8 @@ for _, y in { 0.55, -0.55 } do
 	weld.Parent = cap
 end
 local lanternLight = Instance.new("PointLight")
-lanternLight.Range = 30
-lanternLight.Brightness = 2.5
+lanternLight.Range = 40
+lanternLight.Brightness = 3
 lanternLight.Color = Color3.fromRGB(255, 190, 110)
 lanternLight.Shadows = true
 lanternLight.Parent = lanternHandle
@@ -518,24 +518,40 @@ local function applyHero(player: Player)
 		return
 	end
 	local hero = player:GetAttribute("Hero")
-	humanoid.WalkSpeed = if hero == "Patrick" then Config.PatrickSpeed else 16
+	local slow = ((player:GetAttribute("SlowUntil") :: number?) or 0) > os.clock()
+	humanoid.WalkSpeed = (if hero == "Patrick" then Config.PatrickSpeed else 16) * (if slow then 0.6 else 1)
 	humanoid.DisplayName = if type(hero) == "string" then hero else player.DisplayName
 	local backpack = player:FindFirstChild("Backpack")
 	local tool = character:FindFirstChild("Lantern") or (backpack and backpack:FindFirstChild("Lantern"))
 	local handle = tool and tool:FindFirstChild("Handle")
 	local light = handle and handle:FindFirstChildOfClass("PointLight")
 	if light then
-		light.Range = if hero == "Milena" then 55 else 30
-		light.Brightness = if hero == "Milena" then 4 else 2.5
+		light.Range = if hero == "Milena" then 60 else 40
+		light.Brightness = if hero == "Milena" then 5 else 3
+		local color = Color3.fromRGB(255, 190, 110)
+		for _, item in Config.Shop do
+			if item.id == player:GetAttribute("Lantern") then
+				color = item.color
+			end
+		end
+		light.Color = color;
+		(handle :: BasePart).Color = color
 	end
 end
+
+local onLanternFlash: (Player) -> ()
+local applyCosmetics: (Player) -> ()
 
 local function giveLantern(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	local tool = lantern:Clone()
 	tool.Parent = player:WaitForChild("Backpack")
 	humanoid:EquipTool(tool)
+	tool.Activated:Connect(function()
+		onLanternFlash(player)
+	end)
 	applyHero(player)
+	applyCosmetics(player)
 end
 
 -- Pianka
@@ -544,6 +560,7 @@ type Cat = {
 	body: BasePart,
 	tail: BasePart,
 	tailRest: CFrame,
+	collar: BasePart,
 	tagText: TextLabel,
 	sparkles: Sparkles,
 }
@@ -566,6 +583,8 @@ local function makeCat(base: CFrame, scale: number): Cat
 
 	local body = add("Body", "Part", Vector3.new(1.6, 1.4, 2.6), Vector3.new(0, 1.4, 0))
 	local head = add("Head", "Part", Vector3.new(1.5, 1.3, 1.3), Vector3.new(0, 2.3, -1.5))
+	local collar = add("Collar", "Part", Vector3.new(1.55, 0.3, 0.35), Vector3.new(0, 1.85, -1.3), Color3.fromRGB(255, 90, 170))
+	collar.Material = Enum.Material.Neon
 	add("Muzzle", "Part", Vector3.new(0.8, 0.5, 0.2), Vector3.new(0, 2.05, -2.2))
 	add("Nose", "Part", Vector3.new(0.25, 0.2, 0.1), Vector3.new(0, 2.25, -2.32), Color3.fromRGB(55, 55, 60))
 	for _, x in { -0.38, 0.38 } do
@@ -586,7 +605,7 @@ local function makeCat(base: CFrame, scale: number): Cat
 	local tag = Instance.new("BillboardGui")
 	tag.Size = UDim2.fromOffset(160, 40)
 	tag.StudsOffset = Vector3.new(0, 2, 0)
-	tag.MaxDistance = 40
+	tag.MaxDistance = 80
 	tag.AlwaysOnTop = true
 	tag.Parent = head
 	local tagText = Instance.new("TextLabel")
@@ -608,6 +627,7 @@ local function makeCat(base: CFrame, scale: number): Cat
 		body = body,
 		tail = tail,
 		tailRest = body.CFrame:ToObjectSpace(tail.CFrame),
+		collar = collar,
 		tagText = tagText,
 		sparkles = sparkles,
 	}
@@ -632,6 +652,12 @@ local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
 	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = cat.body
+	local glow = Instance.new("PointLight")
+	glow.Range = 10
+	glow.Brightness = 1.2
+	glow.Color = Color3.fromRGB(255, 120, 190)
+	glow.Shadows = false
+	glow.Parent = cat.body
 	cat.model:SetAttribute("Wild", true)
 	cat.model.Parent = workspace
 	return cat, prompt
@@ -776,7 +802,7 @@ local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from:
 	cat.tail.CFrame = cat.body.CFrame * cat.tailRest
 	catEvent:FireClient(player, "fled")
 
-	local lift = Vector3.new(0, start.Y, 0)
+	local lift = Vector3.new(0, 1.4, 0)
 	local dir = (target - catPos).Unit
 	local fromCf = CFrame.lookAt(start.Position, start.Position + dir)
 	local goalCf = CFrame.lookAt(target + lift, target + lift + dir)
@@ -811,6 +837,361 @@ local function loseCat()
 	end
 end
 
+-- Rats, fish and fun
+type Rat = {
+	model: Model,
+	body: BasePart,
+	bubble: BillboardGui,
+	nest: Vector3,
+	pos: Vector3,
+	dir: Vector3,
+	wander: Vector3,
+	cooldown: number,
+	windup: number,
+	fleeUntil: number,
+	fleeFrom: Vector3,
+	deadUntil: number,
+	speed: number,
+}
+local rats: { Rat } = {}
+local ratFolder = Instance.new("Folder")
+ratFolder.Name = "Rats"
+ratFolder.Parent = workspace
+local fishFolder = Instance.new("Folder")
+fishFolder.Name = "Fish"
+fishFolder.Parent = workspace
+local twistFolder = Instance.new("Folder")
+twistFolder.Name = "Twist"
+twistFolder.Parent = workspace
+local lastBitten: { [Player]: number } = {}
+local lastFlash: { [Player]: number } = {}
+local dropCat: (Player) -> ()
+local twist: string? = nil
+local zoomies = false
+local GOLD = Color3.fromRGB(255, 200, 50)
+
+local beam = makePart("Part", {
+	Name = "HomeBeam",
+	Size = Vector3.new(2, 150, 2),
+	Position = home + Vector3.new(0, 76, 0),
+	Color = Color3.fromRGB(255, 120, 200),
+	Material = Enum.Material.Neon,
+	Transparency = 0.6,
+	CanCollide = false,
+	CanQuery = false,
+	CanTouch = false,
+	CastShadow = false,
+})
+beam.Parent = workspace:FindFirstChild("Camp")
+
+local function giveFish(player: Player, amount: number)
+	local stats = player:FindFirstChild("leaderstats")
+	local fish = stats and stats:FindFirstChild("Fish") :: IntValue?
+	if fish then
+		fish.Value += amount
+		catEvent:FireClient(player, "fish", nil, amount)
+	end
+end
+
+local function fireworks()
+	local colors = { Color3.fromRGB(255, 90, 90), Color3.fromRGB(255, 210, 70), Color3.fromRGB(90, 220, 110), Color3.fromRGB(90, 160, 255), Color3.fromRGB(255, 130, 200) }
+	for i = 1, 6 do
+		task.delay(i * 0.25, function()
+			local start = home + Vector3.new(rng:NextNumber(-6, 6), 2, rng:NextNumber(-6, 6))
+			local ball = makePart("Part", {
+				Name = "Firework",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * 1.2,
+				Position = start,
+				Color = colors[rng:NextInteger(1, #colors)],
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+				CanQuery = false,
+				CanTouch = false,
+				Parent = workspace,
+			})
+			local tween = TweenService:Create(ball, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = start + Vector3.new(0, rng:NextNumber(45, 65), 0) })
+			tween.Completed:Once(function()
+				local boom = Instance.new("Explosion")
+				boom.Position = ball.Position
+				boom.BlastPressure = 0
+				boom.BlastRadius = 6
+				boom.DestroyJointRadiusPercent = 0
+				boom.ExplosionType = Enum.ExplosionType.NoCraters
+				boom.Parent = workspace
+				ball:Destroy()
+			end)
+			tween:Play()
+		end)
+	end
+end
+
+local function makeRat(pos: Vector3): (Model, BasePart, BillboardGui)
+	local model = Instance.new("Model")
+	model.Name = "Rat"
+	local grey = Color3.fromRGB(125, 118, 125)
+	local pink = Color3.fromRGB(240, 150, 170)
+	local body = makePart("Part", {
+		Name = "Body",
+		Size = Vector3.new(0.9, 0.6, 1.6),
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.45, 0)),
+		Color = grey,
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		CastShadow = false,
+		Parent = model,
+	})
+	local function add(name: string, size: Vector3, offset: Vector3, color: Color3, material: Enum.Material?)
+		local part = makePart("Part", {
+			Name = name,
+			Size = size,
+			CFrame = body.CFrame * CFrame.new(offset),
+			Color = color,
+			Material = material or Enum.Material.SmoothPlastic,
+			Anchored = false,
+			Massless = true,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			CastShadow = false,
+			Parent = model,
+		})
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = body
+		weld.Part1 = part
+		weld.Parent = part
+	end
+	add("Head", Vector3.new(0.6, 0.5, 0.6), Vector3.new(0, 0.05, -1), grey)
+	add("Nose", Vector3.new(0.15, 0.15, 0.15), Vector3.new(0, 0, -1.35), pink)
+	for _, x in { -0.22, 0.22 } do
+		add("Ear", Vector3.new(0.25, 0.3, 0.08), Vector3.new(x, 0.4, -0.9), pink)
+		add("Eye", Vector3.new(0.12, 0.12, 0.05), Vector3.new(x * 0.8, 0.15, -1.31), Color3.fromRGB(255, 70, 70), Enum.Material.Neon)
+	end
+	add("Tail", Vector3.new(0.1, 0.1, 1.4), Vector3.new(0, 0.05, 1.45), pink)
+	model.PrimaryPart = body
+
+	local bubble = Instance.new("BillboardGui")
+	bubble.Size = UDim2.fromOffset(110, 32)
+	bubble.StudsOffset = Vector3.new(0, 2, 0)
+	bubble.MaxDistance = 60
+	bubble.AlwaysOnTop = true
+	bubble.Enabled = false
+	bubble.Parent = body
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.FredokaOne
+	text.TextScaled = true
+	text.TextColor3 = Color3.fromRGB(255, 200, 220)
+	text.TextStrokeTransparency = 0.2
+	text.Text = "Nibble!"
+	text.Parent = bubble
+
+	model.Parent = ratFolder
+	return model, body, bubble
+end
+
+local function clearRats()
+	for _, rat in rats do
+		rat.model:Destroy()
+	end
+	table.clear(rats)
+	ratFolder:ClearAllChildren()
+end
+
+local function spawnRats(catPos: Vector3)
+	clearRats()
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local count = Config.RatCount[mode] or 10
+	if twist == "ratparty" then
+		count = math.floor(count * 1.5)
+	end
+	for i = 1, count do
+		local pos = randomSpot(15)
+		for _ = 1, 40 do
+			local try = if i % 2 == 0
+				then catPos + Vector3.new(rng:NextNumber(-80, 80), 0, rng:NextNumber(-80, 80))
+				else randomSpot(15)
+			local okSpot = math.abs(try.X) < half - 10
+				and math.abs(try.Z) < half - 10
+				and (try - home).Magnitude > Config.RatSafeRadius + 40
+				and (try - catPos).Magnitude > 20
+				and isFree(try, 4)
+			if okSpot then
+				pos = try
+				break
+			end
+		end
+		local model, body, bubble = makeRat(pos)
+		table.insert(rats, {
+			model = model,
+			body = body,
+			bubble = bubble,
+			nest = pos,
+			pos = pos,
+			dir = Vector3.new(0, 0, -1),
+			wander = pos,
+			cooldown = 0,
+			windup = 0,
+			fleeUntil = 0,
+			fleeFrom = pos,
+			deadUntil = 0,
+			speed = Config.RatSpeed[mode] or 11,
+		})
+	end
+end
+
+local function biteBy(rat: Rat, player: Player, humanoid: Humanoid)
+	local now = os.clock()
+	rat.cooldown = now + 2
+	if now - (lastBitten[player] or 0) < 0.5 then
+		return
+	end
+	lastBitten[player] = now
+	humanoid:TakeDamage(math.max(0, math.min(Config.RatBite, humanoid.Health - 1)))
+	player:SetAttribute("SlowUntil", now + 1.5)
+	applyHero(player)
+	task.delay(1.6, applyHero, player)
+	rat.bubble.Enabled = true
+	task.delay(0.6, function()
+		rat.bubble.Enabled = false
+	end)
+	catEvent:FireClient(player, "bitten")
+	if carrier == player and humanoid.Health <= 30 then
+		dropCat(player)
+	end
+end
+
+local function squash(rat: Rat, player: Player)
+	rat.deadUntil = os.clock() + 20
+	rat.windup = 0
+	local poof = Instance.new("Explosion")
+	poof.Position = rat.pos + Vector3.new(0, 0.5, 0)
+	poof.BlastPressure = 0
+	poof.BlastRadius = 1
+	poof.DestroyJointRadiusPercent = 0
+	poof.ExplosionType = Enum.ExplosionType.NoCraters
+	poof.Parent = workspace
+	rat.model.Parent = nil
+	giveFish(player, Config.Reward.Rat)
+	catEvent:FireClient(player, "squash")
+end
+
+onLanternFlash = function(player: Player)
+	local now = os.clock()
+	local root = getRoot(player)
+	if not root or now - (lastFlash[player] or 0) < 4 then
+		return
+	end
+	lastFlash[player] = now
+	local character = player.Character
+	local tool = character and character:FindFirstChild("Lantern")
+	local handle = tool and tool:FindFirstChild("Handle")
+	local light = handle and handle:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Range = 60
+		light.Brightness = 10
+		task.delay(0.3, applyHero, player)
+	end
+	local radius = if player:GetAttribute("Hero") == "Milena" then 30 else 20
+	local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
+	for _, rat in rats do
+		if (rat.pos - pos).Magnitude < radius then
+			rat.fleeUntil = now + 3
+			rat.fleeFrom = pos
+			rat.windup = 0
+		end
+	end
+end
+
+local function playerFromHit(hit: BasePart): Player?
+	local model = hit:FindFirstAncestorOfClass("Model")
+	return model and Players:GetPlayerFromCharacter(model)
+end
+
+local function spawnFish()
+	fishFolder:ClearAllChildren()
+	local myRound = round
+	for _ = 1, Config.FishCount do
+		local pos = randomSpot(10)
+		for _ = 1, 20 do
+			if (pos - home).Magnitude > 25 and isFree(pos, 3) then
+				break
+			end
+			pos = randomSpot(10)
+		end
+		local fish = makePart("Part", {
+			Name = "Fish",
+			Size = Vector3.new(1.4, 0.7, 0.3),
+			CFrame = CFrame.new(pos + Vector3.new(0, 2, 0)),
+			Color = Color3.fromRGB(255, 170, 60),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CastShadow = false,
+			Parent = fishFolder,
+		})
+		local light = Instance.new("PointLight")
+		light.Range = 8
+		light.Brightness = 1
+		light.Color = Color3.fromRGB(255, 170, 60)
+		light.Shadows = false
+		light.Parent = fish
+		local taken = false
+		fish.Touched:Connect(function(hit)
+			local player = if taken then nil else playerFromHit(hit)
+			if not player then
+				return
+			end
+			taken = true
+			fish.Transparency = 1
+			light.Enabled = false
+			giveFish(player, 1)
+			task.delay(Config.FishRespawn, function()
+				if fish.Parent and round == myRound then
+					taken = false
+					fish.Transparency = 0
+					light.Enabled = true
+				end
+			end)
+		end)
+	end
+end
+
+local function buildTree(pos: Vector3): number
+	local wood = Color3.fromRGB(120, 85, 50)
+	local steps = { Vector3.new(4, 2.6, 0), Vector3.new(0, 5.2, 4), Vector3.new(-4, 7.8, 0) }
+	for _, offset in steps do
+		makePart("Part", {
+			Name = "Step",
+			Size = Vector3.new(3, 0.6, 3),
+			Position = pos + offset - Vector3.new(0, 0.3, 0),
+			Color = wood,
+			Material = Enum.Material.WoodPlanks,
+			Parent = twistFolder,
+		})
+	end
+	makePart("Part", {
+		Name = "Platform",
+		Size = Vector3.new(5, 0.6, 5),
+		Position = pos + Vector3.new(0, 10.1, 0),
+		Color = wood,
+		Material = Enum.Material.WoodPlanks,
+		Parent = twistFolder,
+	})
+	makePart("Part", {
+		Name = "Pole",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(10, 1.2, 1.2),
+		CFrame = CFrame.new(pos + Vector3.new(0, 5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(100, 70, 45),
+		Material = Enum.Material.Wood,
+		Parent = twistFolder,
+	})
+	return 10.4
+end
+
 local function deliver(player: Player)
 	local myRound = round
 	removeCat(carried)
@@ -821,8 +1202,10 @@ local function deliver(player: Player)
 	local stats = player:FindFirstChild("leaderstats")
 	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
 	if count then
-		count.Value += 1
+		count.Value += if twist == "golden" then 2 else 1
 	end
+	giveFish(player, Config.Reward.Deliver * (if twist == "golden" then 2 else 1))
+	fireworks()
 
 	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.45, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
 	local cat = homeCat :: Cat
@@ -864,8 +1247,14 @@ local function makeKitten(cf: CFrame): Cat
 	kitten.model.Name = "Kitten"
 	kitten.tagText.Text = "Kitten"
 	local tag = kitten.tagText.Parent :: BillboardGui
-	tag.MaxDistance = 25
+	tag.MaxDistance = 50
 	kitten.sparkles:Destroy()
+	local glow = Instance.new("PointLight")
+	glow.Range = 7
+	glow.Brightness = 1
+	glow.Color = Color3.fromRGB(255, 120, 190)
+	glow.Shadows = false
+	glow.Parent = kitten.body
 	table.insert(kittens, kitten)
 	return kitten
 end
@@ -976,6 +1365,7 @@ end
 
 local function startEscape()
 	local myRound = round
+	clearRats()
 	workspace:SetAttribute("KittenDeadline", nil)
 	workspace:SetAttribute("Escape", true)
 	catEvent:FireAllClients("dogs")
@@ -1057,6 +1447,8 @@ local function startEscape()
 						dogFolder:ClearAllChildren()
 						workspace:SetAttribute("Escape", nil)
 						catEvent:FireAllClients("escaped", player, seconds)
+						giveFish(player, Config.Reward.Umulig)
+						fireworks()
 						task.delay(8, function()
 							if round == myRound then
 								newRound()
@@ -1150,6 +1542,7 @@ local function collectKitten(kitten: Cat, player: Player)
 	if count then
 		count.Value += 1
 	end
+	giveFish(player, Config.Reward.Kitten)
 	workspace:SetAttribute("KittensLeft", kittensLeft)
 	catEvent:FireAllClients("kitten", player, kittensLeft)
 
@@ -1159,6 +1552,7 @@ local function collectKitten(kitten: Cat, player: Player)
 		workspace:SetAttribute("KittenDeadline", nil)
 		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 		catEvent:FireAllClients("allKittens", player, seconds)
+		fireworks()
 		task.wait(8)
 		if round == myRound then
 			newRound()
@@ -1224,45 +1618,26 @@ local function startKittens(cat: Cat, ultra: boolean)
 	end
 end
 
-function newRound()
-	if wildTween then
-		wildTween:Cancel()
-	end
-	if homeTween then
-		homeTween:Cancel()
-	end
-	wildTween, homeTween = nil, nil
-	for player, hero in pendingHero do
-		player:SetAttribute("Hero", hero)
-		applyHero(player)
-	end
-	table.clear(pendingHero)
-	removeCat(wildCat)
-	removeCat(carried)
-	removeCat(homeCat)
-	for _, kitten in kittens do
-		removeCat(kitten)
-	end
-	table.clear(kittens)
-	kittensLeft = 0
-	umulig = false
-	clearUmulig()
-	workspace:SetAttribute("KittensLeft", nil)
-	workspace:SetAttribute("KittenDeadline", nil)
-	wildCat, carried, homeCat, carrier = nil, nil, nil, nil
-	round += 1
+local placeWildCat: (Vector3, number) -> ()
 
-	local pos = findCatSpot()
+placeWildCat = function(pos: Vector3, height: number)
 	local cat, prompt = spawnWildCat(pos)
+	if height > 0 then
+		cat.model:PivotTo(cat.model:GetPivot() + Vector3.new(0, height, 0))
+		prompt.MaxActivationDistance = 6
+	end
+	if twist == "golden" then
+		cat.collar.Color = GOLD
+		cat.sparkles.SparkleColor = GOLD
+		cat.tagText.Text = "Golden " .. Config.CatName .. " ✨"
+	end
 	wildCat = cat
 	wildPrompt = prompt
 	wildTween = wagTail(cat.tail)
-	fleesLeft = Config.HardFlees
 	fleeing = false
 	workspace:SetAttribute("CatPosition", pos)
 	workspace:SetAttribute("Carrier", nil)
 	workspace:SetAttribute("CarryEnd", nil)
-	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
 
 	prompt.Triggered:Connect(function(player)
 		local character = player.Character
@@ -1279,6 +1654,9 @@ function newRound()
 		local newCarried = carryCat(character, 0.6, 0)
 		if not newCarried then
 			return
+		end
+		if twist == "golden" then
+			newCarried.collar.Color = GOLD
 		end
 		removeCat(cat)
 		wildCat = nil
@@ -1310,6 +1688,75 @@ function newRound()
 	end)
 end
 
+function newRound()
+	if wildTween then
+		wildTween:Cancel()
+	end
+	if homeTween then
+		homeTween:Cancel()
+	end
+	wildTween, homeTween = nil, nil
+	for player, hero in pendingHero do
+		player:SetAttribute("Hero", hero)
+		applyHero(player)
+	end
+	table.clear(pendingHero)
+	removeCat(wildCat)
+	removeCat(carried)
+	removeCat(homeCat)
+	for _, kitten in kittens do
+		removeCat(kitten)
+	end
+	table.clear(kittens)
+	kittensLeft = 0
+	umulig = false
+	clearUmulig()
+	workspace:SetAttribute("KittensLeft", nil)
+	workspace:SetAttribute("KittenDeadline", nil)
+	wildCat, carried, homeCat, carrier = nil, nil, nil, nil
+	round += 1
+
+	twistFolder:ClearAllChildren()
+	local roll = rng:NextNumber()
+	twist = if roll < 0.35
+		then nil
+		elseif roll < 0.53 then "tree"
+		elseif roll < 0.7 then "zoomies"
+		elseif roll < 0.84 then "ratparty"
+		elseif roll < 0.92 then "fullmoon"
+		else "golden"
+	zoomies = twist == "zoomies"
+	workspace:SetAttribute("Twist", twist)
+
+	local pos = findCatSpot()
+	fleesLeft = Config.HardFlees
+	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
+	placeWildCat(pos, if twist == "tree" then buildTree(pos) else 0)
+	spawnRats(pos)
+	spawnFish()
+	if twist then
+		catEvent:FireAllClients("twist", nil, twist)
+	end
+end
+
+dropCat = function(player: Player)
+	local root = getRoot(player)
+	local from = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else home
+	removeCat(carried)
+	carried, carrier = nil, nil
+	local spot = from
+	for _ = 1, 30 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local try = from + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(40, 60)
+		if math.abs(try.X) < half - 15 and math.abs(try.Z) < half - 15 and (try - home).Magnitude > 50 and isFree(try, 5) then
+			spot = try
+			break
+		end
+	end
+	placeWildCat(spot, 0)
+	catEvent:FireAllClients("dropped", player)
+end
+
 local DataStoreService = game:GetService("DataStoreService")
 local okStore, saves = pcall(function()
 	return DataStoreService:GetDataStore("FindPianka1")
@@ -1319,16 +1766,35 @@ local okBoard, ranking = pcall(function()
 end)
 local loaded: { [Player]: boolean } = {}
 
+local function ownedList(player: Player): { string }
+	local list = {}
+	for _, id in string.split((player:GetAttribute("Owned") :: string?) or "", ",") do
+		if id ~= "" then
+			table.insert(list, id)
+		end
+	end
+	return list
+end
+
 local function savePlayer(player: Player)
 	local stats = player:FindFirstChild("leaderstats")
 	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
-	if not count or not loaded[player] then
+	local fish = stats and stats:FindFirstChild("Fish") :: IntValue?
+	if not count or not fish or not loaded[player] then
 		return
 	end
 	local key = tostring(player.UserId)
 	if okStore then
+		local data = {
+			rescued = count.Value,
+			fish = fish.Value,
+			owned = ownedList(player),
+			lantern = player:GetAttribute("Lantern"),
+			crown = player:GetAttribute("Crown") == true,
+			pet = player:GetAttribute("Pet") == true,
+		}
 		pcall(function()
-			saves:SetAsync(key, { rescued = count.Value })
+			saves:SetAsync(key, data)
 		end)
 	end
 	if okBoard and count.Value > 0 then
@@ -1338,12 +1804,139 @@ local function savePlayer(player: Player)
 	end
 end
 
+-- Shop and cosmetics
+local shopEvent = Instance.new("RemoteEvent")
+shopEvent.Name = "Shop"
+shopEvent.Parent = ReplicatedStorage
+type Pet = { cat: Cat, pos: Vector3 }
+local pets: { [Player]: Pet } = {}
+local lastShop: { [Player]: number } = {}
+
+local function weldTo(root: BasePart, model: Model)
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") and part ~= root then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = root
+			weld.Part1 = part
+			weld.Parent = part
+			part.Anchored = false
+			part.Massless = true
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+		end
+	end
+end
+
+applyCosmetics = function(player: Player)
+	local character = player.Character
+	local head = character and character:FindFirstChild("Head") :: BasePart?
+	local oldCrown = character and character:FindFirstChild("Crown")
+	if oldCrown then
+		oldCrown:Destroy()
+	end
+	if character and head and player:GetAttribute("Crown") then
+		local crown = Instance.new("Model")
+		crown.Name = "Crown"
+		local base = head.CFrame * CFrame.new(0, head.Size.Y / 2 + 0.2, 0)
+		local ring = makePart("Part", {
+			Name = "Ring",
+			Size = Vector3.new(1.3, 0.35, 1.3),
+			CFrame = base,
+			Color = GOLD,
+			Material = Enum.Material.Metal,
+			Parent = crown,
+		})
+		for _, offset in { Vector3.new(0.5, 0.4, 0.5), Vector3.new(-0.5, 0.4, 0.5), Vector3.new(0.5, 0.4, -0.5), Vector3.new(-0.5, 0.4, -0.5) } do
+			makePart("Part", { Name = "Spike", Size = Vector3.new(0.25, 0.5, 0.25), CFrame = base * CFrame.new(offset), Color = GOLD, Material = Enum.Material.Metal, Parent = crown })
+		end
+		makePart("Part", { Name = "Gem", Size = Vector3.new(0.3, 0.3, 0.1), CFrame = base * CFrame.new(0, 0, -0.66), Color = Color3.fromRGB(255, 60, 90), Material = Enum.Material.Neon, Parent = crown })
+		weldTo(ring, crown)
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = head
+		weld.Part1 = ring
+		weld.Parent = ring
+		ring.Anchored = false
+		ring.Massless = true
+		ring.CanCollide = false
+		ring.CanQuery = false
+		ring.CanTouch = false
+		crown.Parent = character
+	end
+
+	local pet = pets[player]
+	if pet then
+		pet.cat.model:Destroy()
+		pets[player] = nil
+	end
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root and player:GetAttribute("Pet") then
+		local start = Vector3.new(root.Position.X + 3, 0, root.Position.Z + 3)
+		local cat = makeCat(CFrame.new(start), 0.4)
+		cat.model.Name = "Pet"
+		cat.tagText.Text = player.DisplayName .. "'s kitten"
+		local tag = cat.tagText.Parent :: BillboardGui
+		tag.MaxDistance = 30
+		cat.sparkles:Destroy()
+		weldTo(cat.body, cat.model)
+		cat.model.Parent = workspace
+		pets[player] = { cat = cat, pos = start }
+	end
+end
+
+shopEvent.OnServerEvent:Connect(function(player, action, id)
+	local now = os.clock()
+	if type(id) ~= "string" or now - (lastShop[player] or 0) < 0.3 then
+		return
+	end
+	lastShop[player] = now
+	local item = nil
+	for _, entry in Config.Shop do
+		if entry.id == id then
+			item = entry
+		end
+	end
+	if not item then
+		return
+	end
+	local owned = ownedList(player)
+	local has = table.find(owned, id) ~= nil
+	if action == "buy" and not has then
+		local stats = player:FindFirstChild("leaderstats")
+		local fish = stats and stats:FindFirstChild("Fish") :: IntValue?
+		if not fish or fish.Value < item.price then
+			catEvent:FireClient(player, "poor")
+			return
+		end
+		fish.Value -= item.price
+		table.insert(owned, id)
+		player:SetAttribute("Owned", table.concat(owned, ","))
+		has = true
+		action = "equip"
+		catEvent:FireClient(player, "bought", nil, item.name)
+	end
+	if action == "equip" and has then
+		if item.kind == "lantern" then
+			player:SetAttribute("Lantern", if player:GetAttribute("Lantern") == id then nil else id)
+		elseif item.kind == "crown" then
+			player:SetAttribute("Crown", not player:GetAttribute("Crown"))
+		elseif item.kind == "pet" then
+			player:SetAttribute("Pet", not player:GetAttribute("Pet"))
+		end
+		applyHero(player)
+		applyCosmetics(player)
+	end
+end)
+
 local function addPlayer(player: Player)
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
 	local count = Instance.new("IntValue")
 	count.Name = "Rescued"
 	count.Parent = stats
+	local fish = Instance.new("IntValue")
+	fish.Name = "Fish"
+	fish.Parent = stats
 	stats.Parent = player
 
 	task.spawn(function()
@@ -1351,8 +1944,23 @@ local function addPlayer(player: Player)
 			local ok, data = pcall(function()
 				return saves:GetAsync(tostring(player.UserId))
 			end)
-			if ok and type(data) == "table" and type(data.rescued) == "number" then
-				count.Value += data.rescued
+			if ok and type(data) == "table" then
+				if type(data.rescued) == "number" then
+					count.Value += data.rescued
+				end
+				if type(data.fish) == "number" then
+					fish.Value += data.fish
+				end
+				if type(data.owned) == "table" then
+					player:SetAttribute("Owned", table.concat(data.owned, ","))
+				end
+				if type(data.lantern) == "string" then
+					player:SetAttribute("Lantern", data.lantern)
+				end
+				player:SetAttribute("Crown", data.crown == true)
+				player:SetAttribute("Pet", data.pet == true)
+				applyHero(player)
+				applyCosmetics(player)
 			end
 			loaded[player] = ok
 		end
@@ -1375,6 +1983,14 @@ local lastCall: { [Player]: number } = {}
 local lastChangeBy: { [Player]: number } = {}
 
 Players.PlayerRemoving:Connect(function(player)
+	local pet = pets[player]
+	if pet then
+		pet.cat.model:Destroy()
+		pets[player] = nil
+	end
+	lastBitten[player] = nil
+	lastFlash[player] = nil
+	lastShop[player] = nil
 	task.spawn(function()
 		savePlayer(player)
 		loaded[player] = nil
@@ -1395,12 +2011,13 @@ task.spawn(function()
 	while true do
 		task.wait(0.2)
 		local cat, prompt = wildCat, wildPrompt
-		if cat and prompt and not fleeing and fleesLeft > 0 and isHardMode() then
+		if cat and prompt and not fleeing and (zoomies or (fleesLeft > 0 and isHardMode())) then
 			local catPos = cat.model:GetPivot().Position
 			for _, p in Players:GetPlayers() do
 				local r = getRoot(p)
 				local limit = if p:GetAttribute("Hero") == "Aurelia" then Config.HardFlees - 1 else 0
-				if r and fleesLeft > limit and (r.Position - catPos).Magnitude < Config.FleeDistance then
+				if r and (zoomies or fleesLeft > limit) and (r.Position - catPos).Magnitude < Config.FleeDistance then
+					zoomies = false
 					task.spawn(fleeFrom, cat, prompt, p, r.Position)
 					break
 				end
@@ -1570,6 +2187,147 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 		if face and (Vector3.new(face.X, pos.Y, face.Z) - nextPos).Magnitude > 0.1 then
 			n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z)) * CFrame.Angles(0, 0, math.sin(now * 3) * 0.04)
+		end
+	end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+	local now = os.clock()
+	if #rats == 0 then
+		return
+	end
+	type Target = { player: Player, root: BasePart, humanoid: Humanoid, pos: Vector3 }
+	local targets: { Target } = {}
+	for _, player in Players:GetPlayers() do
+		local root = getRoot(player)
+		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
+		if root and humanoid then
+			table.insert(targets, { player = player, root = root, humanoid = humanoid, pos = Vector3.new(root.Position.X, 0, root.Position.Z) })
+		end
+	end
+	local homeFlat = Vector3.new(home.X, 0, home.Z)
+	for _, rat in rats do
+		if rat.deadUntil > 0 then
+			if now < rat.deadUntil then
+				continue
+			end
+			rat.deadUntil = 0
+			rat.pos = rat.nest
+			rat.model.Parent = ratFolder
+		end
+		local nearest = math.huge
+		local target: Target? = nil
+		local targetDistance = Config.RatAggro
+		local squashed = false
+		for _, t in targets do
+			local distance = (t.pos - rat.pos).Magnitude
+			nearest = math.min(nearest, distance)
+			if distance < 2.4 and t.root.AssemblyLinearVelocity.Y < -2 and t.root.Position.Y > 3.3 then
+				squash(rat, t.player)
+				squashed = true
+				break
+			end
+			local safe = (t.pos - homeFlat).Magnitude < Config.RatSafeRadius
+			local inLeash = (t.pos - rat.nest).Magnitude < Config.RatLeash
+			if distance < targetDistance and inLeash and not safe and t.humanoid.Health > 25 then
+				target, targetDistance = t, distance
+			end
+		end
+		if squashed or nearest > 120 then
+			continue
+		end
+
+		local goal: Vector3? = nil
+		local speed = 0
+		if now < rat.fleeUntil then
+			local away = rat.pos - rat.fleeFrom
+			goal = rat.pos + (if away.Magnitude > 0.1 then away.Unit else Vector3.new(1, 0, 0)) * 5
+			speed = 14
+		elseif target and now > rat.cooldown then
+			speed = math.min(rat.speed, target.humanoid.WalkSpeed * 0.8)
+			if targetDistance < 2.8 then
+				speed = 0
+				if rat.windup == 0 then
+					rat.windup = now + 0.3
+				elseif now >= rat.windup then
+					rat.windup = 0
+					biteBy(rat, target.player, target.humanoid)
+				end
+			else
+				rat.windup = 0
+				goal = target.pos
+			end
+		else
+			rat.windup = 0
+			if (rat.wander - rat.pos).Magnitude < 1 then
+				rat.wander = rat.nest + Vector3.new(rng:NextNumber(-15, 15), 0, rng:NextNumber(-15, 15))
+			end
+			goal = rat.wander
+			speed = 5
+		end
+
+		if goal and speed > 0 then
+			local delta = goal - rat.pos
+			if delta.Magnitude > 0.05 then
+				local dir = delta.Unit
+				local nextPos = rat.pos + dir * math.min(speed * dt, delta.Magnitude)
+				for _, tree in treeSpots do
+					local away = nextPos - tree
+					if away.Magnitude < 2 and away.Magnitude > 0.01 then
+						nextPos = tree + away.Unit * 2
+					end
+				end
+				for _, cabin in cabinSpots do
+					local away = nextPos - cabin
+					if away.Magnitude < 9 and away.Magnitude > 0.01 then
+						nextPos = cabin + away.Unit * 9
+					end
+				end
+				rat.dir = dir
+				rat.pos = Vector3.new(math.clamp(nextPos.X, -half + 3, half - 3), 0, math.clamp(nextPos.Z, -half + 3, half - 3))
+			end
+		end
+		local hop = if speed > 6 then math.abs(math.sin(now * 18)) * 0.15 else 0
+		local at = rat.pos + Vector3.new(0, 0.45 + hop, 0)
+		rat.body.CFrame = CFrame.lookAt(at, at + rat.dir)
+	end
+end)
+
+local lastRainbow = 0
+RunService.Heartbeat:Connect(function(dt)
+	for player, pet in pets do
+		local root = getRoot(player)
+		if root and pet.cat.model.Parent then
+			local goal = root.CFrame * CFrame.new(2.5, 0, 3)
+			local goalPos = Vector3.new(goal.X, 0, goal.Z)
+			local delta = goalPos - pet.pos
+			if delta.Magnitude > 60 then
+				pet.pos = goalPos
+			elseif delta.Magnitude > 0.3 then
+				pet.pos += delta * math.min(1, dt * 5)
+			end
+			local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+			local face = if delta.Magnitude > 0.5 then delta.Unit elseif look.Magnitude > 0.1 then look.Unit else Vector3.new(0, 0, -1)
+			local at = pet.pos + Vector3.new(0, 1.4 * 0.4, 0)
+			pet.cat.body.CFrame = CFrame.lookAt(at, at + face)
+		end
+	end
+
+	local now = os.clock()
+	if now - lastRainbow < 0.1 then
+		return
+	end
+	lastRainbow = now
+	local color = Color3.fromHSV((now * 0.2) % 1, 0.6, 1)
+	for _, player in Players:GetPlayers() do
+		if player:GetAttribute("Lantern") == "LanternRainbow" and player.Character then
+			local tool = player.Character:FindFirstChild("Lantern")
+			local handle = tool and tool:FindFirstChild("Handle") :: BasePart?
+			local light = handle and handle:FindFirstChildOfClass("PointLight")
+			if handle and light then
+				handle.Color = color
+				light.Color = color
+			end
 		end
 	end
 end)

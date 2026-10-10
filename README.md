@@ -16,7 +16,13 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 - **Normal**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. And there is a surprise when you catch her!
 - **Umulig** (almost impossible): like Normal, plus dogs.
 
-Night lasts most of the time. Spooky neighbors live in cabins and talk in Norwegian. Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
+Watch out for rats! They nibble and slow you down. Jump on them to squash them, or click your lantern to scare them away.
+
+Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten pet.
+
+Every round can have a twist: Pianka up a tree, zoomies, a rat party, a full moon or a golden Pianka.
+
+Spooky neighbors live in cabins and talk in Norwegian. Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
 
 ## Publish
 
