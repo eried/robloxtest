@@ -7,18 +7,18 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 ## Heroes
 
 - **Patrick** 🏃 super fast
-- **Aurelia** 🐱 cat friend: her GPS never loses signal, Pianka runs from her only once and leaves her more birds
+- **Aurelia** 🐱 cat friend: her GPS never gets fuzzy, Pianka runs from her only once and leaves her more birds
 - **Milenkitka** 💡 big lantern, and dogs rest longer when chasing her
 
 ## Modes (same for everyone on a server)
 
 - **Easy**: find Pianka with the GPS and bring her home.
-- **Normal**: thick fog, the GPS loses signal sometimes, Pianka runs away 3 times. And there is a surprise when you catch her!
+- **Normal**: thick fog, Pianka runs away 3 times. And there is a surprise when you catch her!
 - **Umulig** (almost impossible): like Normal, then run home with the kittens while a pack of dogs follows you.
 
 You have 3 hearts (2 in Normal). A dog bite or a neighbor grab costs one. Out of hearts? You faint 😵 until the next round. If everyone faints, the round is lost. Pianka leaves a trail of birds 🐦 that leads to her, like a cat gift. Each one gives a heart back.
 
-Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
+The GPS always shows Pianka. Enemies show up only when you can see them, and the GPS gets fuzzy when they are close. Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
 
 In Umulig a pack of dogs follows behind you in a V. They only attack if you get into their light, so keep running and avoid mud.
 

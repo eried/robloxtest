@@ -866,8 +866,8 @@ local TWISTS = {
 }
 
 -- Events
-local nextGlitch = 0
-local glitchUntil = 0
+local wobble = Vector2.zero
+local lastWobble = 0
 local best: { [string]: number } = {}
 
 local function nameOf(who: Player?): string
@@ -935,8 +935,6 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			showBanner(cat .. " ran away again! Use your GPS.", 3)
 		end)
 	elseif kind == "dogs" then
-		glitchUntil = 0
-		nextGlitch = os.clock() + 8
 		local runner = ((player:GetAttribute("Kittens") :: number?) or 0) > 0
 		showBanner(if runner then "🐕 Dogs! Run home!\nStay out of their light!" else "🐕 Dogs! Watch out!", 3)
 	elseif kind == "caught" then
@@ -1115,45 +1113,51 @@ local function radarPos(offset: Vector3, right: Vector3): UDim2
 	return UDim2.new(0.5, x * scale, 0.5, y * scale)
 end
 
+local seeParams = RaycastParams.new()
+seeParams.FilterType = Enum.RaycastFilterType.Exclude
+local seen: { [Instance]: boolean } = {}
+local lastLook = 0
+
+-- Enemies near you, and whether you can see them
+local function enemies(from: Vector3): { { model: Model, pos: Vector3, icon: string, range: number } }
+	local list = {}
+	local function scan(folder: Instance?, icon: string, range: number, hunting: boolean)
+		if not folder then
+			return
+		end
+		for _, child in folder:GetChildren() do
+			if child:IsA("Model") and (not hunting or child:GetAttribute("Hunting")) then
+				local pos = child:GetPivot().Position
+				if (pos - from).Magnitude < range then
+					table.insert(list, { model = child, pos = pos, icon = icon, range = range })
+				end
+			end
+		end
+	end
+	scan(workspace:FindFirstChild("Dogs"), "🐕", 90, false)
+	scan(workspace:FindFirstChild("Neighbors"), "🔦", 90, true)
+	scan(workspace:FindFirstChild("Rats"), "🐀", 45, false)
+	return list
+end
+
 local function showDogs(from: Vector3?, right: Vector3?)
 	local marks: { { pos: Vector3, icon: string } } = {}
 	if from and right then
-		local dogs = workspace:FindFirstChild("Dogs")
-		if dogs then
-			for _, dog in dogs:GetChildren() do
-				local pos = (dog :: Model):GetPivot().Position
-				if (pos - from).Magnitude < 100 then
-					table.insert(marks, { pos = pos, icon = "🐕" })
-				end
+		local now = os.clock()
+		local list = enemies(from)
+		if now - lastLook > 0.25 then
+			lastLook = now
+			table.clear(seen)
+			local eye = from + Vector3.new(0, 1.5, 0)
+			for _, e in list do
+				seeParams.FilterDescendantsInstances = { player.Character :: Instance, e.model }
+				local target = e.pos + Vector3.new(0, 0.5, 0)
+				seen[e.model] = workspace:Raycast(eye, target - eye, seeParams) == nil
 			end
 		end
-		local neighbors = workspace:FindFirstChild("Neighbors")
-		if neighbors then
-			for _, n in neighbors:GetChildren() do
-				if n:IsA("Model") and n:GetAttribute("Hunting") then
-					local pos = n:GetPivot().Position
-					if (pos - from).Magnitude < 100 then
-						table.insert(marks, { pos = pos, icon = "🔦" })
-					end
-				end
-			end
-		end
-		local birdFolder = workspace:FindFirstChild("Birds")
-		if birdFolder then
-			for _, bird in birdFolder:GetChildren() do
-				local pos = (bird :: Model):GetPivot().Position
-				if (pos - from).Magnitude < 60 then
-					table.insert(marks, { pos = pos, icon = "🐦" })
-				end
-			end
-		end
-		local ratFolder = workspace:FindFirstChild("Rats")
-		if ratFolder then
-			for _, rat in ratFolder:GetChildren() do
-				local pos = (rat :: Model):GetPivot().Position
-				if (pos - from).Magnitude < 60 then
-					table.insert(marks, { pos = pos, icon = "🐀" })
-				end
+		for _, e in list do
+			if seen[e.model] then
+				table.insert(marks, { pos = e.pos, icon = e.icon })
 			end
 		end
 	end
@@ -1303,25 +1307,21 @@ RunService.RenderStepped:Connect(function(dt: number)
 	end
 	local right = Vector3.new(-lastForward.Z, 0, lastForward.X)
 
-	local hard = workspace:GetAttribute("Mode") ~= "Easy"
-	if hard and player:GetAttribute("Hero") ~= "Aurelia" and root then
-		local now = os.clock()
-		if nextGlitch == 0 then
-			nextGlitch = now + 20
-		elseif now > nextGlitch then
-			glitchUntil = now + math.random(2, 3)
-			nextGlitch = glitchUntil + math.random(25, 40)
-		end
-		if now < glitchUntil then
-			radar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-			catDot.Visible = false
-			showDogs(nil, nil)
-			distanceLabel.Text = "No signal 📡"
-			hintLabel.Text = ""
-			return
+	local fuzz = 0
+	if root and player:GetAttribute("Hero") ~= "Aurelia" then
+		for _, e in enemies(root.Position) do
+			local near = (e.pos - root.Position).Magnitude
+			local reach = if e.icon == "🐀" then 18 else 35
+			local weight = if e.icon == "🐀" then 0.6 else 1
+			fuzz = math.max(fuzz, math.clamp(1 - (near - 6) / (reach - 6), 0, 1) * weight)
 		end
 	end
-	radar.BackgroundColor3 = RADAR_COLOR
+	local now = os.clock()
+	if now - lastWobble > 0.12 then
+		lastWobble = now
+		wobble = Vector2.new(math.random() - 0.5, math.random() - 0.5) * 2
+	end
+	radar.BackgroundColor3 = RADAR_COLOR:Lerp(Color3.fromRGB(60, 60, 60), fuzz * (0.6 + 0.4 * math.random()))
 
 	if not root or not target then
 		catDot.Visible = false
@@ -1344,15 +1344,14 @@ RunService.RenderStepped:Connect(function(dt: number)
 	showDogs(root.Position, right)
 	catDot.Visible = true
 	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" else "🐱"
-	catDot.Position = radarPos(offset, right)
+	local spot = radarPos(offset, right)
+	catDot.Position = spot + UDim2.fromOffset(wobble.X * fuzz * 30, wobble.Y * fuzz * 30)
 
 	local meters = math.floor(distance * 0.28)
 	local label = if mode == "home" or mode == "escape" then "Home" elseif mode == "kitten" then "Kitten" else Config.CatName
 	distanceLabel.Text = label .. ": " .. meters .. " m"
-	if (mode == "cat" or mode == "kitten") and distance < 30 then
-		catDot.Visible = false
-		distanceLabel.Text = label .. ": close!"
-		hintLabel.Text = "Look around 👀"
+	if fuzz > 0.35 then
+		hintLabel.Text = "📡 Fuzzy signal!"
 	elseif mode == "escape" then
 		hintLabel.Text = "Run! 🐕🐕🐕"
 	elseif mode == "home" then
@@ -1370,7 +1369,6 @@ RunService.RenderStepped:Connect(function(dt: number)
 	end
 
 	local interval = math.clamp(distance / 100, 0.15, 2)
-	local now = os.clock()
 	if playing and now - lastBeep > interval then
 		lastBeep = now
 		beep.PlaybackSpeed = if distance < 50 then 1.3 else 1
