@@ -46,6 +46,7 @@ jobs:
           curl -sSL -o "$RUNNER_TEMP/lune.zip" https://github.com/lune-org/lune/releases/download/v0.8.9/lune-0.8.9-linux-x86_64.zip
           unzip -o "$RUNNER_TEMP/lune.zip" -d "$RUNNER_TEMP"
           "$RUNNER_TEMP/lune" run tests/dogs.spec.luau 40 | tee -a "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/lune" run tests/play.spec.luau 1.5 | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Get Rojo
         if: steps.check.outputs.ready == 'true'

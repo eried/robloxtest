@@ -1014,8 +1014,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "bird" then
 		popText("+1 ❤️ 🐦", Color3.fromRGB(255, 140, 180))
 		chime()
-	elseif kind == "birdFull" then
-		popText("Hearts full ❤️", Color3.fromRGB(255, 170, 200))
+	elseif kind == "kittensBack" then
+		showBanner(if who == player then "Your kittens ran back\ninto the forest! 🐾" else nameOf(who) .. "'s kittens ran\nback into the forest! 🐾", 3)
 	elseif kind == "gift" then
 		popText(cat .. " left you a bird! 🐦", Color3.fromRGB(255, 170, 200))
 	elseif kind == "heart" then

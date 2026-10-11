@@ -489,7 +489,7 @@ local function play(mode: string, kind: string, hero: string)
 			botStep(bot, goal, active, world, mud, careful)
 		end
 		bot.hp = math.min(100, bot.hp + DT)
-		if hunting and alive and (bot.pos - HOME).Magnitude >= Config.RatSafeRadius then
+		if hunting and alive and phase ~= "escape" and (bot.pos - HOME).Magnitude >= Config.RatSafeRadius then
 			for _, h in hunters do
 				if h.seeker and now >= h.nextSeek and (h.state == "patrol" or h.state == "turn") then
 					h.nextSeek = now + Config.SeekEvery
@@ -610,6 +610,12 @@ local function play(mode: string, kind: string, hero: string)
 					end
 					phase = "escape"
 					packStart = now
+					for _, other in active do
+						if other.state == "alert" or other.state == "chase" then
+							other.state = "return"
+							other.untilTime = now + 3
+						end
+					end
 					local toHome = HOME - bot.pos
 					local heading = if toHome.Magnitude > 1 then toHome.Unit else Vector3.new(0, 0, -1)
 					local right = Vector3.new(-heading.Z, 0, heading.X)

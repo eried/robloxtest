@@ -49,4 +49,4 @@ Rebuild after changes: `rojo build -o FindPianka.rbxlx`
 
 ## Tests
 
-`lune run tests/dogs.spec.luau 200` plays thousands of full rounds with bots (careful, naive and wandering kid) against dogs, night neighbors, rats and hearts, and checks that every mode can be won and lost. It also runs before every publish.
+`lune run tests/dogs.spec.luau 200` plays thousands of full rounds with bots (careful, naive and wandering kid) against dogs, night neighbors, rats and hearts, and checks that every mode can be won and lost. `lune run tests/play.spec.luau 12` runs the real server and GPS scripts headless with bot players who click the menus, pick heroes and modes, and play solo and team rounds, including leaving and joining. It fails on any script error or stuck round. Both run before every publish.

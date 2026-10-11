@@ -859,6 +859,7 @@ type LiveDog = {
 }
 local liveDogs: { LiveDog } = {}
 local packStart = 0
+local escapeCalm = 0
 
 local function clearDogs(kind: string?)
 	for i = #liveDogs, 1, -1 do
@@ -929,6 +930,32 @@ local function failUmulig(player: Player?)
 	if umulig then
 		failRound(player, "caught")
 	end
+end
+
+local spawnKitten: (Vector3) -> ()
+local kittenSpot: (Vector3, { Vector3 }) -> Vector3
+
+-- A player's kittens run back into the forest
+local function returnKittens(player: Player)
+	local stack = stacks[player]
+	if not stack or #stack == 0 then
+		return
+	end
+	local character = player.Character
+	local at = if character then character:GetPivot().Position else home
+	local from = Vector3.new(at.X, 0, at.Z)
+	local taken: { Vector3 } = {}
+	for _, kitten in stack do
+		removeCat(kitten)
+		local pos = kittenSpot(from, taken)
+		table.insert(taken, pos)
+		spawnKitten(pos)
+		kittensLeft += 1
+	end
+	table.clear(stack)
+	player:SetAttribute("Kittens", 0)
+	workspace:SetAttribute("KittensLeft", kittensLeft)
+	catEvent:FireAllClients("kittensBack", player)
 end
 
 local function setGhost(player: Player)
@@ -1074,11 +1101,9 @@ local function spawnBirds(catPos: Vector3)
 	end
 end
 
-local birdHint: { [Player]: number } = {}
 task.spawn(function()
 	while true do
 		task.wait(0.2)
-		local now = os.clock()
 		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
 		local max = Config.Hearts[mode] or 3
 		for i = #birds, 1, -1 do
@@ -1093,16 +1118,8 @@ task.spawn(function()
 						table.remove(birds, i)
 						catEvent:FireClient(p, "bird", nil, hearts + 1)
 						break
-					elseif now - (birdHint[p] or 0) > 4 then
-						birdHint[p] = now
-						catEvent:FireClient(p, "birdFull")
 					end
 				end
-			end
-		end
-		for p in birdHint do
-			if not p.Parent then
-				birdHint[p] = nil
 			end
 		end
 	end
@@ -1689,7 +1706,7 @@ local function deliver(player: Player)
 	end
 end
 
-local function kittenSpot(center: Vector3, taken: { Vector3 }): Vector3
+kittenSpot = function(center: Vector3, taken: { Vector3 }): Vector3
 	for _ = 1, 200 do
 		local angle = rng:NextNumber(0, math.pi * 2)
 		local pos = center + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(40, 160)
@@ -1896,6 +1913,13 @@ local function startEscape()
 		addDog(DogBrain.newPack(pos, slot.side, slot.back, runner.UserId), s.packConeRange, s.coneAngle)
 	end
 	packStart = os.clock()
+	escapeCalm = packStart + 3
+	for _, dog in liveDogs do
+		if dog.brain.kind == "patrol" and (dog.brain.state == "alert" or dog.brain.state == "chase") then
+			dog.brain.state = "return"
+			dog.brain.untilTime = packStart + 3
+		end
+	end
 
 	local delivered = 0
 	local finished = false
@@ -1983,6 +2007,21 @@ local function collectKitten(kitten: Cat, player: Player)
 	end
 end
 
+spawnKitten = function(pos: Vector3)
+	local kitten = makeKitten(CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Pick up"
+	prompt.ObjectText = "Kitten"
+	prompt.HoldDuration = 0.2
+	prompt.MaxActivationDistance = 8
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = kitten.body
+	prompt.Triggered:Connect(function(player)
+		collectKitten(kitten, player)
+	end)
+	kitten.model.Parent = kittenFolder
+end
+
 local function startKittens(cat: Cat, ultra: boolean)
 	local myRound = round
 	umulig = ultra
@@ -2008,18 +2047,7 @@ local function startKittens(cat: Cat, ultra: boolean)
 	for _ = 1, Config.KittenCount do
 		local pos = kittenSpot(Vector3.new(center.X, 0, center.Z), taken)
 		table.insert(taken, pos)
-		local kitten = makeKitten(CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0))
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.ActionText = "Pick up"
-		prompt.ObjectText = "Kitten"
-		prompt.HoldDuration = 0.2
-		prompt.MaxActivationDistance = 8
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = kitten.body
-		prompt.Triggered:Connect(function(player)
-			collectKitten(kitten, player)
-		end)
-		kitten.model.Parent = kittenFolder
+		spawnKitten(pos)
 	end
 	kittensLeft = Config.KittenCount
 	workspace:SetAttribute("KittensLeft", kittensLeft)
@@ -2291,11 +2319,7 @@ local function loseHeart(player: Player)
 	player:SetAttribute("Out", true)
 	setGhost(player)
 	catEvent:FireAllClients("out", player)
-	local stack = stacks[player]
-	if stack and #stack > 0 then
-		failUmulig(player)
-		return
-	end
+	returnKittens(player)
 	for _, other in Players:GetPlayers() do
 		if not other:GetAttribute("Out") then
 			return
@@ -3167,7 +3191,12 @@ RunService.Heartbeat:Connect(function(dt: number)
 		if not brain then
 			continue
 		end
-		if n.seeker and now >= n.nextSeek and (brain.state == "patrol" or brain.state == "turn") then
+		local escaping = workspace:GetAttribute("Escape") ~= nil
+		if escaping and now < escapeCalm and (brain.state == "alert" or brain.state == "chase") then
+			brain.state = "return"
+			brain.untilTime = escapeCalm
+		end
+		if n.seeker and not escaping and now >= n.nextSeek and (brain.state == "patrol" or brain.state == "turn") then
 			n.nextSeek = now + Config.SeekEvery
 			local target: DogBrain.Runner? = nil
 			for _, r in runners do

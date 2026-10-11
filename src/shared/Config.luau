@@ -50,7 +50,7 @@ return {
 		Umulig = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3 },
 	},
 	HuntByDay = { Umulig = true },
-	Seekers = { Easy = 1, Normal = 1, Umulig = 3 },
+	Seekers = { Easy = 1, Normal = 1, Umulig = 2 },
 	SeekEvery = 20,
 	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
 	BirdCount = { Easy = 2, Normal = 1, Umulig = 0 },
