@@ -43,12 +43,16 @@ def call(method, url, data=None, headers=None, auth=True):
 
 def key_info():
     body = json.dumps({"apiKey": KEY}).encode()
-    req = urllib.request.Request(f"{API}/api-key/v1/introspect", data=body, method="POST", headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req) as res:
-            info = json.loads(res.read())
-    except urllib.error.HTTPError as err:
-        print(f"Key check failed: {err.code}")
+    info = None
+    for path in ("api-keys/v1/introspect", "api-key/v1/introspect"):
+        req = urllib.request.Request(f"{API}/{path}", data=body, method="POST", headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as res:
+                info = json.loads(res.read())
+                break
+        except urllib.error.HTTPError as err:
+            print(f"Key check {path}: {err.code}")
+    if info is None:
         return {}
     scopes = [f"{s.get('name')}:{','.join(s.get('operations', []))}" for s in info.get("scopes", [])]
     print("Key owner:", info.get("authorizedUserId"), "enabled:", info.get("enabled"), "expired:", info.get("expired"))
