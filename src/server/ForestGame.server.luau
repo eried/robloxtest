@@ -1151,7 +1151,6 @@ local function fleeFrom(cat: Cat, prompt: ProximityPrompt, player: Player, from:
 	prompt.Enabled = false
 	if #birds < 8 then
 		makeBird(catPos)
-		catEvent:FireClient(player, "gift")
 	end
 	if wildTween then
 		wildTween:Cancel()

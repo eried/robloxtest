@@ -536,7 +536,7 @@ end
 print("")
 check(stats.nightSeen and stats.daySeen, "should see both day and night")
 check((counts.hunt or 0) > 0, "neighbors never started hunting")
-check((counts.dawn or 0) > 0, "neighbors never went home")
+check(stats.huntOk, "neighbors hunted at the wrong time")
 print(string.format("Events: hunt %d, dawn %d, dropped %d, gift %d, twist %d, out %d",
 	counts.hunt or 0, counts.dawn or 0, counts.dropped or 0, counts.gift or 0, counts.twist or 0, counts.out or 0))
 local catchList = {}
