@@ -19,6 +19,7 @@ export type Settings = {
 	lungeFactor: number,
 	lungeTime: number,
 	restTime: number,
+	hiddenFactor: number,
 }
 
 export type Runner = {
@@ -27,6 +28,7 @@ export type Runner = {
 	heading: Vector3,
 	speed: number,
 	safe: boolean,
+	hidden: boolean?,
 }
 
 export type Dog = {
@@ -235,9 +237,14 @@ function DogBrain.formation(count: number): { { side: number, back: number } }
 	return slots
 end
 
+-- How far a dog sees this runner. Lantern off at night hides you.
+local function sight(s: Settings, r: Runner, range: number): number
+	return if r.hidden then range * s.hiddenFactor else range
+end
+
 local function spot(dog: Dog, s: Settings, runners: { Runner }, world: World, now: number): (string?, number?)
 	for _, r in runners do
-		if not r.safe and DogBrain.sees(dog, r.pos, s.coneRange, s.coneAngle, world) then
+		if not r.safe and DogBrain.sees(dog, r.pos, sight(s, r, s.coneRange), s.coneAngle, world) then
 			dog.state = "alert"
 			dog.untilTime = now + s.alertDelay
 			dog.target = r.id
@@ -272,8 +279,9 @@ local function stepPatrol(dog: Dog, dt: number, now: number, runners: { Runner }
 		end
 	elseif dog.state == "alert" then
 		local r = findRunner(runners, dog.target)
-		if not r or r.safe then
+		if not r or r.safe or (r.hidden and (flat(r.pos) - dog.pos).Magnitude > sight(s, r, s.coneRange) + 2) then
 			dog.state = "return"
+			dog.untilTime = now + 1
 			return "lost", nil
 		end
 		local to = flat(r.pos) - dog.pos
@@ -287,7 +295,7 @@ local function stepPatrol(dog: Dog, dt: number, now: number, runners: { Runner }
 		end
 	elseif dog.state == "chase" then
 		local r = findRunner(runners, dog.target)
-		if not r or r.safe or now >= dog.untilTime then
+		if not r or r.safe or now >= dog.untilTime or (r.hidden and (flat(r.pos) - dog.pos).Magnitude > sight(s, r, s.coneRange)) then
 			dog.state = "return"
 			dog.untilTime = now + 2
 			return "lost", nil
@@ -351,7 +359,7 @@ local function stepPack(dog: Dog, dt: number, now: number, runners: { Runner }, 
 	local slot = rpos - heading * (gap + dog.back) + right * dog.side
 	moveTo(dog, slot, r.speed * s.packSpeedFactor, dt, world)
 	face()
-	if not r.safe and DogBrain.sees(dog, r.pos, s.packConeRange, s.coneAngle, world) then
+	if not r.safe and DogBrain.sees(dog, r.pos, sight(s, r, s.packConeRange), s.coneAngle, world) then
 		dog.state = "lunge"
 		dog.untilTime = now + s.lungeTime
 		return "lunge", r.id

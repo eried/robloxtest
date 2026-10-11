@@ -113,8 +113,8 @@ if baseplate then
 end
 local terrain = workspace.Terrain
 terrain:Clear()
-terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(80, 130, 55))
-terrain:FillBlock(CFrame.new(0, -6, 0), Vector3.new(Config.ForestSize + 40, 12, Config.ForestSize + 40), Enum.Material.Grass)
+terrain:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(80, 130, 55))
+terrain:FillBlock(CFrame.new(0, -6, 0), Vector3.new(Config.ForestSize + 40, 12, Config.ForestSize + 40), Enum.Material.LeafyGrass)
 
 -- Camp
 local camp = Instance.new("Folder")
@@ -388,6 +388,9 @@ type Neighbor = {
 	angry: boolean,
 	sayUntil: number,
 	graceUntil: number,
+	holding: Player?,
+	holdUntil: number,
+	holdRound: number,
 }
 local neighbors: { Neighbor } = {}
 local neighborFolder = Instance.new("Folder")
@@ -546,6 +549,9 @@ local function makeNeighbor(spot: CFrame, cabin: Vector3)
 		angry = false,
 		sayUntil = 0,
 		graceUntil = 0,
+		holding = nil,
+		holdUntil = 0,
+		holdRound = 0,
 	})
 end
 
@@ -643,24 +649,119 @@ local function applyHero(player: Player)
 				color = item.color
 			end
 		end
-		light.Color = color;
-		(handle :: BasePart).Color = color
+		local off = player:GetAttribute("LightOff") == true
+		light.Color = color
+		light.Enabled = not off
+		local glass = handle :: BasePart
+		glass.Color = if off then Color3.fromRGB(60, 55, 45) else color
+		glass.Material = if off then Enum.Material.Glass else Enum.Material.Neon
+		for _, part in (tool :: Instance):GetChildren() do
+			if part.Name == "Flame" and part:IsA("BasePart") then
+				part.Transparency = if off then 1 else 0
+			end
+		end
 	end
 end
 
 local onLanternFlash: (Player) -> ()
 local applyCosmetics: (Player) -> ()
 
+-- Each hero has a look: colors plus a cap, cat ears or a hair bun with scarf
+type Look = { skin: Color3, shirt: Color3, pants: Color3 }
+local LOOKS: { [string]: Look } = {
+	Patrick = { skin = Color3.fromRGB(255, 205, 160), shirt = Color3.fromRGB(205, 45, 45), pants = Color3.fromRGB(45, 75, 150) },
+	Aurelia = { skin = Color3.fromRGB(245, 210, 180), shirt = Color3.fromRGB(240, 120, 185), pants = Color3.fromRGB(125, 65, 150) },
+	Milenkitka = { skin = Color3.fromRGB(235, 195, 165), shirt = Color3.fromRGB(40, 95, 75), pants = Color3.fromRGB(55, 50, 65) },
+}
+
+local function dressHero(player: Player)
+	local character = player.Character
+	local hero = player:GetAttribute("Hero")
+	local look = if type(hero) == "string" then LOOKS[hero] else nil
+	if not character or not look then
+		return
+	end
+	local head = character:FindFirstChild("Head") :: BasePart?
+	local torso = (character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")) :: BasePart?
+	if not head or not torso then
+		return
+	end
+	for _, child in character:GetChildren() do
+		if child:IsA("Accessory") or child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") or child.Name == "HeroLook" then
+			child:Destroy()
+		end
+	end
+	local colors = character:FindFirstChildOfClass("BodyColors") or Instance.new("BodyColors")
+	colors.HeadColor3 = look.skin
+	colors.LeftArmColor3 = look.skin
+	colors.RightArmColor3 = look.skin
+	colors.TorsoColor3 = look.shirt
+	colors.LeftLegColor3 = look.pants
+	colors.RightLegColor3 = look.pants
+	colors.Parent = character
+	for _, part in character:GetChildren() do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			local name = part.Name
+			part.Color = if name == "Head" or string.find(name, "Arm") or string.find(name, "Hand")
+				then look.skin
+				elseif string.find(name, "Leg") or string.find(name, "Foot") then look.pants
+				else look.shirt
+		end
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "HeroLook"
+	local function add(base: BasePart, size: Vector3, offset: CFrame, color: Color3, shape: Enum.PartType?)
+		local part = makePart("Part", {
+			Name = "Look",
+			Size = size,
+			Shape = shape or Enum.PartType.Block,
+			CFrame = base.CFrame * offset,
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+			Anchored = false,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Massless = true,
+			Parent = folder,
+		})
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = base
+		weld.Part1 = part
+		weld.Parent = part
+	end
+	local top = head.Size.Y / 2
+	if hero == "Patrick" then
+		add(head, Vector3.new(1.25, 0.45, 1.25), CFrame.new(0, top + 0.1, 0), Color3.fromRGB(205, 45, 45))
+		add(head, Vector3.new(1.2, 0.12, 0.7), CFrame.new(0, top - 0.05, -0.85), Color3.fromRGB(205, 45, 45))
+	elseif hero == "Aurelia" then
+		for _, x in { -0.38, 0.38 } do
+			add(head, Vector3.new(0.38, 0.5, 0.18), CFrame.new(x, top + 0.2, 0) * CFrame.Angles(0, 0, math.rad(x * -40)), Color3.fromRGB(30, 30, 35))
+			add(head, Vector3.new(0.2, 0.3, 0.05), CFrame.new(x, top + 0.18, -0.1) * CFrame.Angles(0, 0, math.rad(x * -40)), Color3.fromRGB(255, 160, 200))
+		end
+		add(torso, Vector3.new(0.18, 0.18, 1.4), CFrame.new(0, -torso.Size.Y / 2, torso.Size.Z / 2 + 0.6) * CFrame.Angles(math.rad(-30), 0, 0), Color3.fromRGB(30, 30, 35))
+	elseif hero == "Milenkitka" then
+		add(head, Vector3.one * 0.7, CFrame.new(0, top, 0.45), Color3.fromRGB(95, 60, 35), Enum.PartType.Ball)
+		add(head, Vector3.new(1.3, 0.35, 1.3), CFrame.new(0, top - 0.05, 0.1), Color3.fromRGB(95, 60, 35))
+		add(torso, Vector3.new(torso.Size.X + 0.2, 0.35, torso.Size.Z + 0.25), CFrame.new(0, torso.Size.Y / 2 - 0.1, 0), Color3.fromRGB(240, 190, 50))
+	end
+	folder.Parent = character
+end
+
 local function giveLantern(player: Player, character: Model)
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	local tool = lantern:Clone()
 	tool.Parent = player:WaitForChild("Backpack")
 	humanoid:EquipTool(tool)
-	tool.Activated:Connect(function()
-		onLanternFlash(player)
-	end)
 	applyHero(player)
 	applyCosmetics(player)
+	dressHero(player)
+	task.delay(1.5, dressHero, player)
+	character.ChildAdded:Connect(function(child)
+		if child:IsA("Accessory") or child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
+			task.defer(dressHero, player)
+		end
+	end)
 end
 
 -- Pianka
@@ -2305,11 +2406,11 @@ dropCat = function(player: Player, by: string?)
 	catEvent:FireAllClients("dropped", player, by or "rats")
 end
 
-local function loseHeart(player: Player)
+local function loseHeart(player: Player, all: boolean?)
 	if not roundActive() or player:GetAttribute("Out") then
 		return
 	end
-	local hearts = math.max(((player:GetAttribute("Hearts") :: number?) or 1) - 1, 0)
+	local hearts = if all then 0 else math.max(((player:GetAttribute("Hearts") :: number?) or 1) - 1, 0)
 	player:SetAttribute("Hearts", hearts)
 	catEvent:FireClient(player, "heart", nil, hearts)
 	if hearts > 0 then
@@ -2407,8 +2508,19 @@ shopEvent.Parent = ReplicatedStorage
 local flashEvent = Instance.new("RemoteEvent")
 flashEvent.Name = "Flash"
 flashEvent.Parent = ReplicatedStorage
+local lastToggle: { [Player]: number } = {}
 flashEvent.OnServerEvent:Connect(function(player)
-	onLanternFlash(player)
+	local now = os.clock()
+	if now - (lastToggle[player] or 0) < 0.25 or player:GetAttribute("Held") then
+		return
+	end
+	lastToggle[player] = now
+	local off = not (player:GetAttribute("LightOff") == true)
+	player:SetAttribute("LightOff", off)
+	applyHero(player)
+	if not off then
+		onLanternFlash(player)
+	end
 end)
 type Pet = { cat: Cat, pos: Vector3 }
 local pets: { [Player]: Pet } = {}
@@ -2572,6 +2684,9 @@ local function addPlayer(player: Player)
 	end)
 
 	player:SetAttribute("Hearts", Config.Hearts[(workspace:GetAttribute("Mode") :: string?) or "Easy"] or 3)
+	player:GetAttributeChangedSignal("Hero"):Connect(function()
+		dressHero(player)
+	end)
 	player.CharacterAdded:Connect(function(character)
 		giveLantern(player, character)
 		if player:GetAttribute("Out") then
@@ -2980,7 +3095,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	lastRainbow = now
 	local color = Color3.fromHSV((now * 0.2) % 1, 0.6, 1)
 	for _, player in Players:GetPlayers() do
-		if player:GetAttribute("Lantern") == "LanternRainbow" and player.Character then
+		if player:GetAttribute("Lantern") == "LanternRainbow" and player:GetAttribute("LightOff") ~= true and player.Character then
 			local tool = player.Character:FindFirstChild("Lantern")
 			local handle = tool and tool:FindFirstChild("Handle") :: BasePart?
 			local light = handle and handle:FindFirstChildOfClass("PointLight")
@@ -3016,6 +3131,9 @@ end
 
 local function collectRunners(): ({ DogBrain.Runner }, { [number]: Player })
 	local homeFlat = Vector3.new(home.X, 0, home.Z)
+	local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
+	local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
+	local night = daylight < 0.5
 	local runners: { DogBrain.Runner } = {}
 	local byId: { [number]: Player } = {}
 	for _, player in Players:GetPlayers() do
@@ -3035,7 +3153,8 @@ local function collectRunners(): ({ DogBrain.Runner }, { [number]: Player })
 				pos = pos,
 				heading = heading,
 				speed = humanoid.WalkSpeed * calm,
-				safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7,
+				safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7 or player:GetAttribute("Held") == true,
+				hidden = night and player:GetAttribute("LightOff") == true,
 			})
 			byId[player.UserId] = player
 		end
@@ -3153,8 +3272,53 @@ local function startHunt(now: number, mode: string, announce: boolean)
 	end
 end
 
+-- A neighbor catches you: he holds you up, then you are out
+local function releaseHeld(n: Neighbor)
+	local player = n.holding
+	n.holding = nil
+	if not player then
+		return
+	end
+	player:SetAttribute("Held", nil)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		root.Anchored = false
+		root.CFrame = CFrame.new(home + Vector3.new(rng:NextNumber(-4, 4), 3, rng:NextNumber(-4, 4)))
+	end
+	if player.Parent and round == n.holdRound then
+		loseHeart(player, true)
+	end
+end
+
+local function grabbedBy(n: Neighbor, player: Player)
+	if player:GetAttribute("Held") or player:GetAttribute("Out") or n.holding then
+		return
+	end
+	local root = getRoot(player)
+	if not root then
+		return
+	end
+	neighborSay(n, Config.Grab, 3)
+	sayEvent:FireAllClients(n.head, 4, n.pitch)
+	if carrier == player then
+		dropCat(player, "neighbor")
+	end
+	player:SetAttribute("Held", true)
+	root.Anchored = true
+	n.holding = player
+	n.holdUntil = os.clock() + 3
+	n.holdRound = round
+	catEvent:FireAllClients("held", player, n.head)
+	local stack = stacks[player]
+	if workspace:GetAttribute("Escape") and stack and #stack > 0 then
+		failUmulig(player)
+	end
+end
+
 local function stopHunt(announce: boolean)
 	for _, n in neighbors do
+		releaseHeld(n)
 		dropCone(n)
 		n.brain = nil
 		n.lamp.Enabled = false
@@ -3186,6 +3350,17 @@ RunService.Heartbeat:Connect(function(dt: number)
 	local s = hunterSettings()
 	local runners, byId = collectRunners()
 	for _, n in neighbors do
+		local held = n.holding
+		if held then
+			local character = held.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if now >= n.holdUntil or not held.Parent or not root then
+				releaseHeld(n)
+			else
+				root.CFrame = n.root.CFrame * CFrame.new(0, 0.8, -2.2) * CFrame.Angles(0, math.pi, 0)
+				continue
+			end
+		end
 		local brain = n.brain
 		if not brain then
 			continue
@@ -3225,8 +3400,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		elseif event == "chase" then
 			neighborSay(n, Config.Chase, 2)
 		elseif event == "caught" and player then
-			neighborSay(n, Config.Grab, 2.5)
-			caughtBy(player, brain.pos, "neighbor")
+			grabbedBy(n, player)
 		end
 		if not n.brain then
 			continue

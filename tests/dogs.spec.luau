@@ -416,6 +416,8 @@ local function play(mode: string, kind: string, hero: string)
 		wanderUntil = 0,
 		lastBite = -10,
 		lastCaught = -10,
+		lightOff = false,
+		lightUntil = 0,
 	}
 	local hearts = Config.Hearts[mode]
 	local dayOffset = rand(0, Config.DayMinutes * 60)
@@ -424,7 +426,7 @@ local function play(mode: string, kind: string, hero: string)
 	local flees = if mode == "Easy" then 0 elseif hero == "Aurelia" then 1 else Config.HardFlees
 	local kittens: { Vector3 } = {}
 	local carryStart, kittenEnd, packStart = 0, 0, 0
-	local r = { outcome = "", bites = 0, grabs = 0, ratBites = 0, birds = 0, time = 0, placed = placed, wanted = s.patrolCount, huntShare = 0 }
+	local r = { outcome = "", bites = 0, grabs = 0, ratBites = 0, birds = 0, hiddenTime = 0, time = 0, placed = placed, wanted = s.patrolCount, huntShare = 0 }
 	local best, lastProgress, lastGoal = math.huge, 0, Vector3.zero
 
 	local function finish(outcome: string)
@@ -508,12 +510,34 @@ local function play(mode: string, kind: string, hero: string)
 		end
 		local runners = {}
 		if alive then
+			-- Lantern off at night hides you. Careful bots switch it off near neighbors, kids sometimes.
+			local night = daylight < 0.5
+			if careful and night then
+				local near = false
+				for _, h in hunters do
+					if (h.pos - bot.pos).Magnitude < 45 then
+						near = true
+					end
+				end
+				bot.lightOff = near
+			elseif bot.kid and night then
+				if now >= bot.lightUntil then
+					bot.lightOff = rand(0, 1) < 0.35
+					bot.lightUntil = now + rand(8, 20)
+				end
+			else
+				bot.lightOff = false
+			end
+			if bot.lightOff and night then
+				r.hiddenTime += DT
+			end
 			runners[1] = {
 				id = 1,
 				pos = bot.pos,
 				heading = bot.heading,
 				speed = bot.speed * calm,
 				safe = (bot.pos - HOME).Magnitude < Config.RatSafeRadius,
+				hidden = night and bot.lightOff,
 			}
 		end
 		local gap = DogBrain.gap(s, now - packStart)
@@ -531,9 +555,9 @@ local function play(mode: string, kind: string, hero: string)
 				bot.lastCaught = now
 				if dog.hunter then
 					r.grabs += 1
-				else
-					r.bites += 1
+					return finish("grabbed")
 				end
+				r.bites += 1
 				hearts -= 1
 				bot.slowUntil = now + 2
 				if phase == "carry" then
@@ -686,7 +710,7 @@ end
 print(string.format("Find Pianka bot playtest, %d rounds per row", ROUNDS))
 print("Full rounds with patrol dogs, night hunters, rats, mud, hearts and birds")
 print("")
-print("Mode    Bot      Hero      Won  Hearts  Lost  Time up  Caught  Stall  Bites  Grabs  Rats   Birds  Night  Avg time")
+print("Mode    Bot      Hero      Won  Hearts  Grabbed  Lost  Time up  Caught  Stall  Bites  Rats   Birds  Hidden  Night  Avg time")
 local rows = {
 	{ "Easy", "careful", "default" },
 	{ "Easy", "careful", "Patrick" },
@@ -709,7 +733,7 @@ for _, row in rows do
 		continue
 	end
 	local count: { [string]: number } = {}
-	local bites, grabs, ratBites, birdsTaken, time, placed, wanted, night = 0, 0, 0, 0, 0, 0, 0, 0
+	local bites, grabs, ratBites, birdsTaken, time, placed, wanted, night, hidden = 0, 0, 0, 0, 0, 0, 0, 0, 0
 	for _ = 1, ROUNDS do
 		local r = play(mode, bot, hero)
 		count[r.outcome] = (count[r.outcome] or 0) + 1
@@ -721,15 +745,16 @@ for _, row in rows do
 		placed += r.placed
 		wanted += r.wanted
 		night += r.huntShare
+		hidden += r.hiddenTime / math.max(r.time, 1)
 	end
 	local function n(key: string): number
 		return count[key] or 0
 	end
 	local caught = n("pack") + n("patrol") + n("hunter")
-	print(string.format("%-7s %-8s %-8s %s   %s  %s     %s    %s   %s   %4.2f   %4.2f  %5.2f  %5.2f  %s   %5.0f s",
-		mode, bot, hero, pct(n("won"), ROUNDS), pct(n("hearts"), ROUNDS), pct(n("lost"), ROUNDS), pct(n("timeUp"), ROUNDS),
-		pct(caught, ROUNDS), pct(n("stall"), ROUNDS), bites / ROUNDS, grabs / ROUNDS, ratBites / ROUNDS, birdsTaken / ROUNDS,
-		pct(night, ROUNDS), time / ROUNDS))
+	print(string.format("%-7s %-8s %-8s %s   %s     %s  %s     %s    %s   %s   %4.2f  %5.2f  %5.2f    %s   %s   %5.0f s",
+		mode, bot, hero, pct(n("won"), ROUNDS), pct(n("hearts"), ROUNDS), pct(n("grabbed"), ROUNDS), pct(n("lost"), ROUNDS),
+		pct(n("timeUp"), ROUNDS), pct(caught, ROUNDS), pct(n("stall"), ROUNDS), bites / ROUNDS, ratBites / ROUNDS,
+		birdsTaken / ROUNDS, pct(hidden, ROUNDS), pct(night, ROUNDS), time / ROUNDS))
 	local total = totals[mode] or { failed = 0, rounds = 0 }
 	total.failed += ROUNDS - n("won") - n("stall")
 	total.rounds += ROUNDS

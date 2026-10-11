@@ -357,32 +357,212 @@ local function lanternColor(): Color3
 	return Color3.fromRGB(255, 190, 110)
 end
 
-local flashReady = 0
-local function flashLantern()
-	local now = os.clock()
-	if now < flashReady then
-		return
-	end
-	flashReady = now + 4
-	flashEvent:FireServer()
-	lanternGlow.Size = UDim2.fromOffset(84, 84)
-	lanternGlow.BackgroundTransparency = 0.2
-	TweenService:Create(lanternGlow, TweenInfo.new(0.6), { Size = UDim2.fromOffset(56, 56), BackgroundTransparency = 0.8 }):Play()
+local function lightOff(): boolean
+	return player:GetAttribute("LightOff") == true
 end
-lanternButton.Activated:Connect(flashLantern)
+
+local function toggleLantern()
+	if lightOff() then
+		lanternGlow.Size = UDim2.fromOffset(84, 84)
+		lanternGlow.BackgroundTransparency = 0.2
+		TweenService:Create(lanternGlow, TweenInfo.new(0.6), { Size = UDim2.fromOffset(56, 56), BackgroundTransparency = 0.8 }):Play()
+	end
+	flashEvent:FireServer()
+end
+lanternButton.Activated:Connect(toggleLantern)
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.F then
-		flashLantern()
+		toggleLantern()
 	end
 end)
 RunService.RenderStepped:Connect(function()
+	local off = lightOff()
 	local color = lanternColor()
-	local ready = os.clock() >= flashReady
-	lanternGlass.BackgroundColor3 = color
+	lanternGlass.BackgroundColor3 = if off then Color3.fromRGB(55, 55, 62) else color
 	lanternGlow.BackgroundColor3 = color
-	lanternRing.Color = if ready then color else Color3.fromRGB(90, 90, 90)
+	lanternGlow.Visible = not off
+	flame.Visible = not off
+	lanternRing.Color = if off then Color3.fromRGB(90, 90, 100) else color
 	flame.Size = UDim2.fromOffset(9, 12 + math.sin(os.clock() * 9) * 1.5)
 end)
+
+local hiddenLabel = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 82),
+	Size = UDim2.fromOffset(160, 24),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 18,
+	TextColor3 = Color3.fromRGB(170, 190, 255),
+	TextStrokeTransparency = 0.4,
+	Text = "🌑 Hidden",
+	Visible = false,
+	Parent = gui,
+})
+
+-- Game over screen
+local over = new("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 1,
+	Visible = false,
+	ZIndex = 20,
+	Parent = gui,
+})
+local overTitle = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.4),
+	Size = UDim2.new(0.8, 0, 0, 110),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextScaled = true,
+	TextColor3 = Color3.fromRGB(255, 70, 70),
+	Text = "GAME OVER",
+	ZIndex = 21,
+	Parent = over,
+})
+new("UIStroke", { Thickness = 4, Color = Color3.fromRGB(40, 0, 0), Parent = overTitle })
+local overText = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.56),
+	Size = UDim2.new(0.8, 0, 0, 80),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextScaled = true,
+	TextWrapped = true,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "",
+	ZIndex = 21,
+	Parent = over,
+})
+new("UITextSizeConstraint", { MaxTextSize = 34, Parent = overText })
+local overId = 0
+local function gameOver(text: string)
+	overId += 1
+	local id = overId
+	overText.Text = text
+	over.BackgroundTransparency = 1
+	over.Visible = true
+	TweenService:Create(over, TweenInfo.new(0.6), { BackgroundTransparency = 0.35 }):Play()
+	task.delay(4.5, function()
+		if id == overId then
+			over.Visible = false
+		end
+	end)
+end
+
+-- Running effects: speed lines, wider view, red edges when chased
+local chasedUntil = 0
+local speedLines: { { frame: Frame, angle: number, r: number } } = {}
+for _ = 1, 12 do
+	local line = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(140, 2),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+		Parent = gui,
+	})
+	table.insert(speedLines, { frame = line, angle = math.random() * math.pi * 2, r = 0.3 + math.random() * 0.4 })
+end
+local edges: { Frame } = {}
+for i, rotation in { 90, 270, 0, 180 } do
+	local edge = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = ({ UDim2.fromScale(0.5, 0.06), UDim2.fromScale(0.5, 0.94), UDim2.fromScale(0.04, 0.5), UDim2.fromScale(0.96, 0.5) })[i],
+		Size = if i <= 2 then UDim2.fromScale(1, 0.14) else UDim2.fromScale(0.1, 1),
+		BackgroundColor3 = Color3.fromRGB(200, 0, 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+		Parent = gui,
+	})
+	new("UIGradient", {
+		Rotation = rotation,
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) }),
+		Parent = edge,
+	})
+	table.insert(edges, edge)
+end
+
+local chaseMusic = new("Sound", {
+	SoundId = if Config.ChaseMusicId ~= 0 then "rbxassetid://" .. Config.ChaseMusicId else "",
+	Looped = true,
+	Volume = 0,
+	Parent = gui,
+})
+local rush = 0
+local lastSpot: Vector3? = nil
+local function runEffects(dt: number)
+	local now = os.clock()
+	local chase = workspace:GetAttribute("Carrier") ~= nil or workspace:GetAttribute("Escape") ~= nil or workspace:GetAttribute("KittenDeadline") ~= nil
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local speed = 0
+	if root then
+		if lastSpot and dt > 0 then
+			speed = (Vector3.new(root.Position.X, 0, root.Position.Z) - (lastSpot :: Vector3)).Magnitude / dt
+		end
+		lastSpot = Vector3.new(root.Position.X, 0, root.Position.Z)
+	end
+	local want = if (chase or now < chasedUntil) and speed > 10 then 1 elseif speed > 22 then 0.6 else 0
+	rush += (want - rush) * math.min(1, dt * 4)
+	local camera = workspace.CurrentCamera
+	if camera.CameraType ~= Enum.CameraType.Scriptable then
+		camera.FieldOfView = 70 + 12 * rush
+	end
+	for _, line in speedLines do
+		line.r += dt * (0.6 + rush)
+		if line.r > 0.75 then
+			line.r = 0.3 + math.random() * 0.1
+			line.angle = math.random() * math.pi * 2
+		end
+		line.frame.Position = UDim2.fromScale(0.5 + math.cos(line.angle) * line.r, 0.5 + math.sin(line.angle) * line.r)
+		line.frame.Rotation = math.deg(line.angle)
+		line.frame.BackgroundTransparency = 1 - 0.55 * rush * math.clamp((line.r - 0.3) * 4, 0, 1)
+	end
+	local alarm = if now < chasedUntil then 0.55 + 0.25 * math.sin(now * 9) else 0
+	for _, edge in edges do
+		edge.BackgroundTransparency = 1 - alarm * 0.6
+	end
+	if Config.ChaseMusicId ~= 0 then
+		local mix = if chase then 1 else 0
+		chaseMusic.Volume += (0.6 * mix - chaseMusic.Volume) * math.min(1, dt * 2)
+		music.Volume += (0.5 * (1 - mix) - music.Volume) * math.min(1, dt * 2)
+		if music.Playing and not chaseMusic.Playing then
+			chaseMusic:Play()
+		elseif not music.Playing and chaseMusic.Playing then
+			chaseMusic:Stop()
+		end
+	else
+		music.PlaybackSpeed += ((if chase then 1.3 else 1) - music.PlaybackSpeed) * math.min(1, dt * 2)
+	end
+end
+
+-- A neighbor holds you up: short camera clip
+local function heldClip(head: BasePart?)
+	if not head then
+		return
+	end
+	local camera = workspace.CurrentCamera
+	camera.CameraType = Enum.CameraType.Scriptable
+	local start = os.clock()
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.RenderStepped:Connect(function()
+		local t = os.clock() - start
+		if t > 3 or not head.Parent then
+			if conn then
+				conn:Disconnect()
+			end
+			camera.CameraType = Enum.CameraType.Custom
+			return
+		end
+		local look = head.CFrame.LookVector
+		local eye = head.Position + look * (7 - t * 0.8) + head.CFrame.RightVector * 2.5 + Vector3.new(0, 0.6 + t * 0.2, 0)
+		camera.CFrame = CFrame.lookAt(eye, head.Position + look * 1.5 - Vector3.new(0, 1, 0))
+	end)
+end
 
 player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
 player:GetAttributeChangedSignal("Out"):Connect(showHearts)
@@ -511,7 +691,7 @@ local WHITE = Color3.new(1, 1, 1)
 local GRAY = Color3.fromRGB(180, 180, 180)
 cardText(Config.GameName .. " 🐱", 14, 50, 46, Color3.fromRGB(255, 180, 90))
 cardText("by " .. Config.Creator, 62, 22, 18, GRAY)
-cardText(Config.CatName .. " the cat is lost in the dark forest. Use your GPS to find her!", 90, 52, 21, WHITE)
+cardText("Find " .. Config.CatName .. " with your GPS and bring her home. Lantern off 🔦 = neighbors can't see you!", 90, 52, 20, WHITE)
 cardText("Who are you?", 146, 26, 22, GREEN)
 cardText("Pick a mode", 276, 26, 22, GREEN)
 
@@ -914,8 +1094,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			showBanner(cat .. " ran away again! Use your GPS.", 3)
 		end)
 	elseif kind == "lost" then
-		showBanner("Oh no! " .. cat .. " ran away!", 3)
-		tryAgain(3)
+		gameOver(cat .. " ran away! 😿")
+		tryAgain(5)
 	elseif kind == "fled" then
 		showBanner(cat .. " ran off! Chase her!", 2)
 	elseif kind == "kittens" then
@@ -938,7 +1118,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		local runner = ((player:GetAttribute("Kittens") :: number?) or 0) > 0
 		showBanner(if runner then "🐕 Dogs! Run home!\nStay out of their light!" else "🐕 Dogs! Watch out!", 3)
 	elseif kind == "caught" then
-		showBanner("The dogs got " .. (if who == player then "you" else nameOf(who)) .. "! 🐕\nThe kittens ran home.", 5)
+		gameOver("They got " .. (if who == player then "you" else nameOf(who)) .. "!\nThe kittens ran home.")
 		tryAgain(5)
 	elseif kind == "escaped" then
 		showBanner(winText("You beat UMULIG! 🏆", seconds), 6)
@@ -948,8 +1128,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			showBanner(cat .. " ran away again! Use your GPS.", 3)
 		end)
 	elseif kind == "timeUp" then
-		showBanner("Time's up! ⏰\nThe kittens ran home.", 4)
-		tryAgain(4)
+		gameOver("Time's up! ⏰\nThe kittens ran home.")
+		tryAgain(5)
 	elseif kind == "heroLater" then
 		showBanner("You will be " .. tostring(value) .. "\nnext round.", 3)
 	elseif kind == "modeLocked" then
@@ -984,7 +1164,10 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			popText("Confetti! 🎉", Color3.fromRGB(255, 210, 90))
 			confetti()
 		end
-	elseif kind == "spotted" then
+	elseif kind == "spotted" or kind == "hunted" or kind == "lunge" then
+		chasedUntil = os.clock() + 3
+	end
+	if kind == "spotted" then
 		popText("A dog saw you! Run! 🐕", Color3.fromRGB(255, 170, 80))
 		note(1.6)
 	elseif kind == "lunge" then
@@ -1027,8 +1210,17 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			showBanner(nameOf(who) .. " is out of hearts! 😵", 3)
 		end
 	elseif kind == "hearts" then
-		showBanner("💔 Out of hearts!\n" .. cat .. " is still lost.", 5)
+		gameOver("Everyone is out of hearts.\n" .. cat .. " is still lost 😿")
 		tryAgain(5)
+	elseif kind == "held" then
+		if who == player then
+			flash.BackgroundTransparency = 0.4
+			TweenService:Create(flash, TweenInfo.new(1.5), { BackgroundTransparency = 1 }):Play()
+			showBanner("Ut herfra! 😱\nThe neighbor caught you!", 3)
+			heldClip(if typeof(value) == "Instance" and value:IsA("BasePart") then value else nil)
+		else
+			showBanner(nameOf(who) .. " was caught\nby a neighbor! 😱", 3)
+		end
 	elseif kind == "hunt" then
 		showBanner("🔦 Night! The neighbors are hunting.\nStay out of their light!", 4)
 	elseif kind == "dawn" then
@@ -1067,16 +1259,25 @@ local DAY_AMBIENT = Color3.fromRGB(120, 140, 120)
 local NIGHT_AMBIENT = Color3.fromRGB(24, 28, 46)
 local tint = new("ColorCorrectionEffect", { Parent = Lighting })
 
+local blackout = 0
+local lastSky = os.clock()
+
 local function updateSky(): number
 	local dayStart = workspace:GetAttribute("DayStart") :: number?
 	if not dayStart then
 		return 1
 	end
 	local clock, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
+	local night = daylight < 0.5
 	if workspace:GetAttribute("Twist") == "fullmoon" then
 		daylight = math.max(daylight, 0.3)
 	end
 	local dark = 1 - daylight
+	local now = os.clock()
+	local hide = night and player:GetAttribute("LightOff") == true
+	blackout += ((if hide then 1 else 0) - blackout) * math.min(1, (now - lastSky) * 3)
+	lastSky = now
+	hiddenLabel.Visible = hide
 	Lighting.ClockTime = clock
 	Lighting.Brightness = 0.35 + 1.65 * daylight
 	Lighting.OutdoorAmbient = NIGHT_AMBIENT:Lerp(DAY_AMBIENT, daylight)
@@ -1093,6 +1294,19 @@ local function updateSky(): number
 	tint.TintColor = Color3.fromRGB(208, 216, 255):Lerp(Color3.new(1, 1, 1), daylight)
 	tint.Saturation = -0.18 * dark
 	tint.Brightness = 0.01 * dark
+	if blackout > 0.01 then
+		-- Lantern off at night: almost black, only shapes against the sky
+		Lighting.Brightness *= 1 - blackout
+		Lighting.OutdoorAmbient = Lighting.OutdoorAmbient:Lerp(Color3.fromRGB(4, 4, 9), blackout)
+		Lighting.Ambient = Lighting.Ambient:Lerp(Color3.new(0, 0, 0), blackout)
+		tint.Saturation = tint.Saturation + (-0.7 - tint.Saturation) * blackout
+		tint.Brightness = tint.Brightness - 0.06 * blackout
+		if atmosphere then
+			atmosphere.Density = atmosphere.Density + (0.3 - atmosphere.Density) * blackout
+			atmosphere.Color = atmosphere.Color:Lerp(Color3.fromRGB(35, 42, 70), blackout)
+			atmosphere.Decay = atmosphere.Decay:Lerp(Color3.fromRGB(5, 6, 12), blackout)
+		end
+	end
 	return daylight
 end
 
@@ -1252,6 +1466,7 @@ end
 -- Update loop
 RunService.RenderStepped:Connect(function(dt: number)
 	updateSky()
+	runEffects(dt)
 	animalSounds()
 	local fishFolder = workspace:FindFirstChild("Fish")
 	if fishFolder then

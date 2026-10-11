@@ -222,6 +222,9 @@ local function botStep(bot: any, dt: number)
 	end
 	local pos = flat(root.Position)
 	local now = Engine.now
+	if player:GetAttribute("Held") then
+		return
+	end
 	local mode = workspace:GetAttribute("Mode") or "Easy"
 	local maxHearts = Config.Hearts[mode] or 3
 	local hearts = player:GetAttribute("Hearts") or maxHearts
@@ -335,13 +338,28 @@ local function botStep(bot: any, dt: number)
 		end
 	end
 
-	-- Flash the lantern at rats
-	if now - bot.lastFlash > 5 then
-		local rat, d = nearestChild("Rats", pos)
-		if rat and d < 12 then
-			bot.lastFlash = now
-			Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = Enum.KeyCode.F, UserInputType = Enum.UserInputType.Keyboard }, false)
+	-- Lantern: careful bots switch it off near neighbors at night, kids sometimes
+	local _, daylight = Sky.at(workspace:GetServerTimeNow() - workspace:GetAttribute("DayStart"), Config.DayMinutes, Config.NightShare)
+	local wantOff = false
+	if daylight < 0.5 then
+		if bot.kind == "careful" then
+			for _, e in enemies() do
+				if e.range == 26 and (e.pos - pos).Magnitude < 45 then
+					wantOff = true
+				end
+			end
+		elseif bot.kind == "kid" then
+			if now >= (bot.lightUntil or 0) then
+				bot.kidOff = bot.rng:NextNumber(0, 1) < 0.35
+				bot.lightUntil = now + bot.rng:NextNumber(8, 20)
+			end
+			wantOff = bot.kidOff == true
 		end
+	end
+	if (player:GetAttribute("LightOff") == true) ~= wantOff and now - bot.lastFlash > 1 then
+		bot.lastFlash = now
+		bot.toggles = (bot.toggles or 0) + 1
+		Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = Enum.KeyCode.F, UserInputType = Enum.UserInputType.Keyboard }, false)
 	end
 end
 
@@ -456,6 +474,7 @@ local function scenario(title: string, mode: string, setup: () -> (), seconds: n
 		grabs = diff(before, "grabbed"),
 		birds = diff(before, "bird"),
 		outs = diff(before, "out"),
+		held = diff(before, "held"),
 		longest = longestRound,
 	})
 	check(workspace:GetAttribute("Mode") == mode, title .. ": mode should be " .. mode .. " but is " .. tostring(workspace:GetAttribute("Mode")))
@@ -528,10 +547,10 @@ end
 
 print(string.format("Find Pianka headless playtest, %d min per scenario, %.0f s real time", MINUTES, os.clock() - t0))
 print("")
-print("Scenario                         Mode    Rounds  Home  Kittens  Escaped  Fails  Out of hearts  Bites  Grabs  Birds  Longest")
+print("Scenario                         Mode    Rounds  Home  Kittens  Escaped  Fails  Game over  Held  Bites  Birds  Longest")
 for _, r in results do
-	print(string.format("%-32s %-7s %6d %5d %8d %8d %6d %14d %6d %6d %6d %6.0f s",
-		r.title, r.mode, r.rounds, r.home, r.kittens, r.escaped, r.fails, r.hearts, r.bites, r.grabs, r.birds, r.longest))
+	print(string.format("%-32s %-7s %6d %5d %8d %8d %6d %10d %5d %6d %6d %6.0f s",
+		r.title, r.mode, r.rounds, r.home, r.kittens, r.escaped, r.fails, r.hearts, r.held, r.bites, r.birds, r.longest))
 end
 print("")
 check(stats.nightSeen and stats.daySeen, "should see both day and night")

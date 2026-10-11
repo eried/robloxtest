@@ -28,26 +28,26 @@ return {
 			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8,
 			chaseFactor = 1.1, chaseTime = 2.5, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
-			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
 		Normal = {
 			patrolCount = 6, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.7,
 			chaseFactor = 1.15, chaseTime = 3, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
-			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
 		Umulig = {
 			patrolCount = 6, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5,
 			chaseFactor = 1.25, chaseTime = 4, catch = 3,
 			packCount = 6, packConeRange = 10, packSpeedFactor = 1.08, packGap = 15, packGapMin = 6,
-			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5,
+			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
 	},
 
 	Hunters = {
-		Easy = { patrolSpeed = 5, coneAngle = 28, coneRange = 18, alertDelay = 1, chaseFactor = 1.05, chaseTime = 2.5, catch = 3 },
-		Normal = { patrolSpeed = 5, coneAngle = 30, coneRange = 22, alertDelay = 0.8, chaseFactor = 1.1, chaseTime = 3, catch = 3 },
-		Umulig = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3 },
+		Easy = { patrolSpeed = 5, coneAngle = 28, coneRange = 18, alertDelay = 1, chaseFactor = 1.05, chaseTime = 2.5, catch = 3, hiddenFactor = 0.3 },
+		Normal = { patrolSpeed = 5, coneAngle = 30, coneRange = 22, alertDelay = 0.8, chaseFactor = 1.1, chaseTime = 3, catch = 3, hiddenFactor = 0.3 },
+		Umulig = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3, hiddenFactor = 0.3 },
 	},
 	HuntByDay = { Umulig = true },
 	Seekers = { Easy = 1, Normal = 1, Umulig = 2 },
@@ -93,6 +93,9 @@ return {
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
 	MusicId = 139972511482001,
+
+	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
+	ChaseMusicId = 0,
 
 	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
 	SoundsId = 91539648212607,
