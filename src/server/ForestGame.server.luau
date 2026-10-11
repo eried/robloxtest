@@ -111,10 +111,17 @@ local baseplate = workspace:FindFirstChild("Baseplate")
 if baseplate then
 	baseplate:Destroy()
 end
-local terrain = workspace.Terrain
-terrain:Clear()
-terrain:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(80, 130, 55))
-terrain:FillBlock(CFrame.new(0, -6, 0), Vector3.new(Config.ForestSize + 40, 12, Config.ForestSize + 40), Enum.Material.LeafyGrass)
+workspace.Terrain:Clear()
+-- A flat ground part with its top exactly at 0, so nothing sinks into terrain or grass
+makePart("Part", {
+	Name = "Ground",
+	Size = Vector3.new(Config.ForestSize + 40, 4, Config.ForestSize + 40),
+	Position = Vector3.new(0, -2, 0),
+	Color = Color3.fromRGB(80, 130, 55),
+	Material = Enum.Material.Grass,
+	TopSurface = Enum.SurfaceType.Smooth,
+	Parent = workspace,
+})
 
 -- Camp
 local camp = Instance.new("Folder")

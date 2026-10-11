@@ -354,12 +354,50 @@ InstMT.__index = function(self: any, key: string): any
 	return nil
 end
 
+-- WeldConstraints keep the offset they had when both parts were set
+local function linkWeld(weld: any)
+	local p0, p1 = weld._props.Part0, weld._props.Part1
+	if weld._linked then
+		local list = weld._linked._welds
+		for i, w in list do
+			if w.weld == weld then
+				table.remove(list, i)
+				break
+			end
+		end
+		weld._linked = nil
+	end
+	if p0 and p1 and p0._props.CFrame and p1._props.CFrame then
+		p0._welds = p0._welds or {}
+		table.insert(p0._welds, { weld = weld, part = p1, offset = p0._props.CFrame:Inverse() * p1._props.CFrame })
+		weld._linked = p0
+	end
+end
+
+local function follow(part: any)
+	local welds = part._welds
+	if not welds then
+		return
+	end
+	for _, w in welds do
+		if not w.part._destroyed then
+			w.part._props.CFrame = part._props.CFrame * w.offset
+			follow(w.part)
+		end
+	end
+end
+
 InstMT.__newindex = function(self: any, key: string, value: any)
 	if key == "Parent" then
 		setParent(self, value)
 		return
 	end
 	local props = self._props
+	if self._class == "WeldConstraint" and (key == "Part0" or key == "Part1") then
+		props[key] = value
+		linkWeld(self)
+		return
+	end
 	if key == "Position" and props.CFrame then
 		local old = props.CFrame
 		props.CFrame = old - old.Position + value
@@ -372,6 +410,9 @@ InstMT.__newindex = function(self: any, key: string, value: any)
 		end
 	else
 		props[key] = value
+	end
+	if key == "CFrame" then
+		follow(self)
 	end
 	local sig = self._propSig[key]
 	if sig then
