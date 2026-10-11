@@ -1266,6 +1266,15 @@ local tint = new("ColorCorrectionEffect", { Parent = Lighting })
 
 local blackout = 0
 local lastSky = os.clock()
+local shade = new("Frame", {
+	Position = UDim2.fromOffset(0, -80),
+	Size = UDim2.new(1, 0, 1, 160),
+	BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ZIndex = 0,
+	Parent = gui,
+})
 
 local function updateSky(): number
 	local dayStart = workspace:GetAttribute("DayStart") :: number?
@@ -1299,17 +1308,20 @@ local function updateSky(): number
 	tint.TintColor = Color3.fromRGB(208, 216, 255):Lerp(Color3.new(1, 1, 1), daylight)
 	tint.Saturation = -0.18 * dark
 	tint.Brightness = 0.01 * dark
+	Lighting.ExposureCompensation = -1.5 * blackout
+	tint.Contrast = 0.25 * blackout
+	shade.BackgroundTransparency = 1 - 0.45 * blackout
 	if blackout > 0.01 then
-		-- Lantern off at night: almost black, only shapes against the sky
+		-- Lantern off at night: black, only shapes against the sky
 		Lighting.Brightness *= 1 - blackout
-		Lighting.OutdoorAmbient = Lighting.OutdoorAmbient:Lerp(Color3.fromRGB(4, 4, 9), blackout)
+		Lighting.OutdoorAmbient = Lighting.OutdoorAmbient:Lerp(Color3.new(0, 0, 0), blackout)
 		Lighting.Ambient = Lighting.Ambient:Lerp(Color3.new(0, 0, 0), blackout)
-		tint.Saturation = tint.Saturation + (-0.7 - tint.Saturation) * blackout
-		tint.Brightness = tint.Brightness - 0.06 * blackout
+		tint.Saturation = tint.Saturation + (-0.85 - tint.Saturation) * blackout
+		tint.Brightness = tint.Brightness - 0.12 * blackout
 		if atmosphere then
 			atmosphere.Density = atmosphere.Density + (0.3 - atmosphere.Density) * blackout
-			atmosphere.Color = atmosphere.Color:Lerp(Color3.fromRGB(35, 42, 70), blackout)
-			atmosphere.Decay = atmosphere.Decay:Lerp(Color3.fromRGB(5, 6, 12), blackout)
+			atmosphere.Color = atmosphere.Color:Lerp(Color3.fromRGB(22, 26, 46), blackout)
+			atmosphere.Decay = atmosphere.Decay:Lerp(Color3.new(0, 0, 0), blackout)
 		end
 	end
 	return daylight
