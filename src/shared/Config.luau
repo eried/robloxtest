@@ -13,7 +13,7 @@ return {
 	MinCatDistance = 150,
 	HomePosition = Vector3.new(10, 0, 0),
 	HomeRadius = 8,
-	CarryTime = 150,
+	CarryTime = 75,
 
 	GpsRange = 200,
 

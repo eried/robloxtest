@@ -526,7 +526,12 @@ local function runEffects(dt: number)
 	for _, edge in edges do
 		edge.BackgroundTransparency = 1 - alarm * 0.6
 	end
+	local deadline = (workspace:GetAttribute("KittenDeadline") or workspace:GetAttribute("CarryEnd")) :: number?
+	local urgency = if deadline then math.clamp(1 - (deadline - workspace:GetServerTimeNow()) / 60, 0, 1)
+		elseif workspace:GetAttribute("Escape") then 0.6
+		else 0
 	if Config.ChaseMusicId ~= 0 then
+		chaseMusic.PlaybackSpeed = 1 + 0.2 * urgency
 		local mix = if chase then 1 else 0
 		chaseMusic.Volume += (0.6 * mix - chaseMusic.Volume) * math.min(1, dt * 2)
 		music.Volume += (0.5 * (1 - mix) - music.Volume) * math.min(1, dt * 2)
@@ -536,7 +541,7 @@ local function runEffects(dt: number)
 			chaseMusic:Stop()
 		end
 	else
-		music.PlaybackSpeed += ((if chase then 1.3 else 1) - music.PlaybackSpeed) * math.min(1, dt * 2)
+		music.PlaybackSpeed += ((if chase then 1.3 + 0.25 * urgency else 1) - music.PlaybackSpeed) * math.min(1, dt * 2)
 	end
 end
 
@@ -1489,12 +1494,16 @@ RunService.RenderStepped:Connect(function(dt: number)
 		timerLabel.TextColor3 = if left < 30 then Color3.fromRGB(255, 90, 90) else WHITE
 	elseif start and (catPos or carrierId or escape) then
 		local carryEnd = workspace:GetAttribute("CarryEnd") :: number?
-		if carryEnd and carrierId == player.UserId and carryEnd - serverNow < 30 then
-			timerLabel.Text = "Hurry! " .. formatTime(carryEnd - serverNow)
-			timerLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+		if carryEnd and carrierId then
+			local left = carryEnd - serverNow
+			timerLabel.Text = "🐱 " .. formatTime(left)
+			local pulse = if left < 20 then 0.5 + 0.5 * math.sin(os.clock() * 10) else 0
+			timerLabel.TextColor3 = WHITE:Lerp(Color3.fromRGB(255, 70, 70), if left < 30 then 0.6 + 0.4 * pulse else 0)
+			timerLabel.TextSize = 24 + 4 * pulse
 		else
 			timerLabel.Text = "⏱ " .. formatTime(serverNow - start)
 			timerLabel.TextColor3 = WHITE
+			timerLabel.TextSize = 24
 		end
 	end
 
