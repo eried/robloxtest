@@ -186,9 +186,9 @@ local function makeBirds(world, mode: string, catPos: Vector3, hero: string): { 
 	return birds
 end
 
-local function makeRats(world, mode: string, catPos: Vector3)
+local function makeRats(world, mode: string, catPos: Vector3, level: number)
 	local rats = {}
-	for i = 1, Config.RatCount[mode] do
+	for i = 1, Config.RatCount[mode] + (level - 1) * Config.Level.rats do
 		local pos = Vector3.new(rand(-HALF + 15, HALF - 15), 0, rand(-HALF + 15, HALF - 15))
 		for _ = 1, 40 do
 			local try = if i % 2 == 0
@@ -203,6 +203,66 @@ local function makeRats(world, mode: string, catPos: Vector3)
 		table.insert(rats, { nest = pos, pos = pos, wander = pos, cooldown = 0, windup = 0, speed = Config.RatSpeed[mode] })
 	end
 	return rats
+end
+
+-- Same as the game: Pianka hides in one of several spots around her
+local function hideSpots(world, cat: Vector3, level: number): { Vector3 }
+	local count = math.min(7, Config.HideSpots + (level - 1) // Config.Level.spotsEvery)
+	local spots = { cat }
+	for _ = 1, 120 do
+		if #spots >= count then
+			break
+		end
+		local a = rand(0, math.pi * 2)
+		local try = cat + Vector3.new(math.cos(a), 0, math.sin(a)) * rand(10, 26)
+		local ok = math.abs(try.X) < HALF - 10 and math.abs(try.Z) < HALF - 10 and isFree(world, try, 4)
+		for _, other in spots do
+			if (other - try).Magnitude < 8 then
+				ok = false
+			end
+		end
+		if ok then
+			table.insert(spots, try)
+		end
+	end
+	return spots
+end
+
+local function makeBones(world, mode: string, catPos: Vector3): { Vector3 }
+	local bones = {}
+	local count = Config.BoneCount[mode]
+	for i = 1, count do
+		for _ = 1, 30 do
+			local try = HOME:Lerp(catPos, (i - 0.5) / count * 0.9) + Vector3.new(rand(-30, 30), 0, rand(-30, 30))
+			if math.abs(try.X) < HALF - 10 and math.abs(try.Z) < HALF - 10 and (try - HOME).Magnitude > 20 and isFree(world, try, 3) then
+				table.insert(bones, try)
+				break
+			end
+		end
+	end
+	return bones
+end
+
+-- Same as the game: lands toward the closest dog, every guard dog near it goes to eat. The pack ignores bones.
+local function throwBone(pos: Vector3, heading: Vector3, dogs, now: number): number
+	local land = pos + heading * 14
+	local closest = Config.BoneReach
+	for _, dog in dogs do
+		local d = (dog.pos - pos).Magnitude
+		if not dog.hunter and dog.kind ~= "pack" and dog.state ~= "bone" and d < closest and d > 1 then
+			closest = d
+			land = pos + (dog.pos - pos).Unit * math.min(14, d * 0.6)
+		end
+	end
+	land = Vector3.new(math.clamp(land.X, -HALF + 5, HALF - 5), 0, math.clamp(land.Z, -HALF + 5, HALF - 5))
+	local fooled = 0
+	for _, dog in dogs do
+		if not dog.hunter and dog.kind ~= "pack" and dog.state ~= "bone" and (dog.pos - land).Magnitude < Config.BoneReach then
+			DogBrain.distract(dog, land, now, Config.BoneEat)
+			fooled += 1
+		end
+	end
+	return fooled
 end
 
 -- Same rules as the rats in the game. Returns true on a bite.
@@ -390,9 +450,10 @@ local function makeHunters(world, hs)
 end
 
 -- One full round. Easy: carry Pianka home. Normal: find 7 kittens in time. Umulig: kittens, then run home.
-local function play(mode: string, kind: string, hero: string)
+local function play(mode: string, kind: string, hero: string, level: number?)
+	local lv = level or 1
 	local careful = kind == "careful"
-	local s = Config.Dogs[mode]
+	local s = DogBrain.forLevel(Config.Dogs[mode], lv, Config.Level)
 	local hs = DogBrain.with(s, Config.Hunters[mode])
 	local walk = if hero == "Patrick" then Config.PatrickSpeed else 16
 	local calm = if hero == "Milenkitka" then 0.92 else 1
@@ -401,8 +462,20 @@ local function play(mode: string, kind: string, hero: string)
 	local dogs, placed = makePatrols(world, cat, s)
 	local hunters = makeHunters(world, hs)
 	local mud = makeMud(Config.MudCount[mode], cat)
-	local rats = makeRats(world, mode, cat)
+	local rats = makeRats(world, mode, cat, lv)
 	local birds = makeBirds(world, mode, cat, hero)
+	local bones = makeBones(world, mode, cat)
+	local spots = hideSpots(world, cat, lv)
+	local unchecked = table.clone(spots)
+	local hidden = true
+	local center = Vector3.zero
+	for _, spot in spots do
+		center += spot
+	end
+	center = center / #spots + Vector3.new(rand(-5, 5), 0, rand(-5, 5))
+	local searching: Vector3? = nil
+	local carryTime = math.max(50, Config.CarryTime - (lv - 1) * Config.Level.carryTime)
+	local kittenTime = math.max(100, Config.KittenTime - (lv - 1) * Config.Level.kittenTime)
 	local bot = {
 		pos = SPAWN,
 		heading = Vector3.new(1, 0, 0),
@@ -418,15 +491,23 @@ local function play(mode: string, kind: string, hero: string)
 		lastCaught = -10,
 		lightOff = false,
 		lightUntil = 0,
+		bones = 0,
+		lastThrow = -10,
 	}
 	local hearts = Config.Hearts[mode]
 	local dayOffset = rand(0, Config.DayMinutes * 60)
 	local hunting = false
 	local phase = "find"
-	local flees = if mode == "Easy" then 0 elseif hero == "Aurelia" then 1 else Config.HardFlees
+	local flees = (if mode == "Easy" then 0 else Config.HardFlees) + (lv - 1) // Config.Level.fleesEvery
+	if hero == "Aurelia" then
+		flees = math.max(flees - 1, 0)
+	end
 	local kittens: { Vector3 } = {}
 	local carryStart, kittenEnd, packStart = 0, 0, 0
-	local r = { outcome = "", bites = 0, grabs = 0, ratBites = 0, birds = 0, hiddenTime = 0, time = 0, placed = placed, wanted = s.patrolCount, huntShare = 0 }
+	local r = {
+		outcome = "", bites = 0, grabs = 0, ratBites = 0, birds = 0, hiddenTime = 0, time = 0, placed = placed,
+		wanted = s.patrolCount, huntShare = 0, searched = 0, thrown = 0, fooled = 0,
+	}
 	local best, lastProgress, lastGoal = math.huge, 0, Vector3.zero
 
 	local function finish(outcome: string)
@@ -468,7 +549,25 @@ local function play(mode: string, kind: string, hero: string)
 		end
 
 		local goal = HOME
-		if phase == "find" then
+		if phase == "find" and hidden then
+			-- GPS shows the area. Close by, the spots are visible: search the nearest, kids pick any.
+			goal = center
+			if (bot.pos - center).Magnitude < 45 then
+				if not searching or not table.find(unchecked, searching) then
+					searching = unchecked[1]
+					for _, spot in unchecked do
+						if bot.kid then
+							if rand(0, 1) < 0.5 then
+								searching = spot
+							end
+						elseif (spot - bot.pos).Magnitude < (searching - bot.pos).Magnitude then
+							searching = spot
+						end
+					end
+				end
+				goal = searching
+			end
+		elseif phase == "find" then
 			goal = cat
 		elseif phase == "kittens" then
 			goal = kittens[1]
@@ -480,6 +579,13 @@ local function play(mode: string, kind: string, hero: string)
 		end
 
 		local alive = true
+		if bot.bones < 1 and not bot.kid or bot.kid and bot.bones < Config.BoneMax then
+			for _, b in bones do
+				if (b - bot.pos).Magnitude < (if careful then 22 else 10) and (b - bot.pos).Magnitude < (goal - bot.pos).Magnitude then
+					goal = b
+				end
+			end
+		end
 		if hearts < Config.Hearts[mode] and phase ~= "escape" then
 			for _, b in birds do
 				if (b - bot.pos).Magnitude < 25 and (b - bot.pos).Magnitude < (goal - bot.pos).Magnitude then
@@ -540,6 +646,20 @@ local function play(mode: string, kind: string, hero: string)
 				hidden = night and bot.lightOff,
 			}
 		end
+		-- Bones: careful bots throw as soon as a dog is after them, kids only when it is close
+		if alive and bot.bones > 0 and now - bot.lastThrow >= 0.8 and kind ~= "naive" then
+			for _, dog in active do
+				local chasing = dog.target == 1 and (dog.state == "alert" or dog.state == "chase" or dog.state == "lunge")
+				local d = (dog.pos - bot.pos).Magnitude
+				if not dog.hunter and dog.kind ~= "pack" and chasing and d < (if careful then Config.BoneReach * 0.8 else 10) then
+					bot.bones -= 1
+					bot.lastThrow = now
+					r.thrown += 1
+					r.fooled += throwBone(bot.pos, bot.heading, active, now)
+					break
+				end
+			end
+		end
 		local gap = DogBrain.gap(s, now - packStart)
 		for _, dog in active do
 			local seen = if now < (dog.graceUntil or 0) then {} else runners
@@ -585,6 +705,12 @@ local function play(mode: string, kind: string, hero: string)
 			end
 		end
 
+		for i = #bones, 1, -1 do
+			if alive and bot.bones < Config.BoneMax and (bones[i] - bot.pos).Magnitude < 4.5 then
+				table.remove(bones, i)
+				bot.bones += 1
+			end
+		end
 		if alive and hearts < Config.Hearts[mode] then
 			for i = #birds, 1, -1 do
 				if (birds[i] - bot.pos).Magnitude < 5 and hearts < Config.Hearts[mode] then
@@ -594,7 +720,22 @@ local function play(mode: string, kind: string, hero: string)
 				end
 			end
 		end
-		if alive then
+		if alive and phase == "find" and hidden then
+			for i = #unchecked, 1, -1 do
+				local spot = unchecked[i]
+				if (spot - bot.pos).Magnitude < 6 then
+					table.remove(unchecked, i)
+					r.searched += 1
+					if spot == spots[1] then
+						hidden = false
+					elseif rand(0, 1) < 0.25 then
+						table.insert(rats, { nest = spot, pos = spot, wander = spot, cooldown = now + 1, windup = 0, speed = Config.RatSpeed.Easy })
+					end
+				end
+			end
+			check(#unchecked > 0 or not hidden, "real spot must be searchable")
+		end
+		if alive and not (phase == "find" and hidden) then
 			if phase == "find" then
 				local d = (bot.pos - cat).Magnitude
 				if flees > 0 and d < Config.FleeDistance then
@@ -613,11 +754,11 @@ local function play(mode: string, kind: string, hero: string)
 					else
 						phase = "kittens"
 						kittens = kittenSpots(world, cat)
-						kittenEnd = now + Config.KittenTime
+						kittenEnd = now + kittenTime
 					end
 				end
 			elseif phase == "carry" then
-				if now - carryStart > Config.CarryTime then
+				if now - carryStart > carryTime then
 					return finish("lost")
 				elseif (bot.pos - HOME).Magnitude < Config.HomeRadius then
 					return finish("won")
@@ -701,6 +842,32 @@ do
 		end
 	end
 	check(hearts == 0, "Easy: hearts can run out")
+
+	-- Levels add dogs and wider cones, level 1 is the base
+	local base = Config.Dogs.Normal
+	check(DogBrain.forLevel(base, 1, Config.Level).coneRange == base.coneRange, "level 1 is the base")
+	local top = DogBrain.forLevel(base, Config.Level.Max, Config.Level)
+	check(top.patrolCount == base.patrolCount + Config.Level.maxDogs and top.coneRange > base.coneRange, "levels get harder")
+
+	-- A chasing dog drops the chase for a bone, eats, then goes back
+	local chaser = DogBrain.newPatrol(Vector3.new(0, 0, 0), Vector3.new(0, 0, -40))
+	local prey = { id = 1, pos = Vector3.new(0, 0, -12), heading = Vector3.new(0, 0, 1), speed = 0, safe = false }
+	t = 0
+	while t < 5 and chaser.state ~= "chase" do
+		t += DT
+		DogBrain.step(chaser, DT, t, { prey }, world, Config.Dogs.Easy, 0)
+	end
+	check(chaser.state == "chase", "dog chases a runner in front")
+	DogBrain.distract(chaser, Vector3.new(20, 0, 0), t, Config.BoneEat)
+	local bit, ate = false, false
+	local stop = t + Config.BoneEat + 5
+	while t < stop and not ate do
+		t += DT
+		local event = DogBrain.step(chaser, DT, t, { prey }, world, Config.Dogs.Easy, 0)
+		bit = bit or event == "caught"
+		ate = event == "ate"
+	end
+	check(not bit and ate and (chaser.pos - Vector3.new(20, 0, 0)).Magnitude < 2, "bone stops the chase")
 end
 
 local function pct(n: number, total: number): string
@@ -710,8 +877,8 @@ end
 print(string.format("Find Pianka bot playtest, %d rounds per row", ROUNDS))
 print("Full rounds with patrol dogs, night hunters, rats, mud, hearts and birds")
 print("")
-print("Mode    Bot      Hero      Won  Hearts  Grabbed  Lost  Time up  Caught  Stall  Bites  Rats   Birds  Hidden  Night  Avg time")
-local rows = {
+print("Mode    Lv Bot      Hero      Won  Hearts  Grabbed  Lost  Time up  Caught  Stall  Bites  Rats   Birds  Bones  Search Hidden  Night  Avg time")
+local rows: { { any } } = {
 	{ "Easy", "careful", "default" },
 	{ "Easy", "careful", "Patrick" },
 	{ "Easy", "naive", "default" },
@@ -724,18 +891,29 @@ local rows = {
 	{ "Umulig", "careful", "Patrick" },
 	{ "Umulig", "naive", "default" },
 	{ "Umulig", "kid", "default" },
+	{ "Easy", "careful", "default", 5 },
+	{ "Easy", "careful", "default", 10 },
+	{ "Easy", "kid", "default", 5 },
+	{ "Easy", "kid", "default", 10 },
+	{ "Normal", "careful", "default", 5 },
+	{ "Normal", "careful", "default", 10 },
+	{ "Normal", "kid", "default", 3 },
+	{ "Normal", "kid", "default", 10 },
 }
 local totals: { [string]: { failed: number, rounds: number } } = {}
 for _, row in rows do
-	local mode, bot, hero = row[1], row[2], row[3]
+	local mode, bot, hero, lv = row[1], row[2], row[3], row[4] or 1
 	local careful = bot == "careful"
 	if ONLY and ONLY ~= mode then
 		continue
 	end
 	local count: { [string]: number } = {}
 	local bites, grabs, ratBites, birdsTaken, time, placed, wanted, night, hidden = 0, 0, 0, 0, 0, 0, 0, 0, 0
+	local fooled, searched = 0, 0
 	for _ = 1, ROUNDS do
-		local r = play(mode, bot, hero)
+		local r = play(mode, bot, hero, lv)
+		fooled += r.fooled
+		searched += r.searched
 		count[r.outcome] = (count[r.outcome] or 0) + 1
 		bites += r.bites
 		grabs += r.grabs
@@ -751,17 +929,22 @@ for _, row in rows do
 		return count[key] or 0
 	end
 	local caught = n("pack") + n("patrol") + n("hunter")
-	print(string.format("%-7s %-8s %-8s %s   %s     %s  %s     %s    %s   %s   %4.2f  %5.2f  %5.2f    %s   %s   %5.0f s",
-		mode, bot, hero, pct(n("won"), ROUNDS), pct(n("hearts"), ROUNDS), pct(n("grabbed"), ROUNDS), pct(n("lost"), ROUNDS),
+	print(string.format("%-7s %2d %-8s %-8s %s   %s     %s  %s     %s    %s   %s   %4.2f  %5.2f  %5.2f  %5.2f  %5.2f   %s   %s   %5.0f s",
+		mode, lv, bot, hero, pct(n("won"), ROUNDS), pct(n("hearts"), ROUNDS), pct(n("grabbed"), ROUNDS), pct(n("lost"), ROUNDS),
 		pct(n("timeUp"), ROUNDS), pct(caught, ROUNDS), pct(n("stall"), ROUNDS), bites / ROUNDS, ratBites / ROUNDS,
-		birdsTaken / ROUNDS, pct(hidden, ROUNDS), pct(night, ROUNDS), time / ROUNDS))
+		birdsTaken / ROUNDS, fooled / ROUNDS, searched / ROUNDS, pct(hidden, ROUNDS), pct(night, ROUNDS), time / ROUNDS))
 	local total = totals[mode] or { failed = 0, rounds = 0 }
 	total.failed += ROUNDS - n("won") - n("stall")
 	total.rounds += ROUNDS
 	totals[mode] = total
 	check(n("stall") / ROUNDS <= 0.05, mode .. " " .. bot .. " " .. hero .. ": rounds must not stall")
 	check(placed / math.max(wanted, 1) >= 0.9, mode .. ": patrol paths must fit")
-	if mode == "Easy" and careful then
+	check(searched > 0, mode .. ": Pianka must hide")
+	if mode == "Easy" and careful and lv >= Config.Level.Max then
+		check(n("won") / ROUNDS >= 0.6, "Easy top level must stay doable")
+	elseif mode == "Normal" and careful and lv >= Config.Level.Max then
+		check(n("won") / ROUNDS >= 0.3, "Normal top level must stay doable")
+	elseif mode == "Easy" and careful then
 		check(n("won") / ROUNDS >= 0.85, "Easy must be doable for careful players")
 	elseif mode == "Normal" and careful then
 		check(n("won") / ROUNDS >= 0.5, "Normal must be doable for careful players")

@@ -73,6 +73,17 @@
 	Seekers = { Easy = 1, Normal = 1, Umulig = 2 },
 	SeekEvery = 20,
 	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
+	-- Each rescue raises the level up to Max
+	Level = {
+		Max = 10, dogsEvery = 1, maxDogs = 6, cone = 0.8, maxCone = 6, chase = 0.015,
+		rats = 2, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
+	},
+	HideSpots = 3,
+	DailyLevel = 3,
+	BoneCount = { Easy = 4, Normal = 3, Umulig = 3 },
+	BoneMax = 3,
+	BoneReach = 30,
+	BoneEat = 6,
 	BirdCount = { Easy = 2, Normal = 1, Umulig = 0 },
 
 	DayMinutes = 10,
@@ -195,6 +206,7 @@ export type Dog = {
 	side: number,
 	back: number,
 	target: number?,
+	bone: Vector3?,
 }
 
 export type World = {
@@ -518,8 +530,45 @@ local function stepPack(dog: Dog, dt: number, now: number, runners: { Runner }, 
 	return nil, nil
 end
 
--- Moves one dog. Returns an event ("alert", "chase", "lost", "caught", "lunge") and a runner id.
+-- A thrown bone: the dog runs to it and eats it, ignoring everyone
+function DogBrain.distract(dog: Dog, bone: Vector3, now: number, eatTime: number)
+	dog.state = "bone"
+	dog.bone = flat(bone)
+	dog.untilTime = now + eatTime
+	if dog.kind ~= "pack" then
+		dog.target = nil
+	end
+end
+
+local function stepBone(dog: Dog, dt: number, now: number, world: World, s: Settings): (string?, number?)
+	local bone = dog.bone or dog.pos
+	if (bone - dog.pos).Magnitude > 1.5 then
+		moveTo(dog, bone, s.patrolSpeed * 2.2, dt, world)
+		dog.untilTime = math.max(dog.untilTime, now + 0.5)
+	elseif now >= dog.untilTime then
+		dog.bone = nil
+		dog.state = if dog.kind == "pack" then "follow" else "return"
+		dog.untilTime = now + 1
+		return "ate", nil
+	end
+	return nil, nil
+end
+
+-- Harder levels: more dogs, wider cones, a bit faster
+function DogBrain.forLevel(s: Settings, level: number, step: { [string]: number }): Settings
+	local up = math.max(level, 1) - 1
+	return DogBrain.with(s, {
+		patrolCount = s.patrolCount + math.min(step.maxDogs, up // step.dogsEvery),
+		coneRange = s.coneRange + math.min(step.maxCone, up * step.cone),
+		chaseFactor = s.chaseFactor + up * step.chase,
+	})
+end
+
+-- Moves one dog. Returns an event ("alert", "chase", "lost", "caught", "lunge", "ate") and a runner id.
 function DogBrain.step(dog: Dog, dt: number, now: number, runners: { Runner }, world: World, s: Settings, gap: number): (string?, number?)
+	if dog.state == "bone" then
+		return stepBone(dog, dt, now, world, s)
+	end
 	if dog.kind == "pack" then
 		return stepPack(dog, dt, now, runners, world, s, gap)
 	end
@@ -738,7 +787,9 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local DogBrain = require(ReplicatedStorage.Shared.DogBrain)
 local Sky = require(ReplicatedStorage.Shared.Sky)
 
-local rng = Random.new()
+-- The forest is the same for everyone each day
+local DAY = os.time() // 86400
+local rng = Random.new(DAY)
 local half = Config.ForestSize / 2
 local treeSpots: { Vector3 } = {}
 
@@ -754,6 +805,7 @@ sayEvent.Name = "NeighborSay"
 sayEvent.Parent = ReplicatedStorage
 
 workspace:SetAttribute("Mode", "Easy")
+workspace:SetAttribute("Level", 1)
 
 local function isHardMode(): boolean
 	return workspace:GetAttribute("Mode") ~= "Easy"
@@ -1295,6 +1347,7 @@ end
 for _, pos in cabinSpots do
 	makeNeighbor(makeCabin(pos), pos)
 end
+rng = Random.new()
 
 -- Lantern
 local lantern = Instance.new("Tool")
@@ -1658,6 +1711,7 @@ local wildTween: Tween? = nil
 local homeTween: Tween? = nil
 local pendingHero: { [Player]: string } = {}
 local fleesLeft = 0
+local fleesStart = 0
 local fleeing = false
 local wildCat: Cat? = nil
 local carried: Cat? = nil
@@ -1709,9 +1763,20 @@ local function clearDogs(kind: string?)
 	end
 end
 
+local function level(): number
+	return (workspace:GetAttribute("Level") :: number?) or 1
+end
+
 local function dogSettings(): DogBrain.Settings
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	return Config.Dogs[mode] or Config.Dogs.Easy
+	return DogBrain.forLevel(Config.Dogs[mode] or Config.Dogs.Easy, level(), Config.Level)
+end
+
+-- A rescue raises the level for the next round
+local function levelUp()
+	if not workspace:GetAttribute("Daily") then
+		workspace:SetAttribute("Level", math.min(level() + 1, Config.Level.Max))
+	end
 end
 
 local function clearUmulig()
@@ -1753,7 +1818,7 @@ local function failRound(player: Player?, kind: string)
 	removeCat(wildCat)
 	removeCat(carried)
 	wildCat, carried, carrier = nil, nil, nil
-	for _, key in { "KittenDeadline", "KittensLeft", "CatPosition", "Carrier", "CarryEnd" } do
+	for _, key in { "KittenDeadline", "KittensLeft", "CatPosition", "CatHidden", "Carrier", "CarryEnd" } do
 		workspace:SetAttribute(key, nil)
 	end
 	catEvent:FireAllClients(kind, player)
@@ -1771,6 +1836,7 @@ local function failUmulig(player: Player?)
 end
 
 local spawnKitten: (Vector3) -> ()
+local recordDaily: (number) -> ()
 local kittenSpot: (Vector3, { Vector3 }) -> Vector3
 
 -- A player's kittens run back into the forest
@@ -2202,7 +2268,7 @@ end
 local function spawnRats(catPos: Vector3)
 	clearRats()
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	local count = Config.RatCount[mode] or 10
+	local count = (Config.RatCount[mode] or 10) + (level() - 1) * Config.Level.rats
 	if twist == "ratparty" then
 		count = math.floor(count * 1.5)
 	end
@@ -2540,6 +2606,7 @@ local function deliver(player: Player)
 	homeTween = wagTail(cat.tail)
 
 	local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
+	levelUp()
 	catEvent:FireAllClients("home", player, seconds)
 	task.wait(6)
 	if round == myRound then
@@ -2722,6 +2789,118 @@ local function spawnPatrols(catPos: Vector3)
 	end
 end
 
+-- Bones: pick them up, throw one and nearby dogs go eat it
+local boneFolder = Instance.new("Folder")
+boneFolder.Name = "Bones"
+boneFolder.Parent = workspace
+local bones: { { model: Model, pos: Vector3 } } = {}
+
+local function makeBone(pos: Vector3, parent: Instance): Model
+	local model = Instance.new("Model")
+	model.Name = "Bone"
+	local base = CFrame.new(pos.X, 0.35, pos.Z) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+	local shaft = makePart("Part", {
+		Name = "Shaft",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.6, 0.35, 0.35),
+		CFrame = base,
+		Color = Color3.fromRGB(245, 240, 225),
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+		CanQuery = false,
+		Parent = model,
+	})
+	for _, x in { -0.8, 0.8 } do
+		for _, z in { -0.2, 0.2 } do
+			makePart("Part", {
+				Name = "Knob",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * 0.5,
+				CFrame = base * CFrame.new(x, 0, z),
+				Color = Color3.fromRGB(245, 240, 225),
+				Material = Enum.Material.SmoothPlastic,
+				CanCollide = false,
+				CanQuery = false,
+				Parent = model,
+			})
+		end
+	end
+	model.PrimaryPart = shaft
+	model.Parent = parent
+	return model
+end
+
+local function spawnBones(catPos: Vector3)
+	boneFolder:ClearAllChildren()
+	table.clear(bones)
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	for i = 1, Config.BoneCount[mode] or 3 do
+		for _ = 1, 30 do
+			local try = home:Lerp(catPos, (i - 0.5) / (Config.BoneCount[mode] or 3) * 0.9) + Vector3.new(rng:NextNumber(-30, 30), 0, rng:NextNumber(-30, 30))
+			try = Vector3.new(try.X, 0, try.Z)
+			if math.abs(try.X) < half - 10 and math.abs(try.Z) < half - 10 and (try - home).Magnitude > 20 and isFree(try, 3) then
+				table.insert(bones, { model = makeBone(try, boneFolder), pos = try })
+				break
+			end
+		end
+	end
+end
+
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		for i = #bones, 1, -1 do
+			local bone = bones[i]
+			for _, p in Players:GetPlayers() do
+				local r = getRoot(p)
+				local count = (p:GetAttribute("Bones") :: number?) or 0
+				if r and count < Config.BoneMax and not p:GetAttribute("Out") and (Vector3.new(r.Position.X, 0, r.Position.Z) - bone.pos).Magnitude < 4.5 then
+					p:SetAttribute("Bones", count + 1)
+					bone.model:Destroy()
+					table.remove(bones, i)
+					catEvent:FireClient(p, "gotBone", nil, count + 1)
+					break
+				end
+			end
+		end
+	end
+end)
+
+local function throwBone(player: Player)
+	local root = getRoot(player)
+	local count = (player:GetAttribute("Bones") :: number?) or 0
+	if not root or count <= 0 or player:GetAttribute("Out") or player:GetAttribute("Held") then
+		return
+	end
+	player:SetAttribute("Bones", count - 1)
+	local here = Vector3.new(root.Position.X, 0, root.Position.Z)
+	local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+	local land = here + (if look.Magnitude > 0.1 then look.Unit else Vector3.new(0, 0, -1)) * 14
+	-- Thrown toward the closest dog
+	local closest = Config.BoneReach
+	for _, dog in liveDogs do
+		local d = (dog.brain.pos - here).Magnitude
+		if dog.brain.kind ~= "pack" and dog.brain.state ~= "bone" and d < closest and d > 1 then
+			closest = d
+			land = here + (dog.brain.pos - here).Unit * math.min(14, d * 0.6)
+		end
+	end
+	land = Vector3.new(math.clamp(land.X, -half + 5, half - 5), 0, math.clamp(land.Z, -half + 5, half - 5))
+	local model = makeBone(land, twistFolder)
+	task.delay(Config.BoneEat + 4, function()
+		model:Destroy()
+	end)
+	local now = os.clock()
+	local fooled = 0
+	for _, dog in liveDogs do
+		if dog.brain.kind ~= "pack" and dog.brain.state ~= "bone" and (dog.brain.pos - land).Magnitude < Config.BoneReach then
+			DogBrain.distract(dog.brain, land, now, Config.BoneEat)
+			fooled += 1
+		end
+	end
+	catEvent:FireClient(player, "bone", nil, fooled)
+end
+
 local function startEscape()
 	local myRound = round
 	clearRats()
@@ -2795,6 +2974,7 @@ local function startEscape()
 						end
 						clearDogs("pack")
 						workspace:SetAttribute("Escape", nil)
+						levelUp()
 						catEvent:FireAllClients("escaped", player, seconds)
 						giveFish(player, Config.Reward.Umulig * (if twist == "golden" then 2 else 1))
 						fireworks()
@@ -2839,6 +3019,10 @@ local function collectKitten(kitten: Cat, player: Player)
 	elseif kittensLeft == 0 then
 		workspace:SetAttribute("KittenDeadline", nil)
 		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
+		levelUp()
+		if workspace:GetAttribute("Daily") then
+			task.spawn(recordDaily, seconds)
+		end
 		catEvent:FireAllClients("allKittens", player, seconds)
 		fireworks()
 		task.wait(8)
@@ -2892,10 +3076,11 @@ local function startKittens(cat: Cat, ultra: boolean)
 	end
 	kittensLeft = Config.KittenCount
 	workspace:SetAttribute("KittensLeft", kittensLeft)
-	workspace:SetAttribute("KittenDeadline", workspace:GetServerTimeNow() + Config.KittenTime)
+	local kittenTime = math.max(100, Config.KittenTime - (level() - 1) * Config.Level.kittenTime)
+	workspace:SetAttribute("KittenDeadline", workspace:GetServerTimeNow() + kittenTime)
 	catEvent:FireAllClients("kittens")
 
-	task.wait(Config.KittenTime)
+	task.wait(kittenTime)
 	if round == myRound and kittensLeft > 0 then
 		kittensLeft = 0
 		umulig = false
@@ -2956,7 +3141,8 @@ placeWildCat = function(pos: Vector3, height: number)
 		carrier = player
 		workspace:SetAttribute("CatPosition", nil)
 		workspace:SetAttribute("Carrier", player.UserId)
-		workspace:SetAttribute("CarryEnd", workspace:GetServerTimeNow() + Config.CarryTime)
+		local carryTime = math.max(50, Config.CarryTime - (level() - 1) * Config.Level.carryTime)
+		workspace:SetAttribute("CarryEnd", workspace:GetServerTimeNow() + carryTime)
 		catEvent:FireAllClients("picked", player)
 
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -2972,7 +3158,7 @@ placeWildCat = function(pos: Vector3, height: number)
 				loseCat()
 			end
 		end)
-		task.delay(Config.CarryTime, function()
+		task.delay(carryTime, function()
 			if carried == newCarried then
 				loseCat()
 			end
@@ -2980,7 +3166,15 @@ placeWildCat = function(pos: Vector3, height: number)
 	end)
 end
 
+local shownLevel = 1
+
 function newRound()
+	if workspace:GetAttribute("Daily") then
+		rng = Random.new(DAY * 7919 + 1)
+		workspace:SetAttribute("Level", Config.DailyLevel)
+	else
+		rng = Random.new()
+	end
 	if wildTween then
 		wildTween:Cancel()
 	end
@@ -3009,16 +3203,17 @@ function newRound()
 	round += 1
 
 	twistFolder:ClearAllChildren()
+	workspace:SetAttribute("CatHidden", nil)
 	local roll = rng:NextNumber()
 	twist = if roll < 0.3
 		then nil
 		elseif roll < 0.44 then "tree"
-		elseif roll < 0.58 then "bushes"
+		elseif roll < 0.58 then nil
 		elseif roll < 0.71 then "zoomies"
 		elseif roll < 0.83 then "ratparty"
 		elseif roll < 0.92 then "fullmoon"
 		else "golden"
-	if (twist == "tree" or twist == "bushes") and isHardMode() then
+	if twist == "tree" and isHardMode() then
 		twist = nil
 	end
 	zoomies = twist == "zoomies"
@@ -3028,50 +3223,88 @@ function newRound()
 		resetHearts(player)
 	end
 	local pos = findCatSpot()
-	fleesLeft = Config.HardFlees
+	fleesLeft = (if isHardMode() then Config.HardFlees else 0) + (level() - 1) // Config.Level.fleesEvery
+	fleesStart = fleesLeft
 	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
 	placeWildCat(pos, if twist == "tree" then buildTree(pos) else 0)
 	spawnRats(pos)
 	spawnPatrols(pos)
 	spawnFish()
 	spawnMushrooms()
+	spawnBones(pos)
 	spawnBirds(pos)
 	spawnMud(pos)
-	if twist == "bushes" then
+	if twist ~= "tree" then
 		hideInBushes(pos)
 	end
 	if twist then
 		catEvent:FireAllClients("twist", nil, twist)
 	end
+	if workspace:GetAttribute("Daily") then
+		catEvent:FireAllClients("daily")
+	elseif level() > shownLevel then
+		catEvent:FireAllClients("level", nil, level())
+	end
+	shownLevel = level()
 end
 
-hideInBushes = function(catPos: Vector3)
-	local cat = wildCat
-	if not cat then
-		return
-	end
-	cat.model.Parent = nil
-	local spots = { catPos }
-	for _ = 1, 80 do
-		if #spots >= 5 then
-			break
+-- Pianka hides in one of several spots. The GPS only shows the area.
+local function hidingSpot(kind: string, spot: Vector3): BasePart
+	local yaw = CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+	local main: BasePart
+	if kind == "barrel" then
+		main = makePart("Part", {
+			Name = "HidingSpot",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(3.2, 2.6, 2.6),
+			CFrame = CFrame.new(spot + Vector3.new(0, 1.6, 0)) * yaw * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(120, 80, 45),
+			Material = Enum.Material.WoodPlanks,
+			Parent = twistFolder,
+		})
+		for _, y in { -1, 1 } do
+			makePart("Part", {
+				Name = "Hoop",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.2, 2.7, 2.7),
+				CFrame = main.CFrame * CFrame.new(y, 0, 0),
+				Color = Color3.fromRGB(60, 60, 65),
+				Material = Enum.Material.Metal,
+				CanCollide = false,
+				Parent = main,
+			})
 		end
-		local angle = rng:NextNumber(0, math.pi * 2)
-		local try = catPos + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(10, 24)
-		local ok = math.abs(try.X) < half - 10 and math.abs(try.Z) < half - 10 and isFree(try, 3)
-		for _, other in spots do
-			if (other - try).Magnitude < 7 then
-				ok = false
-			end
-		end
-		if ok then
-			table.insert(spots, try)
-		end
-	end
-	local surprises = { "frog", "confetti", "rat", "frog" }
-	for i, spot in spots do
-		local bush = makePart("Part", {
-			Name = "ShakyBush",
+	elseif kind == "log" then
+		main = makePart("Part", {
+			Name = "HidingSpot",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(7, 2.6, 2.6),
+			CFrame = CFrame.new(spot + Vector3.new(0, 1.3, 0)) * yaw,
+			Color = Color3.fromRGB(95, 65, 40),
+			Material = Enum.Material.Wood,
+			Parent = twistFolder,
+		})
+		makePart("Part", {
+			Name = "Hole",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.2, 1.8, 1.8),
+			CFrame = main.CFrame * CFrame.new(3.45, 0, 0),
+			Color = Color3.fromRGB(20, 14, 10),
+			CanCollide = false,
+			Parent = main,
+		})
+	elseif kind == "crate" then
+		main = makePart("Part", {
+			Name = "HidingSpot",
+			Size = Vector3.new(3, 3, 3),
+			CFrame = CFrame.new(spot + Vector3.new(0, 1.5, 0)) * yaw,
+			Color = Color3.fromRGB(150, 110, 60),
+			Material = Enum.Material.WoodPlanks,
+			Parent = twistFolder,
+		})
+	else
+		main = makePart("Part", {
+			Name = "HidingSpot",
 			Shape = Enum.PartType.Ball,
 			Size = Vector3.one * 6,
 			Position = spot + Vector3.new(0, 2, 0),
@@ -3080,26 +3313,69 @@ hideInBushes = function(catPos: Vector3)
 			CanCollide = false,
 			Parent = twistFolder,
 		})
-		TweenService:Create(bush, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-			CFrame = bush.CFrame * CFrame.Angles(0, 0, math.rad(6)),
-		}):Play()
+	end
+	main:SetAttribute("Kind", kind)
+	return main
+end
+
+hideInBushes = function(catPos: Vector3)
+	local cat = wildCat
+	if not cat then
+		return
+	end
+	cat.model.Parent = nil
+	local count = math.min(7, Config.HideSpots + (level() - 1) // Config.Level.spotsEvery)
+	local spots = { catPos }
+	for _ = 1, 120 do
+		if #spots >= count then
+			break
+		end
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local try = catPos + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(10, 26)
+		local ok = math.abs(try.X) < half - 10 and math.abs(try.Z) < half - 10 and isFree(try, 4)
+		for _, other in spots do
+			if (other - try).Magnitude < 8 then
+				ok = false
+			end
+		end
+		if ok then
+			table.insert(spots, try)
+		end
+	end
+	local center = Vector3.zero
+	for _, spot in spots do
+		center += spot
+	end
+	center = center / #spots + Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
+	workspace:SetAttribute("CatPosition", center)
+	workspace:SetAttribute("CatHidden", true)
+	local kinds = { "bush", "barrel", "log", "crate" }
+	local surprises = { "frog", "confetti", "rat", "empty" }
+	for i, spot in spots do
+		local kind = kinds[rng:NextInteger(1, #kinds)]
+		local part = hidingSpot(kind, spot)
+		local real = i == 1
+		if real then
+			part:SetAttribute("Pianka", true)
+		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = "Search"
-		prompt.ObjectText = "Bush"
+		prompt.ObjectText = ({ bush = "Bush", barrel = "Barrel", log = "Log", crate = "Crate" })[kind]
 		prompt.HoldDuration = 0.3
 		prompt.MaxActivationDistance = 9
 		prompt.RequiresLineOfSight = false
-		prompt.Parent = bush
-		local real = i == 1
-		local surprise = surprises[(i - 2) % #surprises + 1]
+		prompt.Parent = part
+		local surprise = surprises[rng:NextInteger(1, #surprises)]
 		prompt.Triggered:Connect(function(player)
-			if not bush.Parent or player:GetAttribute("Out") then
+			if not part.Parent or player:GetAttribute("Out") then
 				return
 			end
-			bush:Destroy()
+			part:Destroy()
 			if real then
 				if wildCat == cat then
 					cat.model.Parent = workspace
+					workspace:SetAttribute("CatPosition", Vector3.new(spot.X, 0, spot.Z))
+					workspace:SetAttribute("CatHidden", nil)
 				end
 				catEvent:FireAllClients("bush", player, "found")
 			else
@@ -3251,6 +3527,18 @@ shopEvent.Parent = ReplicatedStorage
 local flashEvent = Instance.new("RemoteEvent")
 flashEvent.Name = "Flash"
 flashEvent.Parent = ReplicatedStorage
+local boneEvent = Instance.new("RemoteEvent")
+boneEvent.Name = "ThrowBone"
+boneEvent.Parent = ReplicatedStorage
+local lastThrow: { [Player]: number } = {}
+boneEvent.OnServerEvent:Connect(function(player)
+	local now = os.clock()
+	if now - (lastThrow[player] or 0) < 0.8 then
+		return
+	end
+	lastThrow[player] = now
+	throwBone(player)
+end)
 local lastToggle: { [Player]: number } = {}
 flashEvent.OnServerEvent:Connect(function(player)
 	local now = os.clock()
@@ -3554,11 +3842,11 @@ task.spawn(function()
 	while true do
 		task.wait(0.2)
 		local cat, prompt = wildCat, wildPrompt
-		if cat and prompt and not fleeing and (zoomies or (fleesLeft > 0 and isHardMode())) then
+		if cat and prompt and cat.model.Parent and not fleeing and (zoomies or fleesLeft > 0) then
 			local catPos = cat.model:GetPivot().Position
 			for _, p in Players:GetPlayers() do
 				local r = if p:GetAttribute("Out") then nil else getRoot(p)
-				local limit = if p:GetAttribute("Hero") == "Aurelia" then Config.HardFlees - 1 else 0
+				local limit = if p:GetAttribute("Hero") == "Aurelia" then math.max(fleesStart - 1, 0) else 0
 				if r and (zoomies or fleesLeft > limit) and (r.Position - catPos).Magnitude < Config.FleeDistance then
 					zoomies = false
 					task.spawn(fleeFrom, cat, prompt, p, r.Position)
@@ -3612,7 +3900,12 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 			applyHero(player)
 		end
 	end
-	if (mode == "Easy" or mode == "Normal" or mode == "Umulig") and mode ~= workspace:GetAttribute("Mode") then
+	local daily = mode == "Daily"
+	if daily then
+		mode = "Normal"
+	end
+	local valid = mode == "Easy" or mode == "Normal" or mode == "Umulig"
+	if valid and (mode ~= workspace:GetAttribute("Mode") or daily ~= (workspace:GetAttribute("Daily") == true)) then
 		local alone = #Players:GetPlayers() <= 1
 		local tooSoon = not alone and now - (lastChangeBy[player] or -math.huge) < 60
 		if (busy and not alone) or tooSoon or now - lastModeChange < 5 then
@@ -3622,7 +3915,10 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 		lastModeChange = now
 		lastChangeBy[player] = now
 		workspace:SetAttribute("Mode", mode)
-		catEvent:FireAllClients("mode", player, mode)
+		workspace:SetAttribute("Daily", if daily then true else nil)
+		workspace:SetAttribute("Level", 1)
+		shownLevel = 1
+		catEvent:FireAllClients("mode", player, if daily then "the Daily challenge" else mode)
 		newRound()
 	end
 end)
@@ -3643,595 +3939,675 @@ task.spawn(function()
 end)
 
 -- Leaderboard sign at camp
-local board = makePart("Part", {
-	Name = "Leaderboard",
-	Size = Vector3.new(7, 9, 0.5),
-	CFrame = CFrame.lookAt(Vector3.new(-11, 5, -3), Vector3.new(0, 5, 0)),
-	Color = Color3.fromRGB(70, 50, 35),
-	Material = Enum.Material.Wood,
-	Parent = workspace:FindFirstChild("Camp"),
-})
-local boardGui = Instance.new("SurfaceGui")
-boardGui.Face = Enum.NormalId.Front
-boardGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-boardGui.Parent = board
-local boardText = Instance.new("TextLabel")
-boardText.Size = UDim2.fromScale(0.9, 0.92)
-boardText.Position = UDim2.fromScale(0.05, 0.04)
-boardText.BackgroundTransparency = 1
-boardText.Font = Enum.Font.FredokaOne
-boardText.TextScaled = true
-boardText.TextColor3 = Color3.fromRGB(255, 220, 150)
-boardText.TextYAlignment = Enum.TextYAlignment.Top
-boardText.Text = "Top rescuers\n..."
-boardText.Parent = boardGui
+do
+	local board = makePart("Part", {
+		Name = "Leaderboard",
+		Size = Vector3.new(7, 9, 0.5),
+		CFrame = CFrame.lookAt(Vector3.new(-11, 5, -3), Vector3.new(0, 5, 0)),
+		Color = Color3.fromRGB(70, 50, 35),
+		Material = Enum.Material.Wood,
+		Parent = workspace:FindFirstChild("Camp"),
+	})
+	local boardGui = Instance.new("SurfaceGui")
+	boardGui.Face = Enum.NormalId.Front
+	boardGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	boardGui.Parent = board
+	local boardText = Instance.new("TextLabel")
+	boardText.Size = UDim2.fromScale(0.9, 0.92)
+	boardText.Position = UDim2.fromScale(0.05, 0.04)
+	boardText.BackgroundTransparency = 1
+	boardText.Font = Enum.Font.FredokaOne
+	boardText.TextScaled = true
+	boardText.TextColor3 = Color3.fromRGB(255, 220, 150)
+	boardText.TextYAlignment = Enum.TextYAlignment.Top
+	boardText.Text = "Top rescuers\n..."
+	boardText.Parent = boardGui
 
-local names: { [number]: string } = {}
-task.spawn(function()
-	while okBoard do
-		local ok, pages = pcall(function()
-			return ranking:GetSortedAsync(false, 10)
-		end)
-		if ok then
-			local lines = { "Top rescuers 🐱" }
-			for i, entry in pages:GetCurrentPage() do
-				local id = tonumber(entry.key) or 0
-				if not names[id] then
-					local got, name = pcall(function()
-						return Players:GetNameFromUserIdAsync(id)
-					end)
-					names[id] = if got then name else "?"
-				end
-				table.insert(lines, i .. ". " .. names[id] .. "  " .. entry.value)
-			end
-			boardText.Text = table.concat(lines, "\n")
+	local names: { [number]: string } = {}
+
+	-- Daily challenge board: best times today
+	local okDaily, dailyStore = pcall(function()
+		return DataStoreService:GetOrderedDataStore("Daily" .. DAY)
+	end)
+	local dailyBoard = makePart("Part", {
+		Name = "DailyBoard",
+		Size = Vector3.new(7, 9, 0.5),
+		CFrame = CFrame.lookAt(Vector3.new(-11, 5, 8), Vector3.new(0, 5, 0)),
+		Color = Color3.fromRGB(60, 45, 80),
+		Material = Enum.Material.Wood,
+		Parent = workspace:FindFirstChild("Camp"),
+	})
+	local dailyGui = Instance.new("SurfaceGui")
+	dailyGui.Face = Enum.NormalId.Front
+	dailyGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	dailyGui.Parent = dailyBoard
+	local dailyText = boardText:Clone()
+	dailyText.TextColor3 = Color3.fromRGB(255, 225, 120)
+	dailyText.Text = "⭐ Daily challenge\nNo times yet"
+	dailyText.Parent = dailyGui
+
+	local function nameOf(id: number): string
+		if not names[id] then
+			local got, name = pcall(function()
+				return Players:GetNameFromUserIdAsync(id)
+			end)
+			names[id] = if got then name else "?"
 		end
-		task.wait(60)
+		return names[id]
 	end
-end)
 
-local function speak(n: Neighbor)
-	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
-	if catPos and rng:NextNumber() < 0.35 then
-		n.cooldown = os.clock() + rng:NextNumber(10, 16)
-		n.pointUntil = os.clock() + 4
-		n.pointAt = Vector3.new(catPos.X, n.root.Position.Y, catPos.Z)
-		n.lineNo.Text = "Katten gikk den veien! 👉"
-		n.lineEn.Text = "The cat went that way!"
-		n.bubble.Enabled = true
-		task.delay(4, function()
-			n.bubble.Enabled = false
+	local function refreshDaily()
+		if not okDaily then
+			return
+		end
+		local ok, pages = pcall(function()
+			return dailyStore:GetSortedAsync(true, 6)
 		end)
-		return
+		if not ok then
+			return
+		end
+		local lines = { "⭐ Daily challenge" }
+		for i, entry in pages:GetCurrentPage() do
+			local tenths = entry.value
+			table.insert(lines, string.format("%d. %s  %d:%04.1f", i, nameOf(tonumber(entry.key) or 0), tenths // 600, (tenths % 600) / 10))
+		end
+		if #lines == 1 then
+			table.insert(lines, "No times yet")
+		end
+		dailyText.Text = table.concat(lines, "\n")
 	end
-	local index = rng:NextInteger(1, #Config.Lines)
-	if index == n.last then
-		index = index % #Config.Lines + 1
+
+	recordDaily = function(seconds: number)
+		local tenths = math.floor(seconds * 10 + 0.5)
+		for _, player in Players:GetPlayers() do
+			if okDaily and not player:GetAttribute("Out") then
+				pcall(function()
+					local key = tostring(player.UserId)
+					local best = dailyStore:GetAsync(key)
+					if type(best) ~= "number" or tenths < best then
+						dailyStore:SetAsync(key, tenths)
+					end
+				end)
+			end
+		end
+		refreshDaily()
 	end
-	local line = Config.Lines[index]
-	n.last = index
-	n.cooldown = os.clock() + line[2] + rng:NextNumber(8, 14)
-	n.lineNo.Text = line[3]
-	n.lineEn.Text = line[4]
-	n.bubble.Enabled = true
-	sayEvent:FireAllClients(n.head, index, n.pitch)
-	task.delay(math.max(line[2] / n.pitch + 0.5, line[2] + 1), function()
-		n.bubble.Enabled = false
+
+	task.spawn(function()
+		while true do
+			refreshDaily()
+			task.wait(60)
+		end
+	end)
+	task.spawn(function()
+		while okBoard do
+			local ok, pages = pcall(function()
+				return ranking:GetSortedAsync(false, 10)
+			end)
+			if ok then
+				local lines = { "Top rescuers 🐱" }
+				for i, entry in pages:GetCurrentPage() do
+					local id = tonumber(entry.key) or 0
+					if not names[id] then
+						local got, name = pcall(function()
+							return Players:GetNameFromUserIdAsync(id)
+						end)
+						names[id] = if got then name else "?"
+					end
+					table.insert(lines, i .. ". " .. names[id] .. "  " .. entry.value)
+				end
+				boardText.Text = table.concat(lines, "\n")
+			end
+			task.wait(60)
+		end
 	end)
 end
 
-RunService.Heartbeat:Connect(function(dt: number)
-	local now = os.clock()
-	for _, n in neighbors do
-		if n.brain then
-			continue
+-- Neighbors and dogs
+do
+	local function speak(n: Neighbor)
+		local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
+		if catPos and rng:NextNumber() < 0.35 then
+			n.cooldown = os.clock() + rng:NextNumber(10, 16)
+			n.pointUntil = os.clock() + 4
+			n.pointAt = Vector3.new(catPos.X, n.root.Position.Y, catPos.Z)
+			n.lineNo.Text = "Katten gikk den veien! 👉"
+			n.lineEn.Text = "The cat went that way!"
+			n.bubble.Enabled = true
+			task.delay(4, function()
+				n.bubble.Enabled = false
+			end)
+			return
 		end
-		local pos = n.root.Position
-		local target: Vector3? = nil
-		local nearest = 40
-		for _, player in Players:GetPlayers() do
-			local root = getRoot(player)
-			if root then
-				local distance = (Vector3.new(root.Position.X, pos.Y, root.Position.Z) - pos).Magnitude
-				if distance < nearest then
-					target, nearest = Vector3.new(root.Position.X, pos.Y, root.Position.Z), distance
-				end
-			end
+		local index = rng:NextInteger(1, #Config.Lines)
+		if index == n.last then
+			index = index % #Config.Lines + 1
 		end
-		local nextPos = pos
-		local face: Vector3? = nil
-		if now < n.pointUntil then
-			face = n.pointAt
-		elseif target then
-			face = target
-			if nearest > 7 then
-				local step = pos + (target - pos).Unit * Config.NeighborSpeed * dt
-				local clear = true
-				for _, cabin in cabinSpots do
-					if (Vector3.new(step.X, 0, step.Z) - cabin).Magnitude < 8 then
-						clear = false
-					end
-				end
-				if clear and (step - n.spot).Magnitude < 20 then
-					nextPos = step
-				end
-			end
-			if nearest < 28 and now > n.cooldown then
-				speak(n)
-			end
-		elseif (n.spot - pos).Magnitude > 0.5 then
-			nextPos = pos + (n.spot - pos).Unit * math.min((n.spot - pos).Magnitude, 6 * dt)
-			face = n.spot + (n.spot - pos)
-		end
-		if face and (Vector3.new(face.X, pos.Y, face.Z) - nextPos).Magnitude > 0.1 then
-			n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z)) * CFrame.Angles(0, 0, math.sin(now * 3) * 0.04)
-		end
+		local line = Config.Lines[index]
+		n.last = index
+		n.cooldown = os.clock() + line[2] + rng:NextNumber(8, 14)
+		n.lineNo.Text = line[3]
+		n.lineEn.Text = line[4]
+		n.bubble.Enabled = true
+		sayEvent:FireAllClients(n.head, index, n.pitch)
+		task.delay(math.max(line[2] / n.pitch + 0.5, line[2] + 1), function()
+			n.bubble.Enabled = false
+		end)
 	end
-end)
 
-RunService.Heartbeat:Connect(function(dt: number)
-	local now = os.clock()
-	if #rats == 0 then
-		return
-	end
-	type Target = { player: Player, root: BasePart, humanoid: Humanoid, pos: Vector3 }
-	local targets: { Target } = {}
-	for _, player in Players:GetPlayers() do
-		local root = getRoot(player)
-		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
-		if root and humanoid and not player:GetAttribute("Out") then
-			table.insert(targets, { player = player, root = root, humanoid = humanoid, pos = Vector3.new(root.Position.X, 0, root.Position.Z) })
-		end
-	end
-	local homeFlat = Vector3.new(home.X, 0, home.Z)
-	for _, rat in rats do
-		if rat.deadUntil > 0 then
-			if now < rat.deadUntil then
+	RunService.Heartbeat:Connect(function(dt: number)
+		local now = os.clock()
+		for _, n in neighbors do
+			if n.brain then
 				continue
 			end
-			rat.deadUntil = 0
-			rat.pos = rat.nest
-			rat.model.Parent = ratFolder
-		end
-		local nearest = math.huge
-		local target: Target? = nil
-		local targetDistance = Config.RatAggro
-		local squashed = false
-		for _, t in targets do
-			local distance = (t.pos - rat.pos).Magnitude
-			nearest = math.min(nearest, distance)
-			if distance < 2.4 and t.root.AssemblyLinearVelocity.Y < -2 and t.root.Position.Y > 3.3 and t.root.Position.Y < 8 then
-				squash(rat, t.player)
-				squashed = true
-				break
+			local pos = n.root.Position
+			local target: Vector3? = nil
+			local nearest = 40
+			for _, player in Players:GetPlayers() do
+				local root = getRoot(player)
+				if root then
+					local distance = (Vector3.new(root.Position.X, pos.Y, root.Position.Z) - pos).Magnitude
+					if distance < nearest then
+						target, nearest = Vector3.new(root.Position.X, pos.Y, root.Position.Z), distance
+					end
+				end
 			end
-			local safe = (t.pos - homeFlat).Magnitude < Config.RatSafeRadius
-			local inLeash = (t.pos - rat.nest).Magnitude < Config.RatLeash
-			if distance < targetDistance and inLeash and not safe and t.humanoid.Health > 25 and t.root.Position.Y < 5.5 then
-				target, targetDistance = t, distance
+			local nextPos = pos
+			local face: Vector3? = nil
+			if now < n.pointUntil then
+				face = n.pointAt
+			elseif target then
+				face = target
+				if nearest > 7 then
+					local step = pos + (target - pos).Unit * Config.NeighborSpeed * dt
+					local clear = true
+					for _, cabin in cabinSpots do
+						if (Vector3.new(step.X, 0, step.Z) - cabin).Magnitude < 8 then
+							clear = false
+						end
+					end
+					if clear and (step - n.spot).Magnitude < 20 then
+						nextPos = step
+					end
+				end
+				if nearest < 28 and now > n.cooldown then
+					speak(n)
+				end
+			elseif (n.spot - pos).Magnitude > 0.5 then
+				nextPos = pos + (n.spot - pos).Unit * math.min((n.spot - pos).Magnitude, 6 * dt)
+				face = n.spot + (n.spot - pos)
+			end
+			if face and (Vector3.new(face.X, pos.Y, face.Z) - nextPos).Magnitude > 0.1 then
+				n.root.CFrame = CFrame.lookAt(nextPos, Vector3.new(face.X, nextPos.Y, face.Z)) * CFrame.Angles(0, 0, math.sin(now * 3) * 0.04)
 			end
 		end
-		if squashed or nearest > 120 then
-			continue
-		end
+	end)
 
-		local goal: Vector3? = nil
-		local speed = 0
-		if target and ((target.player:GetAttribute("GlowUntil") :: number?) or 0) > now then
-			rat.fleeUntil = now + 1
-			rat.fleeFrom = target.pos
+	RunService.Heartbeat:Connect(function(dt: number)
+		local now = os.clock()
+		if #rats == 0 then
+			return
 		end
-		if now < rat.fleeUntil then
-			local away = rat.pos - rat.fleeFrom
-			goal = rat.pos + (if away.Magnitude > 0.1 then away.Unit else Vector3.new(1, 0, 0)) * 5
-			speed = 14
-		elseif target and now > rat.cooldown then
-			speed = math.min(rat.speed, target.humanoid.WalkSpeed * 0.8)
-			if targetDistance < 2.8 then
-				speed = 0
-				if rat.windup == 0 then
-					rat.windup = now + 0.3
-				elseif now >= rat.windup then
+		type Target = { player: Player, root: BasePart, humanoid: Humanoid, pos: Vector3 }
+		local targets: { Target } = {}
+		for _, player in Players:GetPlayers() do
+			local root = getRoot(player)
+			local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
+			if root and humanoid and not player:GetAttribute("Out") then
+				table.insert(targets, { player = player, root = root, humanoid = humanoid, pos = Vector3.new(root.Position.X, 0, root.Position.Z) })
+			end
+		end
+		local homeFlat = Vector3.new(home.X, 0, home.Z)
+		for _, rat in rats do
+			if rat.deadUntil > 0 then
+				if now < rat.deadUntil then
+					continue
+				end
+				rat.deadUntil = 0
+				rat.pos = rat.nest
+				rat.model.Parent = ratFolder
+			end
+			local nearest = math.huge
+			local target: Target? = nil
+			local targetDistance = Config.RatAggro
+			local squashed = false
+			for _, t in targets do
+				local distance = (t.pos - rat.pos).Magnitude
+				nearest = math.min(nearest, distance)
+				if distance < 2.4 and t.root.AssemblyLinearVelocity.Y < -2 and t.root.Position.Y > 3.3 and t.root.Position.Y < 8 then
+					squash(rat, t.player)
+					squashed = true
+					break
+				end
+				local safe = (t.pos - homeFlat).Magnitude < Config.RatSafeRadius
+				local inLeash = (t.pos - rat.nest).Magnitude < Config.RatLeash
+				if distance < targetDistance and inLeash and not safe and t.humanoid.Health > 25 and t.root.Position.Y < 5.5 then
+					target, targetDistance = t, distance
+				end
+			end
+			if squashed or nearest > 120 then
+				continue
+			end
+
+			local goal: Vector3? = nil
+			local speed = 0
+			if target and ((target.player:GetAttribute("GlowUntil") :: number?) or 0) > now then
+				rat.fleeUntil = now + 1
+				rat.fleeFrom = target.pos
+			end
+			if now < rat.fleeUntil then
+				local away = rat.pos - rat.fleeFrom
+				goal = rat.pos + (if away.Magnitude > 0.1 then away.Unit else Vector3.new(1, 0, 0)) * 5
+				speed = 14
+			elseif target and now > rat.cooldown then
+				speed = math.min(rat.speed, target.humanoid.WalkSpeed * 0.8)
+				if targetDistance < 2.8 then
+					speed = 0
+					if rat.windup == 0 then
+						rat.windup = now + 0.3
+					elseif now >= rat.windup then
+						rat.windup = 0
+						biteBy(rat, target.player, target.humanoid)
+					end
+				else
 					rat.windup = 0
-					biteBy(rat, target.player, target.humanoid)
+					goal = target.pos
 				end
 			else
 				rat.windup = 0
-				goal = target.pos
-			end
-		else
-			rat.windup = 0
-			if (rat.wander - rat.pos).Magnitude < 1 then
-				rat.wander = rat.nest + Vector3.new(rng:NextNumber(-15, 15), 0, rng:NextNumber(-15, 15))
-			end
-			goal = rat.wander
-			speed = 5
-		end
-
-		if goal and speed > 0 then
-			local delta = goal - rat.pos
-			if delta.Magnitude > 0.05 then
-				local dir = delta.Unit
-				local nextPos = rat.pos + dir * math.min(speed * dt, delta.Magnitude)
-				for _, tree in treeSpots do
-					local away = nextPos - tree
-					if away.Magnitude < 2 and away.Magnitude > 0.01 then
-						nextPos = tree + away.Unit * 2
-					end
+				if (rat.wander - rat.pos).Magnitude < 1 then
+					rat.wander = rat.nest + Vector3.new(rng:NextNumber(-15, 15), 0, rng:NextNumber(-15, 15))
 				end
-				for _, cabin in cabinSpots do
-					local away = nextPos - cabin
-					if away.Magnitude < 9 and away.Magnitude > 0.01 then
-						nextPos = cabin + away.Unit * 9
+				goal = rat.wander
+				speed = 5
+			end
+
+			if goal and speed > 0 then
+				local delta = goal - rat.pos
+				if delta.Magnitude > 0.05 then
+					local dir = delta.Unit
+					local nextPos = rat.pos + dir * math.min(speed * dt, delta.Magnitude)
+					for _, tree in treeSpots do
+						local away = nextPos - tree
+						if away.Magnitude < 2 and away.Magnitude > 0.01 then
+							nextPos = tree + away.Unit * 2
+						end
 					end
+					for _, cabin in cabinSpots do
+						local away = nextPos - cabin
+						if away.Magnitude < 9 and away.Magnitude > 0.01 then
+							nextPos = cabin + away.Unit * 9
+						end
+					end
+					rat.dir = dir
+					rat.pos = Vector3.new(math.clamp(nextPos.X, -half + 3, half - 3), 0, math.clamp(nextPos.Z, -half + 3, half - 3))
 				end
-				rat.dir = dir
-				rat.pos = Vector3.new(math.clamp(nextPos.X, -half + 3, half - 3), 0, math.clamp(nextPos.Z, -half + 3, half - 3))
+			end
+			local hop = if speed > 6 then math.abs(math.sin(now * 18)) * 0.15 else 0
+			local at = rat.pos + Vector3.new(0, 0.45 + hop, 0)
+			rat.body.CFrame = CFrame.lookAt(at, at + rat.dir)
+		end
+	end)
+
+	local lastRainbow = 0
+	RunService.Heartbeat:Connect(function(dt: number)
+		for player, pet in pets do
+			local root = getRoot(player)
+			if root and pet.cat.model.Parent then
+				local goal = root.CFrame * CFrame.new(2.5, 0, 3)
+				local goalPos = Vector3.new(goal.X, 0, goal.Z)
+				local delta = goalPos - pet.pos
+				if delta.Magnitude > 60 then
+					pet.pos = goalPos
+				elseif delta.Magnitude > 0.3 then
+					pet.pos += delta * math.min(1, dt * 5)
+				end
+				local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+				local face = if delta.Magnitude > 0.5 then delta.Unit elseif look.Magnitude > 0.1 then look.Unit else Vector3.new(0, 0, -1)
+				local at = pet.pos + Vector3.new(0, 1.4 * 0.4, 0)
+				pet.cat.body.CFrame = CFrame.lookAt(at, at + face)
 			end
 		end
-		local hop = if speed > 6 then math.abs(math.sin(now * 18)) * 0.15 else 0
-		local at = rat.pos + Vector3.new(0, 0.45 + hop, 0)
-		rat.body.CFrame = CFrame.lookAt(at, at + rat.dir)
-	end
-end)
 
-local lastRainbow = 0
-RunService.Heartbeat:Connect(function(dt: number)
-	for player, pet in pets do
-		local root = getRoot(player)
-		if root and pet.cat.model.Parent then
-			local goal = root.CFrame * CFrame.new(2.5, 0, 3)
-			local goalPos = Vector3.new(goal.X, 0, goal.Z)
-			local delta = goalPos - pet.pos
-			if delta.Magnitude > 60 then
-				pet.pos = goalPos
-			elseif delta.Magnitude > 0.3 then
-				pet.pos += delta * math.min(1, dt * 5)
-			end
-			local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
-			local face = if delta.Magnitude > 0.5 then delta.Unit elseif look.Magnitude > 0.1 then look.Unit else Vector3.new(0, 0, -1)
-			local at = pet.pos + Vector3.new(0, 1.4 * 0.4, 0)
-			pet.cat.body.CFrame = CFrame.lookAt(at, at + face)
+		local now = os.clock()
+		if now - lastRainbow < 0.1 then
+			return
 		end
-	end
-
-	local now = os.clock()
-	if now - lastRainbow < 0.1 then
-		return
-	end
-	lastRainbow = now
-	local color = Color3.fromHSV((now * 0.2) % 1, 0.6, 1)
-	for _, player in Players:GetPlayers() do
-		if player:GetAttribute("Lantern") == "LanternRainbow" and player:GetAttribute("LightOff") ~= true and player.Character then
-			local tool = player.Character:FindFirstChild("Lantern")
-			local handle = tool and tool:FindFirstChild("Handle") :: BasePart?
-			local light = handle and handle:FindFirstChildOfClass("PointLight")
-			if handle and light then
-				handle.Color = color
-				light.Color = color
+		lastRainbow = now
+		local color = Color3.fromHSV((now * 0.2) % 1, 0.6, 1)
+		for _, player in Players:GetPlayers() do
+			if player:GetAttribute("Lantern") == "LanternRainbow" and player:GetAttribute("LightOff") ~= true and player.Character then
+				local tool = player.Character:FindFirstChild("Lantern")
+				local handle = tool and tool:FindFirstChild("Handle") :: BasePart?
+				local light = handle and handle:FindFirstChildOfClass("PointLight")
+				if handle and light then
+					handle.Color = color
+					light.Color = color
+				end
 			end
 		end
-	end
-end)
+	end)
 
-local headings: { [Player]: { pos: Vector3, heading: Vector3 } } = {}
+	local headings: { [Player]: { pos: Vector3, heading: Vector3 } } = {}
 
-local function onDogEvent(dog: LiveDog, event: string, player: Player?, now: number)
-	if event == "alert" then
-		dog.bark.Text = "!"
-		dog.barkUntil = now + 0.8
-		if player then
-			catEvent:FireClient(player, "spotted")
-		end
-	elseif event == "chase" or event == "lunge" then
-		dog.bark.Text = "WOOF!"
-		dog.barkUntil = now + 1
-		if player and event == "lunge" then
-			catEvent:FireClient(player, "lunge")
-		end
-	elseif event == "caught" and player then
-		dog.bark.Text = "WOOF!"
-		dog.barkUntil = now + 1
-		caughtBy(player, dog.brain.pos, "dog")
-	end
-end
-
-local function collectRunners(): ({ DogBrain.Runner }, { [number]: Player })
-	local homeFlat = Vector3.new(home.X, 0, home.Z)
-	local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
-	local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
-	local night = daylight < 0.5
-	local runners: { DogBrain.Runner } = {}
-	local byId: { [number]: Player } = {}
-	for _, player in Players:GetPlayers() do
-		local root = getRoot(player)
-		local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
-		if root and humanoid and not player:GetAttribute("Out") then
-			local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
-			local track = headings[player]
-			local heading = if track then track.heading else Vector3.new(0, 0, -1)
-			if track and (pos - track.pos).Magnitude > 0.05 then
-				heading = (pos - track.pos).Unit
+	local function onDogEvent(dog: LiveDog, event: string, player: Player?, now: number)
+		if event == "alert" then
+			dog.bark.Text = "!"
+			dog.barkUntil = now + 0.8
+			if player then
+				catEvent:FireClient(player, "spotted")
 			end
-			headings[player] = { pos = pos, heading = heading }
-			local calm = if player:GetAttribute("Hero") == "Milenkitka" then 0.92 else 1
-			table.insert(runners, {
-				id = player.UserId,
-				pos = pos,
-				heading = heading,
-				speed = humanoid.WalkSpeed * calm,
-				safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7 or player:GetAttribute("Held") == true,
-				hidden = night and player:GetAttribute("LightOff") == true,
-			})
-			byId[player.UserId] = player
+		elseif event == "chase" or event == "lunge" then
+			dog.bark.Text = "WOOF!"
+			dog.barkUntil = now + 1
+			if player and event == "lunge" then
+				catEvent:FireClient(player, "lunge")
+			end
+		elseif event == "caught" and player then
+			dog.bark.Text = "WOOF!"
+			dog.barkUntil = now + 1
+			caughtBy(player, dog.brain.pos, "dog")
 		end
 	end
-	for player in headings do
-		if not player.Parent then
-			headings[player] = nil
-		end
-	end
-	return runners, byId
-end
 
-RunService.Heartbeat:Connect(function(dt: number)
-	if #liveDogs == 0 then
-		return
-	end
-	local now = os.clock()
-	local s = dogSettings()
-	local runners, byId = collectRunners()
-	local gap = DogBrain.gap(s, now - packStart)
-	for _, dog in table.clone(liveDogs) do
-		if not dog.model.Parent then
-			continue
+	local function collectRunners(): ({ DogBrain.Runner }, { [number]: Player })
+		local homeFlat = Vector3.new(home.X, 0, home.Z)
+		local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
+		local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
+		local night = daylight < 0.5
+		local runners: { DogBrain.Runner } = {}
+		local byId: { [number]: Player } = {}
+		for _, player in Players:GetPlayers() do
+			local root = getRoot(player)
+			local humanoid = root and (root.Parent :: Model):FindFirstChildOfClass("Humanoid")
+			if root and humanoid and not player:GetAttribute("Out") then
+				local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
+				local track = headings[player]
+				local heading = if track then track.heading else Vector3.new(0, 0, -1)
+				if track and (pos - track.pos).Magnitude > 0.05 then
+					heading = (pos - track.pos).Unit
+				end
+				headings[player] = { pos = pos, heading = heading }
+				local calm = if player:GetAttribute("Hero") == "Milenkitka" then 0.92 else 1
+				table.insert(runners, {
+					id = player.UserId,
+					pos = pos,
+					heading = heading,
+					speed = humanoid.WalkSpeed * calm,
+					safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7 or player:GetAttribute("Held") == true,
+					hidden = night and player:GetAttribute("LightOff") == true,
+				})
+				byId[player.UserId] = player
+			end
 		end
-		local event, id = DogBrain.step(dog.brain, dt, now, runners, brainWorld, s, gap)
-		if event then
-			onDogEvent(dog, event, if id then byId[id] else nil, now)
+		for player in headings do
+			if not player.Parent then
+				headings[player] = nil
+			end
+		end
+		return runners, byId
+	end
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		if #liveDogs == 0 then
+			return
+		end
+		local now = os.clock()
+		local s = dogSettings()
+		local runners, byId = collectRunners()
+		local gap = DogBrain.gap(s, now - packStart)
+		for _, dog in table.clone(liveDogs) do
 			if not dog.model.Parent then
 				continue
 			end
-		end
-		local state = dog.brain.state
-		local angry = state == "alert" or state == "chase" or state == "lunge"
-		if angry ~= dog.angry then
-			dog.angry = angry
-			local color = if angry then CONE_ANGRY elseif dog.brain.kind == "pack" then CONE_PACK else CONE_CALM
-			for _, part in dog.cone do
-				part.Color = color
+			local event, id = DogBrain.step(dog.brain, dt, now, runners, brainWorld, s, gap)
+			if event then
+				onDogEvent(dog, event, if id then byId[id] else nil, now)
+				if not dog.model.Parent then
+					continue
+				end
 			end
-			dog.light.Color = color
+			local state = dog.brain.state
+			local angry = state == "alert" or state == "chase" or state == "lunge"
+			if angry ~= dog.angry then
+				dog.angry = angry
+				local color = if angry then CONE_ANGRY elseif dog.brain.kind == "pack" then CONE_PACK else CONE_CALM
+				for _, part in dog.cone do
+					part.Color = color
+				end
+				dog.light.Color = color
+			end
+			dog.bark.Visible = now < dog.barkUntil
+			local fast = state == "chase" or state == "lunge"
+			local moving = state ~= "turn" and state ~= "alert" and state ~= "rest" and not (state == "bone" and dog.brain.bone and (dog.brain.bone - dog.brain.pos).Magnitude < 1.5)
+			local hop = if moving then math.abs(math.sin(now * (if fast then 14 else 8))) * (if fast then 0.4 else 0.15) else 0
+			local at = dog.brain.pos + Vector3.new(0, 1.9 + hop, 0)
+			dog.body.CFrame = CFrame.lookAt(at, at + dog.brain.dir)
 		end
-		dog.bark.Visible = now < dog.barkUntil
-		local fast = state == "chase" or state == "lunge"
-		local moving = state ~= "turn" and state ~= "alert" and state ~= "rest"
-		local hop = if moving then math.abs(math.sin(now * (if fast then 14 else 8))) * (if fast then 0.4 else 0.15) else 0
-		local at = dog.brain.pos + Vector3.new(0, 1.9 + hop, 0)
-		dog.body.CFrame = CFrame.lookAt(at, at + dog.brain.dir)
+	end)
+
+
+	-- Neighbors hunt at night
+	local NEIGHBOR_NOSE = Vector3.new(0, -3.45, -1)
+	local hunting = false
+	local huntMode = ""
+
+	local function rnd(a: number, b: number): number
+		return rng:NextNumber(a, b)
 	end
-end)
 
-
--- Neighbors hunt at night
-local NEIGHBOR_NOSE = Vector3.new(0, -3.45, -1)
-local hunting = false
-local huntMode = ""
-
-local function rnd(a: number, b: number): number
-	return rng:NextNumber(a, b)
-end
-
-local function hunterSettings(): DogBrain.Settings
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	return DogBrain.with(dogSettings(), Config.Hunters[mode] or Config.Hunters.Easy)
-end
-
-local function neighborSay(n: Neighbor, line: { string }, seconds: number)
-	n.lineNo.Text = line[1]
-	n.lineEn.Text = line[2]
-	n.bubble.Enabled = true
-	n.sayUntil = os.clock() + seconds
-end
-
-local function dropCone(n: Neighbor)
-	for _, part in n.cone do
-		part:Destroy()
+	local function hunterSettings(): DogBrain.Settings
+		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+		return DogBrain.with(dogSettings(), Config.Hunters[mode] or Config.Hunters.Easy)
 	end
-	n.cone = {}
-	if n.light then
-		n.light:Destroy()
-		n.light = nil
-	end
-end
 
-local function startHunt(now: number, mode: string, announce: boolean)
-	local s = hunterSettings()
-	local hunters: { Neighbor } = {}
-	for _, n in neighbors do
-		dropCone(n)
-		n.brain = nil
-		n.seeker = false
-		local path = DogBrain.yardPath(rnd, brainWorld, n.cabin, home, Config.RatSafeRadius)
-		if path then
-			local brain = DogBrain.newPatrol(path.a, path.b)
-			brain.pos = Vector3.new(n.root.Position.X, 0, n.root.Position.Z)
-			brain.state = "return"
-			brain.untilTime = now + 2
-			n.brain = brain
-			n.nextSeek = now + rng:NextNumber(8, 8 + Config.SeekEvery)
-			n.angry = false
-			n.cone, n.light = makeCone(n.model, n.root, NEIGHBOR_NOSE, s.coneRange, s.coneAngle, CONE_HUNT)
-			n.lamp.Enabled = true
-			n.model:SetAttribute("Hunting", true)
-			table.insert(hunters, n)
+	local function neighborSay(n: Neighbor, line: { string }, seconds: number)
+		n.lineNo.Text = line[1]
+		n.lineEn.Text = line[2]
+		n.bubble.Enabled = true
+		n.sayUntil = os.clock() + seconds
+	end
+
+	local function dropCone(n: Neighbor)
+		for _, part in n.cone do
+			part:Destroy()
+		end
+		n.cone = {}
+		if n.light then
+			n.light:Destroy()
+			n.light = nil
 		end
 	end
-	for i = #hunters, 2, -1 do
-		local j = rng:NextInteger(1, i)
-		hunters[i], hunters[j] = hunters[j], hunters[i]
-	end
-	for i = 1, math.min(Config.Seekers[mode] or 1, #hunters) do
-		hunters[i].seeker = true
-	end
-	if announce then
-		catEvent:FireAllClients("hunt")
-	end
-end
 
--- A neighbor catches you: he holds you up, then you are out
-local function releaseHeld(n: Neighbor)
-	local player = n.holding
-	n.holding = nil
-	if not player then
-		return
+	local function startHunt(now: number, mode: string, announce: boolean)
+		local s = hunterSettings()
+		local hunters: { Neighbor } = {}
+		for _, n in neighbors do
+			dropCone(n)
+			n.brain = nil
+			n.seeker = false
+			local path = DogBrain.yardPath(rnd, brainWorld, n.cabin, home, Config.RatSafeRadius)
+			if path then
+				local brain = DogBrain.newPatrol(path.a, path.b)
+				brain.pos = Vector3.new(n.root.Position.X, 0, n.root.Position.Z)
+				brain.state = "return"
+				brain.untilTime = now + 2
+				n.brain = brain
+				n.nextSeek = now + rng:NextNumber(8, 8 + Config.SeekEvery)
+				n.angry = false
+				n.cone, n.light = makeCone(n.model, n.root, NEIGHBOR_NOSE, s.coneRange, s.coneAngle, CONE_HUNT)
+				n.lamp.Enabled = true
+				n.model:SetAttribute("Hunting", true)
+				table.insert(hunters, n)
+			end
+		end
+		for i = #hunters, 2, -1 do
+			local j = rng:NextInteger(1, i)
+			hunters[i], hunters[j] = hunters[j], hunters[i]
+		end
+		for i = 1, math.min(Config.Seekers[mode] or 1, #hunters) do
+			hunters[i].seeker = true
+		end
+		if announce then
+			catEvent:FireAllClients("hunt")
+		end
 	end
-	player:SetAttribute("Held", nil)
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if root then
-		root.Anchored = false
-		root.CFrame = CFrame.new(home + Vector3.new(rng:NextNumber(-4, 4), 3, rng:NextNumber(-4, 4)))
-	end
-	if player.Parent and round == n.holdRound then
-		loseHeart(player, true)
-	end
-end
 
-local function grabbedBy(n: Neighbor, player: Player)
-	if player:GetAttribute("Held") or player:GetAttribute("Out") or n.holding then
-		return
+	-- A neighbor catches you: he holds you up, then you are out
+	local function releaseHeld(n: Neighbor)
+		local player = n.holding
+		n.holding = nil
+		if not player then
+			return
+		end
+		player:SetAttribute("Held", nil)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			root.Anchored = false
+			root.CFrame = CFrame.new(home + Vector3.new(rng:NextNumber(-4, 4), 3, rng:NextNumber(-4, 4)))
+		end
+		if player.Parent and round == n.holdRound then
+			loseHeart(player, true)
+		end
 	end
-	local root = getRoot(player)
-	if not root then
-		return
-	end
-	neighborSay(n, Config.Grab, 3)
-	sayEvent:FireAllClients(n.head, 4, n.pitch)
-	if carrier == player then
-		dropCat(player, "neighbor")
-	end
-	player:SetAttribute("Held", true)
-	root.Anchored = true
-	n.holding = player
-	n.holdUntil = os.clock() + 3
-	n.holdRound = round
-	catEvent:FireAllClients("held", player, n.head)
-	local stack = stacks[player]
-	if workspace:GetAttribute("Escape") and stack and #stack > 0 then
-		failUmulig(player)
-	end
-end
 
-local function stopHunt(announce: boolean)
-	for _, n in neighbors do
-		releaseHeld(n)
-		dropCone(n)
-		n.brain = nil
-		n.lamp.Enabled = false
-		n.bubble.Enabled = false
-		n.model:SetAttribute("Hunting", nil)
+	local function grabbedBy(n: Neighbor, player: Player)
+		if player:GetAttribute("Held") or player:GetAttribute("Out") or n.holding then
+			return
+		end
+		local root = getRoot(player)
+		if not root then
+			return
+		end
+		neighborSay(n, Config.Grab, 3)
+		sayEvent:FireAllClients(n.head, 4, n.pitch)
+		if carrier == player then
+			dropCat(player, "neighbor")
+		end
+		player:SetAttribute("Held", true)
+		root.Anchored = true
+		n.holding = player
+		n.holdUntil = os.clock() + 3
+		n.holdRound = round
+		catEvent:FireAllClients("held", player, n.head)
+		local stack = stacks[player]
+		if workspace:GetAttribute("Escape") and stack and #stack > 0 then
+			failUmulig(player)
+		end
 	end
-	if announce then
-		catEvent:FireAllClients("dawn")
-	end
-end
 
-RunService.Heartbeat:Connect(function(dt: number)
-	local now = os.clock()
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
-	local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
-	local want = Config.HuntByDay[mode] == true or daylight < 0.5
-	if want and (not hunting or huntMode ~= mode) then
-		local announce = not hunting
-		hunting, huntMode = true, mode
-		startHunt(now, mode, announce)
-	elseif not want and hunting then
-		hunting = false
-		stopHunt(daylight >= 0.5 and Config.HuntByDay[huntMode] ~= true)
+	local function stopHunt(announce: boolean)
+		for _, n in neighbors do
+			releaseHeld(n)
+			dropCone(n)
+			n.brain = nil
+			n.lamp.Enabled = false
+			n.bubble.Enabled = false
+			n.model:SetAttribute("Hunting", nil)
+		end
+		if announce then
+			catEvent:FireAllClients("dawn")
+		end
 	end
-	if not hunting then
-		return
-	end
-	local s = hunterSettings()
-	local runners, byId = collectRunners()
-	for _, n in neighbors do
-		local held = n.holding
-		if held then
-			local character = held.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if now >= n.holdUntil or not held.Parent or not root then
-				releaseHeld(n)
-			else
-				root.CFrame = n.root.CFrame * CFrame.new(0, 0.8, -2.2) * CFrame.Angles(0, math.pi, 0)
+
+	RunService.Heartbeat:Connect(function(dt: number)
+		local now = os.clock()
+		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+		local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
+		local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
+		local want = Config.HuntByDay[mode] == true or daylight < 0.5
+		if want and (not hunting or huntMode ~= mode) then
+			local announce = not hunting
+			hunting, huntMode = true, mode
+			startHunt(now, mode, announce)
+		elseif not want and hunting then
+			hunting = false
+			stopHunt(daylight >= 0.5 and Config.HuntByDay[huntMode] ~= true)
+		end
+		if not hunting then
+			return
+		end
+		local s = hunterSettings()
+		local runners, byId = collectRunners()
+		for _, n in neighbors do
+			local held = n.holding
+			if held then
+				local character = held.Character
+				local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if now >= n.holdUntil or not held.Parent or not root then
+					releaseHeld(n)
+				else
+					root.CFrame = n.root.CFrame * CFrame.new(0, 0.8, -2.2) * CFrame.Angles(0, math.pi, 0)
+					continue
+				end
+			end
+			local brain = n.brain
+			if not brain then
 				continue
 			end
-		end
-		local brain = n.brain
-		if not brain then
-			continue
-		end
-		local escaping = workspace:GetAttribute("Escape") ~= nil
-		if escaping and now < escapeCalm and (brain.state == "alert" or brain.state == "chase") then
-			brain.state = "return"
-			brain.untilTime = escapeCalm
-		end
-		if n.seeker and not escaping and now >= n.nextSeek and (brain.state == "patrol" or brain.state == "turn") then
-			n.nextSeek = now + Config.SeekEvery
-			local target: DogBrain.Runner? = nil
-			for _, r in runners do
-				if not r.safe and (not target or (r.pos - brain.pos).Magnitude < (target.pos - brain.pos).Magnitude) then
-					target = r
-				end
-			end
-			local path = target and DogBrain.huntPath(rnd, brainWorld, target.pos, target.heading, home, Config.RatSafeRadius)
-			if path then
-				brain.a, brain.b = path.a, path.b
+			local escaping = workspace:GetAttribute("Escape") ~= nil
+			if escaping and now < escapeCalm and (brain.state == "alert" or brain.state == "chase") then
 				brain.state = "return"
-				brain.untilTime = now
-				if (brain.pos - path.a).Magnitude > 60 then
-					brain.pos = path.a
-					n.graceUntil = now + 1
+				brain.untilTime = escapeCalm
+			end
+			if n.seeker and not escaping and now >= n.nextSeek and (brain.state == "patrol" or brain.state == "turn") then
+				n.nextSeek = now + Config.SeekEvery
+				local target: DogBrain.Runner? = nil
+				for _, r in runners do
+					if not r.safe and (not target or (r.pos - brain.pos).Magnitude < (target.pos - brain.pos).Magnitude) then
+						target = r
+					end
+				end
+				local path = target and DogBrain.huntPath(rnd, brainWorld, target.pos, target.heading, home, Config.RatSafeRadius)
+				if path then
+					brain.a, brain.b = path.a, path.b
+					brain.state = "return"
+					brain.untilTime = now
+					if (brain.pos - path.a).Magnitude > 60 then
+						brain.pos = path.a
+						n.graceUntil = now + 1
+					end
 				end
 			end
-		end
-		local event, id = DogBrain.step(brain, dt, now, if now < n.graceUntil then {} else runners, brainWorld, s, 0)
-		local player = if id then byId[id] else nil
-		if event == "alert" then
-			neighborSay(n, Config.Hunt, 2)
-			sayEvent:FireAllClients(n.head, 1, n.pitch)
-			if player then
-				catEvent:FireClient(player, "hunted")
+			local event, id = DogBrain.step(brain, dt, now, if now < n.graceUntil then {} else runners, brainWorld, s, 0)
+			local player = if id then byId[id] else nil
+			if event == "alert" then
+				neighborSay(n, Config.Hunt, 2)
+				sayEvent:FireAllClients(n.head, 1, n.pitch)
+				if player then
+					catEvent:FireClient(player, "hunted")
+				end
+			elseif event == "chase" then
+				neighborSay(n, Config.Chase, 2)
+			elseif event == "caught" and player then
+				grabbedBy(n, player)
 			end
-		elseif event == "chase" then
-			neighborSay(n, Config.Chase, 2)
-		elseif event == "caught" and player then
-			grabbedBy(n, player)
-		end
-		if not n.brain then
-			continue
-		end
-		if now > n.sayUntil then
-			n.bubble.Enabled = false
-		end
-		local angry = brain.state == "alert" or brain.state == "chase"
-		if angry ~= n.angry then
-			n.angry = angry
-			local color = if angry then CONE_ANGRY else CONE_HUNT
-			for _, part in n.cone do
-				part.Color = color
+			if not n.brain then
+				continue
 			end
-			if n.light then
-				n.light.Color = color
+			if now > n.sayUntil then
+				n.bubble.Enabled = false
 			end
+			local angry = brain.state == "alert" or brain.state == "chase"
+			if angry ~= n.angry then
+				n.angry = angry
+				local color = if angry then CONE_ANGRY else CONE_HUNT
+				for _, part in n.cone do
+					part.Color = color
+				end
+				if n.light then
+					n.light.Color = color
+				end
+			end
+			local moving = brain.state ~= "turn" and brain.state ~= "alert"
+			local bob = if moving then math.abs(math.sin(now * (if brain.state == "chase" then 12 else 6))) * 0.12 else 0
+			local at = Vector3.new(brain.pos.X, n.spot.Y + bob, brain.pos.Z)
+			n.root.CFrame = CFrame.lookAt(at, at + brain.dir)
 		end
-		local moving = brain.state ~= "turn" and brain.state ~= "alert"
-		local bob = if moving then math.abs(math.sin(now * (if brain.state == "chase" then 12 else 6))) * 0.12 else 0
-		local at = Vector3.new(brain.pos.X, n.spot.Y + bob, brain.pos.Z)
-		n.root.CFrame = CFrame.lookAt(at, at + brain.dir)
-	end
-end)
+	end)
+end
 
 newRound()
 ]]></string>
@@ -4270,6 +4646,7 @@ local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
 local shopEvent = ReplicatedStorage:WaitForChild("Shop") :: RemoteEvent
 local sayEvent = ReplicatedStorage:WaitForChild("NeighborSay") :: RemoteEvent
 local flashEvent = ReplicatedStorage:WaitForChild("Flash") :: RemoteEvent
+local boneEvent = ReplicatedStorage:WaitForChild("ThrowBone") :: RemoteEvent
 local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
@@ -4498,7 +4875,7 @@ round(timerLabel, UDim.new(0, 12))
 local heartsLabel = new("TextLabel", {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 54),
-	Size = UDim2.fromOffset(160, 28),
+	Size = UDim2.fromOffset(260, 28),
 	BackgroundTransparency = 1,
 	Font = FONT,
 	TextSize = 22,
@@ -4511,7 +4888,8 @@ local function showHearts()
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
 	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
-	heartsLabel.Text = if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
+	local tag = if workspace:GetAttribute("Daily") then "⭐ " else "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
+	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
 end
 -- Lantern button
 task.spawn(function()
@@ -4640,6 +5018,69 @@ RunService.RenderStepped:Connect(function()
 	flame.Visible = not off
 	lanternRing.Color = if off then Color3.fromRGB(90, 90, 100) else color
 	flame.Size = UDim2.fromOffset(9, 12 + math.sin(os.clock() * 9) * 1.5)
+end)
+
+-- Bone button
+local boneButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, -96, 1, -24),
+	Size = UDim2.fromOffset(68, 68),
+	BackgroundColor3 = Color3.fromRGB(25, 28, 34),
+	BackgroundTransparency = 0.15,
+	Font = FONT,
+	TextSize = 30,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "🦴",
+	ZIndex = 2,
+	Parent = gui,
+})
+round(boneButton, UDim.new(1, 0))
+local boneRing = new("UIStroke", { Color = Color3.fromRGB(245, 240, 225), Thickness = 3, Parent = boneButton })
+local boneCount = new("TextLabel", {
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, 2, 1, 2),
+	Size = UDim2.fromOffset(26, 22),
+	BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+	Font = FONT,
+	TextSize = 16,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "0",
+	ZIndex = 3,
+	Parent = boneButton,
+})
+round(boneCount, UDim.new(1, 0))
+if not touch then
+	new("TextLabel", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, -2, 1, 2),
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+		Font = FONT,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "G",
+		ZIndex = 3,
+		Parent = boneButton,
+	})
+end
+local function showBones()
+	local count = (player:GetAttribute("Bones") :: number?) or 0
+	boneCount.Text = tostring(count)
+	boneButton.TextTransparency = if count > 0 then 0 else 0.6
+	boneRing.Transparency = if count > 0 then 0 else 0.6
+end
+player:GetAttributeChangedSignal("Bones"):Connect(showBones)
+showBones()
+local function throwBone()
+	if ((player:GetAttribute("Bones") :: number?) or 0) > 0 then
+		boneEvent:FireServer()
+	end
+end
+boneButton.Activated:Connect(throwBone)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.G then
+		throwBone()
+	end
 end)
 
 local hiddenLabel = new("TextLabel", {
@@ -4829,6 +5270,8 @@ player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
 player:GetAttributeChangedSignal("Out"):Connect(showHearts)
 player:GetAttributeChangedSignal("MaxHearts"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
+workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
+workspace:GetAttributeChangedSignal("Daily"):Connect(showHearts)
 showHearts()
 
 local menuButton = topButton("Menu", -120, 80)
@@ -4923,7 +5366,7 @@ local intro = new("Frame", {
 local card = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromOffset(540, 450),
+	Size = UDim2.fromOffset(540, 500),
 	BackgroundColor3 = PANEL,
 	ZIndex = 11,
 	Parent = intro,
@@ -4931,7 +5374,7 @@ local card = new("Frame", {
 round(card, UDim.new(0, 20))
 outline(card, 4)
 if touch then
-	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 450, 0.5, 0.7), Parent = card })
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 500, 0.5, 0.7), Parent = card })
 end
 
 local function cardText(text: string, y: number, height: number, size: number, color: Color3)
@@ -4965,8 +5408,9 @@ local function refreshIntro()
 	for name, stroke in heroStrokes do
 		stroke.Enabled = name == selectedHero
 	end
+	local current = if workspace:GetAttribute("Daily") then "Daily" else workspace:GetAttribute("Mode")
 	for name, stroke in modeStrokes do
-		stroke.Enabled = name == workspace:GetAttribute("Mode")
+		stroke.Enabled = name == current
 	end
 end
 
@@ -5067,7 +5511,34 @@ for i, info in MODES do
 		intro.Visible = false
 	end)
 end
-cardText("The mode is the same for everyone here.", 404, 22, 15, GRAY)
+local dailyButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 400),
+	Size = UDim2.fromOffset(492, 50),
+	BackgroundColor3 = Color3.fromRGB(255, 205, 70),
+	Font = FONT,
+	TextSize = 24,
+	TextColor3 = DARK,
+	Text = "⭐ Daily challenge",
+	ZIndex = 12,
+	Parent = card,
+})
+round(dailyButton, UDim.new(0, 14))
+modeStrokes.Daily = new("UIStroke", {
+	Color = WHITE,
+	Thickness = 3,
+	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	Parent = dailyButton,
+})
+dailyButton.Activated:Connect(function()
+	playing = true
+	modeEvent:FireServer("Daily", selectedHero)
+	if Config.MusicId ~= 0 and not music.IsPlaying and musicButton.Text == "🎵" then
+		music:Play()
+	end
+	intro.Visible = false
+end)
+cardText("The mode is the same for everyone here.", 458, 22, 15, GRAY)
 
 local closeButton = new("TextButton", {
 	AnchorPoint = Vector2.new(1, 0),
@@ -5089,6 +5560,7 @@ closeButton.Activated:Connect(function()
 end)
 refreshIntro()
 workspace:GetAttributeChangedSignal("Mode"):Connect(refreshIntro)
+workspace:GetAttributeChangedSignal("Daily"):Connect(refreshIntro)
 
 menuButton.Activated:Connect(function()
 	refreshIntro()
@@ -5379,7 +5851,6 @@ end
 
 local TWISTS = {
 	tree = "Twist: Pianka is up a tree! 🌳\nClimb the steps.",
-	bushes = "Twist: Pianka is hiding in a shaking bush! 🌿\nSearch the bushes.",
 	zoomies = "Twist: Pianka has the zoomies! 💨",
 	ratparty = "Twist: Rat party! 🐀🐀🐀",
 	fullmoon = "Twist: Full moon tonight! 🌕",
@@ -5495,12 +5966,14 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		chime()
 	elseif kind == "bush" then
 		if value == "found" then
-			showBanner((if who == player then "You" else nameOf(who)) .. " found " .. cat .. " in a bush! 🌿", 3)
+			showBanner((if who == player then "You" else nameOf(who)) .. " found " .. cat .. "! 🐱", 3)
 			chime()
 		elseif value == "frog" then
 			popText("Ribbit! 🐸", Color3.fromRGB(140, 255, 140))
 		elseif value == "rat" then
 			popText("A rat! 🐀 Run!", Color3.fromRGB(255, 150, 150))
+		elseif value == "empty" then
+			popText("Empty... 🍂", Color3.fromRGB(200, 200, 200))
 		else
 			popText("Confetti! 🎉", Color3.fromRGB(255, 210, 90))
 			confetti()
@@ -5538,6 +6011,10 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "bird" then
 		popText("+1 ❤️ 🐦", Color3.fromRGB(255, 140, 180))
 		chime()
+	elseif kind == "gotBone" then
+		popText("+1 🦴", Color3.fromRGB(245, 240, 225))
+	elseif kind == "bone" then
+		popText(if seconds > 0 then "🦴 Dogs went for the bone!" else "🦴 No dogs near it", Color3.fromRGB(245, 240, 225))
 	elseif kind == "kittensBack" then
 		showBanner(if who == player then "Your kittens ran back\ninto the forest! 🐾" else nameOf(who) .. "'s kittens ran\nback into the forest! 🐾", 3)
 	elseif kind == "heart" then
@@ -5583,6 +6060,11 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "bought" then
 		showBanner("You got " .. tostring(value) .. "! 🎉", 2)
 		chime()
+	elseif kind == "level" then
+		showBanner("Level " .. tostring(value) .. "! ⬆️\nMore dogs. Better hiding.", 3)
+		chime()
+	elseif kind == "daily" then
+		showBanner("⭐ Daily challenge\nSame forest for everyone today!", 4)
 	elseif kind == "mode" then
 		showBanner((if who == player then "You" else nameOf(who)) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end
@@ -5786,6 +6268,16 @@ local function animalSounds()
 				playClip(child.PrimaryPart, Config.Meow, 1.5, math.random(95, 105) / 100, 300)
 			end
 		end
+		-- Hidden: the meow comes from her hiding spot
+		local spots = workspace:FindFirstChild("Twist")
+		if spots then
+			for _, spot in spots:GetChildren() do
+				if spot:IsA("BasePart") and spot:GetAttribute("Pianka") then
+					playClip(spot, Config.Meow, 1.6, math.random(95, 105) / 100, 120)
+					nextMeow = now + math.random(40, 60) / 10
+				end
+			end
+		end
 	end
 	local kittens = workspace:FindFirstChild("Kittens")
 	if kittens and now > nextMew then
@@ -5915,7 +6407,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 
 	showDogs(root.Position, right)
 	catDot.Visible = true
-	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" else "🐱"
+	local hidden = mode == "cat" and workspace:GetAttribute("CatHidden") == true
+	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" elseif hidden then "❓" else "🐱"
 	local spot = radarPos(offset, right)
 	catDot.Position = spot + UDim2.fromOffset(wobble.X * fuzz * 30, wobble.Y * fuzz * 30)
 
@@ -5930,6 +6423,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 		hintLabel.Text = if distance < 50 then "Almost home!" else "Bring her home!"
 	elseif mode == "kitten" then
 		hintLabel.Text = kittensLeft .. " of " .. Config.KittenCount .. " kittens left"
+	elseif hidden and distance < 45 then
+		hintLabel.Text = "Hiding here! Listen 👂"
 	elseif distance < 15 then
 		hintLabel.Text = "She is right here!"
 	elseif distance < 50 then

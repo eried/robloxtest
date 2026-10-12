@@ -148,6 +148,7 @@ end
 
 -- Bots
 local bots: { any } = {}
+local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1 }
 
 local function addBot(name: string, kind: string, hero: string): any
 	local player, ctx = Engine.addPlayer(name)
@@ -246,13 +247,34 @@ local function botStep(bot: any, dt: number)
 		goal = HOME
 	else
 		local cat = workspace:GetAttribute("CatPosition")
-		if cat then
+		if cat and workspace:GetAttribute("CatHidden") then
+			-- GPS shows the area, close by the hiding spots are visible
+			goal = flat(cat)
+			if (goal - pos).Magnitude < 45 then
+				local best = math.huge
+				for _, part in workspace:FindFirstChild("Twist"):GetChildren() do
+					if part.Name == "HidingSpot" then
+						local d = (flat(part.Position) - pos).Magnitude
+						if d < best then
+							best, goal = d, flat(part.Position)
+						end
+					end
+				end
+				stats.searching = true
+			end
+		elseif cat then
 			goal = flat(cat)
 		else
 			local kitten = nearestChild("Kittens", pos)
 			if kitten then
 				goal = kitten
 			end
+		end
+	end
+	if (player:GetAttribute("Bones") or 0) < 1 and bot.kind ~= "naive" then
+		local bone, d = nearestChild("Bones", pos)
+		if bone and d < 20 and d < (goal - pos).Magnitude then
+			goal = bone
 		end
 	end
 	if hearts < maxHearts and not workspace:GetAttribute("Escape") then
@@ -346,6 +368,23 @@ local function botStep(bot: any, dt: number)
 		end
 	end
 
+	-- Bones: careful bots press G when a dog comes close, kids tap the button late
+	if (player:GetAttribute("Bones") or 0) > 0 and now - (bot.lastBone or -10) > 1 and bot.kind ~= "naive" then
+		for _, e in enemies() do
+			if e.range == 22 and (e.pos - pos).Magnitude < (if bot.kind == "careful" then 16 else 8) then
+				bot.lastBone = now
+				if bot.kind == "careful" then
+					Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = Enum.KeyCode.G, UserInputType = Enum.UserInputType.Keyboard }, false)
+				else
+					click(bot, findButton(bot, function(b)
+						return string.find(b.Text, "🦴", 1, true) ~= nil
+					end))
+				end
+				break
+			end
+		end
+	end
+
 	-- Lantern: careful bots switch it off near neighbors at night, kids sometimes
 	local _, daylight = Sky.at(workspace:GetServerTimeNow() - workspace:GetAttribute("DayStart"), Config.DayMinutes, Config.NightShare)
 	local wantOff = false
@@ -372,7 +411,6 @@ local function botStep(bot: any, dt: number)
 end
 
 -- Invariants checked every second
-local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0 }
 local lastRoundStart = workspace:GetAttribute("RoundStart")
 local longestRound = 0
 local roundBegan = Engine.now
@@ -409,6 +447,12 @@ local function invariants()
 		if bot.player:GetAttribute("Out") and hearts ~= 0 then
 			check(false, bot.name .. " is out with hearts left")
 		end
+	end
+	local level = workspace:GetAttribute("Level") or 1
+	stats.maxLevel = math.max(stats.maxLevel, level)
+	check(level >= 1 and level <= Config.Level.Max, "level out of range: " .. tostring(level))
+	if workspace:GetAttribute("Daily") then
+		check(level == Config.DailyLevel and mode == "Normal", "daily must be Normal at the daily level")
 	end
 	local start = workspace:GetAttribute("RoundStart")
 	if start ~= lastRoundStart then
@@ -523,6 +567,30 @@ scenario("Easy after Umulig", "Easy", function()
 	removeBot(bots[3])
 	removeBot(bots[2])
 end, secs / 2)
+check(workspace:GetAttribute("Level") ~= nil, "level missing")
+
+-- Daily challenge from the menu button
+do
+	local before = snapshot()
+	pickMode(bots[1], "⭐ Daily challenge")
+	wantMode = nil
+	run(2)
+	check(workspace:GetAttribute("Daily") == true and workspace:GetAttribute("Mode") == "Normal", "daily: button did not start the daily challenge")
+	check(workspace:GetAttribute("Level") == Config.DailyLevel, "daily: wrong level")
+	check(diff(before, "daily") > 0, "daily: no daily banner")
+	run(secs)
+	local board = workspace:FindFirstChild("Camp"):FindFirstChild("DailyBoard")
+	local text = board and board:FindFirstChildOfClass("SurfaceGui"):FindFirstChildOfClass("TextLabel").Text or ""
+	check(string.find(text, "Daily", 1, true) ~= nil, "daily: board missing")
+	if diff(before, "allKittens") > 0 then
+		check(string.find(text, "1. ", 1, true) ~= nil, "daily: a win was not saved on the board")
+	end
+	print(string.format("Daily: wins %d, fails %d, board: %s", diff(before, "allKittens"),
+		diff(before, "hearts") + diff(before, "timeUp") + diff(before, "lost"), (string.gsub(text, "\n", " | "))))
+	pickMode(bots[1], "Easy")
+	run(6)
+	check(not workspace:GetAttribute("Daily") and workspace:GetAttribute("Level") == 1, "daily: leaving did not reset")
+end
 
 -- Shop and lantern from the client
 local shopEvent = game:GetService("ReplicatedStorage"):FindFirstChild("Shop")
@@ -600,6 +668,11 @@ print("")
 check(stats.nightSeen and stats.daySeen, "should see both day and night")
 check((counts.hunt or 0) > 0, "neighbors never started hunting")
 check(stats.huntOk, "neighbors hunted at the wrong time")
+check(stats.searching and (counts.bush or 0) > 0, "bots never searched a hiding spot")
+check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked up or thrown")
+check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
+print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d",
+	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0))
 print(string.format("Events: hunt %d, dawn %d, dropped %d, gift %d, twist %d, out %d",
 	counts.hunt or 0, counts.dawn or 0, counts.dropped or 0, counts.gift or 0, counts.twist or 0, counts.out or 0))
 local catchList = {}

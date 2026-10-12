@@ -8,7 +8,7 @@ local V3 = roblox.Vector3
 Engine.build()
 Engine.startServer()
 local workspace = Engine.workspace
-local player = Engine.addPlayer("Ana")
+local player, ctx = Engine.addPlayer("Ana")
 for _ = 1, 20 * 25 do
 	Engine.step(1 / 20)
 end
@@ -30,6 +30,7 @@ local function dump(model: any, kind: string)
 				size = { p.Size.X, p.Size.Y, p.Size.Z },
 				color = { c.R, c.G, c.B },
 				ball = p.Shape == roblox.Enum.PartType.Ball,
+				cyl = p.Shape == roblox.Enum.PartType.Cylinder,
 				neon = p.Material == roblox.Enum.Material.Neon,
 				alpha = 1 - p.Transparency,
 			})
@@ -75,6 +76,32 @@ for _, m in workspace:GetChildren() do
 		dump(m, "pianka")
 	end
 end
+first("Bones", "bone", 1)
+
+-- Hiding spots: switch modes a few times to see every kind
+local seen = {}
+local function spots()
+	local twist = workspace:FindFirstChild("Twist")
+	for _, p in (if twist then twist:GetChildren() else {}) do
+		local kind = p:GetAttribute("Kind")
+		if p.Name == "HidingSpot" and kind and not seen[kind] then
+			seen[kind] = true
+			dump(p, "spot:" .. kind)
+		end
+	end
+end
+spots()
+local setMode = Engine.game:GetService("ReplicatedStorage"):FindFirstChild("SetMode")
+for i = 1, 12 do
+	Engine.asClient(ctx, function()
+		setMode:FireServer(if i % 2 == 1 then "Normal" else "Easy")
+	end)
+	for _ = 1, 20 * 7 do
+		Engine.step(1 / 20)
+	end
+	spots()
+end
+
 local character = player.Character
 if character then
 	dump(character, "player")

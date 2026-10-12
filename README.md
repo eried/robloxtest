@@ -16,6 +16,14 @@ Pianka the cat is lost in the dark forest. Use your GPS to find her!
 - **Normal**: thick fog, Pianka runs away 3 times. And there is a surprise when you catch her!
 - **Umulig** (almost impossible): like Normal, then run home with the kittens while a pack of dogs follows you.
 
+Pianka hides in a bush, barrel, log or crate. The GPS only shows the area, so search the spots and listen for her meow. Wrong spots can hide a frog, a rat or a fish gift.
+
+Every rescue is one level up (up to 10): more dogs, wider lights, more rats, less time, more hiding spots and Pianka runs more. Picking a mode starts again at level 1.
+
+**⭐ Daily challenge**: the same forest for everyone today, Normal at level 3. The fastest teams go on the Daily board at camp.
+
+Pick up bones 🦴 (up to 3). Tap the bone button or press G: it flies to the closest dog, and every guard dog near it stops to eat. Save one for a friend in trouble. The Umulig pack does not care about bones.
+
 You have 3 hearts (2 in Normal). A dog bite or a neighbor grab costs one. Out of hearts? You faint 😵 until the next round. If everyone faints, the round is lost. Pianka leaves a trail of birds 🐦 that leads to her, like a cat gift. Each one gives a heart back.
 
 The GPS always shows Pianka. Enemies show up only when you can see them, and the GPS gets fuzzy when they are close. Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
@@ -26,7 +34,7 @@ Watch out for rats! They nibble and slow you down. Jump on them to squash them, 
 
 Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten pet.
 
-Every round can have a twist: Pianka up a tree or hiding in a shaking bush, zoomies, a rat party, a full moon or a golden Pianka.
+Every round can have a twist: Pianka up a tree, zoomies, a rat party, a full moon or a golden Pianka.
 
 Turning the lantern back on flashes and scares rats. Glowing mushrooms give super speed (blue), super light that scares rats (yellow) or a super jump (pink). Mud puddles slow you down. Neighbors sometimes point the way. Rescue 5, 25 or 100 times to earn ⭐ 🏅 👑 next to your name.
 

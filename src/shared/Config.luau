@@ -53,6 +53,17 @@ return {
 	Seekers = { Easy = 1, Normal = 1, Umulig = 2 },
 	SeekEvery = 20,
 	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
+	-- Each rescue raises the level up to Max
+	Level = {
+		Max = 10, dogsEvery = 1, maxDogs = 6, cone = 0.8, maxCone = 6, chase = 0.015,
+		rats = 2, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
+	},
+	HideSpots = 3,
+	DailyLevel = 3,
+	BoneCount = { Easy = 4, Normal = 3, Umulig = 3 },
+	BoneMax = 3,
+	BoneReach = 30,
+	BoneEat = 6,
 	BirdCount = { Easy = 2, Normal = 1, Umulig = 0 },
 
 	DayMinutes = 10,

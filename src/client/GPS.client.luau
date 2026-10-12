@@ -14,6 +14,7 @@ local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
 local shopEvent = ReplicatedStorage:WaitForChild("Shop") :: RemoteEvent
 local sayEvent = ReplicatedStorage:WaitForChild("NeighborSay") :: RemoteEvent
 local flashEvent = ReplicatedStorage:WaitForChild("Flash") :: RemoteEvent
+local boneEvent = ReplicatedStorage:WaitForChild("ThrowBone") :: RemoteEvent
 local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
@@ -242,7 +243,7 @@ round(timerLabel, UDim.new(0, 12))
 local heartsLabel = new("TextLabel", {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 54),
-	Size = UDim2.fromOffset(160, 28),
+	Size = UDim2.fromOffset(260, 28),
 	BackgroundTransparency = 1,
 	Font = FONT,
 	TextSize = 22,
@@ -255,7 +256,8 @@ local function showHearts()
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
 	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
-	heartsLabel.Text = if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
+	local tag = if workspace:GetAttribute("Daily") then "⭐ " else "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
+	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
 end
 -- Lantern button
 task.spawn(function()
@@ -384,6 +386,69 @@ RunService.RenderStepped:Connect(function()
 	flame.Visible = not off
 	lanternRing.Color = if off then Color3.fromRGB(90, 90, 100) else color
 	flame.Size = UDim2.fromOffset(9, 12 + math.sin(os.clock() * 9) * 1.5)
+end)
+
+-- Bone button
+local boneButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, -96, 1, -24),
+	Size = UDim2.fromOffset(68, 68),
+	BackgroundColor3 = Color3.fromRGB(25, 28, 34),
+	BackgroundTransparency = 0.15,
+	Font = FONT,
+	TextSize = 30,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "🦴",
+	ZIndex = 2,
+	Parent = gui,
+})
+round(boneButton, UDim.new(1, 0))
+local boneRing = new("UIStroke", { Color = Color3.fromRGB(245, 240, 225), Thickness = 3, Parent = boneButton })
+local boneCount = new("TextLabel", {
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, 2, 1, 2),
+	Size = UDim2.fromOffset(26, 22),
+	BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+	Font = FONT,
+	TextSize = 16,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "0",
+	ZIndex = 3,
+	Parent = boneButton,
+})
+round(boneCount, UDim.new(1, 0))
+if not touch then
+	new("TextLabel", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, -2, 1, 2),
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+		Font = FONT,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "G",
+		ZIndex = 3,
+		Parent = boneButton,
+	})
+end
+local function showBones()
+	local count = (player:GetAttribute("Bones") :: number?) or 0
+	boneCount.Text = tostring(count)
+	boneButton.TextTransparency = if count > 0 then 0 else 0.6
+	boneRing.Transparency = if count > 0 then 0 else 0.6
+end
+player:GetAttributeChangedSignal("Bones"):Connect(showBones)
+showBones()
+local function throwBone()
+	if ((player:GetAttribute("Bones") :: number?) or 0) > 0 then
+		boneEvent:FireServer()
+	end
+end
+boneButton.Activated:Connect(throwBone)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.G then
+		throwBone()
+	end
 end)
 
 local hiddenLabel = new("TextLabel", {
@@ -573,6 +638,8 @@ player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
 player:GetAttributeChangedSignal("Out"):Connect(showHearts)
 player:GetAttributeChangedSignal("MaxHearts"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
+workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
+workspace:GetAttributeChangedSignal("Daily"):Connect(showHearts)
 showHearts()
 
 local menuButton = topButton("Menu", -120, 80)
@@ -667,7 +734,7 @@ local intro = new("Frame", {
 local card = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromOffset(540, 450),
+	Size = UDim2.fromOffset(540, 500),
 	BackgroundColor3 = PANEL,
 	ZIndex = 11,
 	Parent = intro,
@@ -675,7 +742,7 @@ local card = new("Frame", {
 round(card, UDim.new(0, 20))
 outline(card, 4)
 if touch then
-	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 450, 0.5, 0.7), Parent = card })
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 500, 0.5, 0.7), Parent = card })
 end
 
 local function cardText(text: string, y: number, height: number, size: number, color: Color3)
@@ -709,8 +776,9 @@ local function refreshIntro()
 	for name, stroke in heroStrokes do
 		stroke.Enabled = name == selectedHero
 	end
+	local current = if workspace:GetAttribute("Daily") then "Daily" else workspace:GetAttribute("Mode")
 	for name, stroke in modeStrokes do
-		stroke.Enabled = name == workspace:GetAttribute("Mode")
+		stroke.Enabled = name == current
 	end
 end
 
@@ -811,7 +879,34 @@ for i, info in MODES do
 		intro.Visible = false
 	end)
 end
-cardText("The mode is the same for everyone here.", 404, 22, 15, GRAY)
+local dailyButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 400),
+	Size = UDim2.fromOffset(492, 50),
+	BackgroundColor3 = Color3.fromRGB(255, 205, 70),
+	Font = FONT,
+	TextSize = 24,
+	TextColor3 = DARK,
+	Text = "⭐ Daily challenge",
+	ZIndex = 12,
+	Parent = card,
+})
+round(dailyButton, UDim.new(0, 14))
+modeStrokes.Daily = new("UIStroke", {
+	Color = WHITE,
+	Thickness = 3,
+	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	Parent = dailyButton,
+})
+dailyButton.Activated:Connect(function()
+	playing = true
+	modeEvent:FireServer("Daily", selectedHero)
+	if Config.MusicId ~= 0 and not music.IsPlaying and musicButton.Text == "🎵" then
+		music:Play()
+	end
+	intro.Visible = false
+end)
+cardText("The mode is the same for everyone here.", 458, 22, 15, GRAY)
 
 local closeButton = new("TextButton", {
 	AnchorPoint = Vector2.new(1, 0),
@@ -833,6 +928,7 @@ closeButton.Activated:Connect(function()
 end)
 refreshIntro()
 workspace:GetAttributeChangedSignal("Mode"):Connect(refreshIntro)
+workspace:GetAttributeChangedSignal("Daily"):Connect(refreshIntro)
 
 menuButton.Activated:Connect(function()
 	refreshIntro()
@@ -1123,7 +1219,6 @@ end
 
 local TWISTS = {
 	tree = "Twist: Pianka is up a tree! 🌳\nClimb the steps.",
-	bushes = "Twist: Pianka is hiding in a shaking bush! 🌿\nSearch the bushes.",
 	zoomies = "Twist: Pianka has the zoomies! 💨",
 	ratparty = "Twist: Rat party! 🐀🐀🐀",
 	fullmoon = "Twist: Full moon tonight! 🌕",
@@ -1239,12 +1334,14 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		chime()
 	elseif kind == "bush" then
 		if value == "found" then
-			showBanner((if who == player then "You" else nameOf(who)) .. " found " .. cat .. " in a bush! 🌿", 3)
+			showBanner((if who == player then "You" else nameOf(who)) .. " found " .. cat .. "! 🐱", 3)
 			chime()
 		elseif value == "frog" then
 			popText("Ribbit! 🐸", Color3.fromRGB(140, 255, 140))
 		elseif value == "rat" then
 			popText("A rat! 🐀 Run!", Color3.fromRGB(255, 150, 150))
+		elseif value == "empty" then
+			popText("Empty... 🍂", Color3.fromRGB(200, 200, 200))
 		else
 			popText("Confetti! 🎉", Color3.fromRGB(255, 210, 90))
 			confetti()
@@ -1282,6 +1379,10 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "bird" then
 		popText("+1 ❤️ 🐦", Color3.fromRGB(255, 140, 180))
 		chime()
+	elseif kind == "gotBone" then
+		popText("+1 🦴", Color3.fromRGB(245, 240, 225))
+	elseif kind == "bone" then
+		popText(if seconds > 0 then "🦴 Dogs went for the bone!" else "🦴 No dogs near it", Color3.fromRGB(245, 240, 225))
 	elseif kind == "kittensBack" then
 		showBanner(if who == player then "Your kittens ran back\ninto the forest! 🐾" else nameOf(who) .. "'s kittens ran\nback into the forest! 🐾", 3)
 	elseif kind == "heart" then
@@ -1327,6 +1428,11 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "bought" then
 		showBanner("You got " .. tostring(value) .. "! 🎉", 2)
 		chime()
+	elseif kind == "level" then
+		showBanner("Level " .. tostring(value) .. "! ⬆️\nMore dogs. Better hiding.", 3)
+		chime()
+	elseif kind == "daily" then
+		showBanner("⭐ Daily challenge\nSame forest for everyone today!", 4)
 	elseif kind == "mode" then
 		showBanner((if who == player then "You" else nameOf(who)) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end
@@ -1530,6 +1636,16 @@ local function animalSounds()
 				playClip(child.PrimaryPart, Config.Meow, 1.5, math.random(95, 105) / 100, 300)
 			end
 		end
+		-- Hidden: the meow comes from her hiding spot
+		local spots = workspace:FindFirstChild("Twist")
+		if spots then
+			for _, spot in spots:GetChildren() do
+				if spot:IsA("BasePart") and spot:GetAttribute("Pianka") then
+					playClip(spot, Config.Meow, 1.6, math.random(95, 105) / 100, 120)
+					nextMeow = now + math.random(40, 60) / 10
+				end
+			end
+		end
 	end
 	local kittens = workspace:FindFirstChild("Kittens")
 	if kittens and now > nextMew then
@@ -1659,7 +1775,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 
 	showDogs(root.Position, right)
 	catDot.Visible = true
-	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" else "🐱"
+	local hidden = mode == "cat" and workspace:GetAttribute("CatHidden") == true
+	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" elseif hidden then "❓" else "🐱"
 	local spot = radarPos(offset, right)
 	catDot.Position = spot + UDim2.fromOffset(wobble.X * fuzz * 30, wobble.Y * fuzz * 30)
 
@@ -1674,6 +1791,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 		hintLabel.Text = if distance < 50 then "Almost home!" else "Bring her home!"
 	elseif mode == "kitten" then
 		hintLabel.Text = kittensLeft .. " of " .. Config.KittenCount .. " kittens left"
+	elseif hidden and distance < 45 then
+		hintLabel.Text = "Hiding here! Listen 👂"
 	elseif distance < 15 then
 		hintLabel.Text = "She is right here!"
 	elseif distance < 50 then

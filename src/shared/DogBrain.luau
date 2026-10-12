@@ -44,6 +44,7 @@ export type Dog = {
 	side: number,
 	back: number,
 	target: number?,
+	bone: Vector3?,
 }
 
 export type World = {
@@ -367,8 +368,45 @@ local function stepPack(dog: Dog, dt: number, now: number, runners: { Runner }, 
 	return nil, nil
 end
 
--- Moves one dog. Returns an event ("alert", "chase", "lost", "caught", "lunge") and a runner id.
+-- A thrown bone: the dog runs to it and eats it, ignoring everyone
+function DogBrain.distract(dog: Dog, bone: Vector3, now: number, eatTime: number)
+	dog.state = "bone"
+	dog.bone = flat(bone)
+	dog.untilTime = now + eatTime
+	if dog.kind ~= "pack" then
+		dog.target = nil
+	end
+end
+
+local function stepBone(dog: Dog, dt: number, now: number, world: World, s: Settings): (string?, number?)
+	local bone = dog.bone or dog.pos
+	if (bone - dog.pos).Magnitude > 1.5 then
+		moveTo(dog, bone, s.patrolSpeed * 2.2, dt, world)
+		dog.untilTime = math.max(dog.untilTime, now + 0.5)
+	elseif now >= dog.untilTime then
+		dog.bone = nil
+		dog.state = if dog.kind == "pack" then "follow" else "return"
+		dog.untilTime = now + 1
+		return "ate", nil
+	end
+	return nil, nil
+end
+
+-- Harder levels: more dogs, wider cones, a bit faster
+function DogBrain.forLevel(s: Settings, level: number, step: { [string]: number }): Settings
+	local up = math.max(level, 1) - 1
+	return DogBrain.with(s, {
+		patrolCount = s.patrolCount + math.min(step.maxDogs, up // step.dogsEvery),
+		coneRange = s.coneRange + math.min(step.maxCone, up * step.cone),
+		chaseFactor = s.chaseFactor + up * step.chase,
+	})
+end
+
+-- Moves one dog. Returns an event ("alert", "chase", "lost", "caught", "lunge", "ate") and a runner id.
 function DogBrain.step(dog: Dog, dt: number, now: number, runners: { Runner }, world: World, s: Settings, gap: number): (string?, number?)
+	if dog.state == "bone" then
+		return stepBone(dog, dt, now, world, s)
+	end
 	if dog.kind == "pack" then
 		return stepPack(dog, dt, now, runners, world, s, gap)
 	end
