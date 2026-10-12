@@ -57,7 +57,7 @@ return {
 	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
 	-- Each rescue raises the level up to Max
 	Level = {
-		Max = 10, dogsEvery = 1, maxDogs = 6, cone = 0.8, maxCone = 6, chase = 0.015,
+		Max = 10, dogsEvery = 2, maxDogs = 4, cone = 0.6, maxCone = 5, chase = 0.012,
 		rats = 1, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
 	},
 	HideSpots = 3,
