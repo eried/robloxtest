@@ -332,36 +332,151 @@ local function segmentGap(p1: Vector3, p2: Vector3, a: Vector3, b: Vector3): num
 	return math.min(toSeg(p1, a, b), toSeg(p2, a, b), toSeg(a, p1, p2), toSeg(b, p1, p2))
 end
 
--- Players go around hedges: walk to the corner on their side, then the corner on the far side
-local function detour(world, from: Vector3, goal: Vector3, depth: number, memo): Vector3
-	local best, bestD = nil, math.huge
-	for _, h in world.hedges or {} do
-		if segmentGap(from, goal, h.a, h.b) < 1.5 then
-			local d = segmentGap(from, from, h.a, h.b)
-			if d < bestD then
-				best, bestD = h, d
+-- Path finding on a coarse grid, used when a hedge is in the way (players see hedges and walk around)
+local CELL = 5
+local SIDE = math.floor(HALF * 2 / CELL)
+
+local function cellOf(p: Vector3): (number, number)
+	return math.clamp(math.floor((p.X + HALF) / CELL), 0, SIDE - 1), math.clamp(math.floor((p.Z + HALF) / CELL), 0, SIDE - 1)
+end
+
+local function centerOf(x: number, z: number): Vector3
+	return Vector3.new(x * CELL - HALF + CELL / 2, 0, z * CELL - HALF + CELL / 2)
+end
+
+local function buildGrid(world)
+	local blocked = {}
+	local function mark(p: Vector3, radius: number)
+		local x0, z0 = cellOf(p - Vector3.new(radius, 0, radius))
+		local x1, z1 = cellOf(p + Vector3.new(radius, 0, radius))
+		for x = x0, x1 do
+			for z = z0, z1 do
+				if (centerOf(x, z) - p).Magnitude < radius + CELL * 0.35 then
+					blocked[x * SIDE + z] = true
+				end
 			end
 		end
 	end
-	if not best then
+	for _, t in world.trees do
+		mark(t, 2.2)
+	end
+	for _, c in world.cabins do
+		mark(c, 9)
+	end
+	world.blocked = blocked
+end
+
+local function astar(world, from: Vector3, goal: Vector3): { Vector3 }?
+	local blocked = world.blocked
+	local sx, sz = cellOf(from)
+	local gx, gz = cellOf(goal)
+	local start, target = sx * SIDE + sz, gx * SIDE + gz
+	local heap, cost, came = { start }, { [start] = 0 }, {}
+	local score = { [start] = 0 }
+	local function push(id: number)
+		table.insert(heap, id)
+		local i = #heap
+		while i > 1 do
+			local parent = i // 2
+			if score[heap[parent]] <= score[heap[i]] then
+				break
+			end
+			heap[parent], heap[i] = heap[i], heap[parent]
+			i = parent
+		end
+	end
+	local function pop(): number
+		local top = heap[1]
+		heap[1] = heap[#heap]
+		heap[#heap] = nil
+		local i = 1
+		while true do
+			local l, r, small = i * 2, i * 2 + 1, i
+			if l <= #heap and score[heap[l]] < score[heap[small]] then
+				small = l
+			end
+			if r <= #heap and score[heap[r]] < score[heap[small]] then
+				small = r
+			end
+			if small == i then
+				break
+			end
+			heap[small], heap[i] = heap[i], heap[small]
+			i = small
+		end
+		return top
+	end
+	local steps = 0
+	while #heap > 0 and steps < 6000 do
+		steps += 1
+		local id = pop()
+		if id == target then
+			local path = {}
+			while id do
+				table.insert(path, 1, centerOf(id // SIDE, id % SIDE))
+				id = came[id]
+			end
+			path[#path] = goal
+			return path
+		end
+		local x, z = id // SIDE, id % SIDE
+		for dx = -1, 1 do
+			for dz = -1, 1 do
+				local nx, nz = x + dx, z + dz
+				if (dx ~= 0 or dz ~= 0) and nx >= 0 and nz >= 0 and nx < SIDE and nz < SIDE then
+					local n = nx * SIDE + nz
+					local corner = dx ~= 0 and dz ~= 0 and (blocked[nx * SIDE + z] or blocked[x * SIDE + nz])
+					if (not blocked[n] or n == target) and not corner then
+						local c = cost[id] + (if dx ~= 0 and dz ~= 0 then 1.414 else 1)
+						if cost[n] == nil or c < cost[n] then
+							cost[n], came[n] = c, id
+							score[n] = c + math.sqrt((nx - gx) ^ 2 + (nz - gz) ^ 2)
+							push(n)
+						end
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+local function hedgeInWay(world, from: Vector3, goal: Vector3): boolean
+	for _, h in world.hedges or {} do
+		if segmentGap(from, goal, h.a, h.b) < 2 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Straight to the goal, or along a planned path when a hedge is in the way
+local function steer(bot, world, goal: Vector3): Vector3
+	if not hedgeInWay(world, bot.pos, goal) then
+		bot.path = nil
 		return goal
 	end
-	local dir = (best.b - best.a).Unit
-	local n = Vector3.new(-dir.Z, 0, dir.X)
-	local side = if (from - best.a):Dot(n) >= 0 then 1 else -1
-	local nearA, farA = best.a - dir * 4 + n * side * 4, best.a - dir * 4 - n * side * 4
-	local nearB, farB = best.b + dir * 4 + n * side * 4, best.b + dir * 4 - n * side * 4
-	local useA = memo[best]
-	if useA == nil then
-		useA = (nearA - from).Magnitude + (goal - farA).Magnitude <= (nearB - from).Magnitude + (goal - farB).Magnitude
-		memo[best] = useA
+	local path = bot.path
+	local node = path and path[bot.pathIndex]
+	local off = node and (node - bot.pos).Magnitude or math.huge
+	local stuck = node and bot.time - bot.nodeTime > 3
+	if not path or (bot.pathGoal - goal).Magnitude > 3 or off > 12 or stuck then
+		path = astar(world, bot.pos, goal)
+		bot.path, bot.pathGoal, bot.pathIndex = path, goal, 1
+		bot.nodeBest, bot.nodeTime = math.huge, bot.time
 	end
-	local near, far = if useA then nearA else nearB, if useA then farA else farB
-	local pick = if segmentGap(from, far, best.a, best.b) >= 1.5 then far else near
-	if depth > 0 then
-		return detour(world, from, pick, depth - 1, memo)
+	if not path then
+		return goal
 	end
-	return pick
+	while bot.pathIndex < #path and (path[bot.pathIndex] - bot.pos).Magnitude < 4 do
+		bot.pathIndex += 1
+		bot.nodeBest, bot.nodeTime = math.huge, bot.time
+	end
+	local d = (path[bot.pathIndex] - bot.pos).Magnitude
+	if d < bot.nodeBest - 0.5 then
+		bot.nodeBest, bot.nodeTime = d, bot.time
+	end
+	return path[bot.pathIndex]
 end
 
 -- A bot player. "naive" walks straight, "careful" steers around cones, "kid" wanders like a searching player.
@@ -375,8 +490,7 @@ local function botStep(bot, goal: Vector3, dogs, world, mud, careful: boolean)
 		end
 		goal = bot.wander
 	end
-	bot.detours = bot.detours or {}
-	goal = detour(world, bot.pos, goal, 2, bot.detours)
+	goal = steer(bot, world, goal)
 	local toGoal = goal - bot.pos
 	local desire = if toGoal.Magnitude > 0.01 then toGoal.Unit else Vector3.new(1, 0, 0)
 	local nearTrees = DogBrain.treesNear(world, bot.pos, bot.pos, 5)
@@ -519,6 +633,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 		end
 	end
 	DogBrain.index(world)
+	buildGrid(world)
 	local dogs, placed = makePatrols(world, cat, s)
 	local hunters = makeHunters(world, hs)
 	local mud = makeMud(Config.MudCount[mode], cat)
@@ -858,7 +973,6 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 
 		if (goal - lastGoal).Magnitude > 1 then
 			best, lastGoal, lastProgress = math.huge, goal, now
-			bot.detours = {}
 		end
 		local d = (bot.pos - goal).Magnitude
 		if d < best - 1 then
