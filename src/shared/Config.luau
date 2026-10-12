@@ -1,5 +1,5 @@
 return {
-	GameName = "Find Pianka",
+	GameName = "Find Pianka the Cat",
 	Creator = "Mr. Scientist 84",
 	CatName = "Pianka",
 	CatColor = Color3.fromRGB(34, 34, 40),
@@ -56,7 +56,7 @@ return {
 	-- Each rescue raises the level up to Max
 	Level = {
 		Max = 10, dogsEvery = 1, maxDogs = 6, cone = 0.8, maxCone = 6, chase = 0.015,
-		rats = 2, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
+		rats = 1, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
 	},
 	HideSpots = 3,
 	DailyLevel = 3,
@@ -69,11 +69,10 @@ return {
 	DayMinutes = 10,
 	NightShare = 0.55,
 
-	RatCount = { Easy = 10, Normal = 14, Umulig = 18 },
+	RatCount = { Easy = 4, Normal = 6, Umulig = 8 },
 	RatSpeed = { Easy = 11, Normal = 13, Umulig = 14 },
 	RatAggro = 26,
 	RatLeash = 50,
-	RatBite = 8,
 	RatSafeRadius = 40,
 
 	FishCount = 25,

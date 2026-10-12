@@ -144,6 +144,9 @@ local function pickMode(bot: any, mode: string)
 	click(bot, findButton(bot, function(b)
 		return b.Text == mode
 	end))
+	click(bot, findButton(bot, function(b)
+		return b.Text == "▶ Play"
+	end))
 end
 
 -- Bots
@@ -169,6 +172,9 @@ local function addBot(name: string, kind: string, hero: string): any
 		Engine.step(DT)
 	end
 	pickHero(bot, hero)
+	click(bot, findButton(bot, function(b)
+		return b.Text == "▶ Play"
+	end))
 	return bot
 end
 
@@ -475,6 +481,14 @@ local function run(seconds: number)
 		end
 		for _, bot in bots do
 			botStep(bot, DT)
+			local again = findButton(bot, function(b)
+				return b.Text == "▶ Play again"
+			end)
+			if again and again.Parent.Visible and Engine.now >= (bot.againAt or 0) then
+				bot.againAt = Engine.now + 3
+				stats.again = (stats.again or 0) + 1
+				click(bot, again)
+			end
 		end
 		Engine.step(DT)
 		if Engine.now >= nextCheck then
@@ -648,7 +662,7 @@ do
 	local hearts = bots[1].player:GetAttribute("Hearts")
 	local found = false
 	for _, d in root:GetDescendants() do
-		if d.ClassName == "TextLabel" and d.Text ~= "" and (string.find(d.Text, "❤️", 1, true) or string.find(d.Text, "😵", 1, true)) and d.TextSize == 22 then
+		if d.ClassName == "TextLabel" and d.Text ~= "" and (string.find(d.Text, "❤️", 1, true) or string.find(d.Text, "👻", 1, true)) and d.TextSize == 22 then
 			found = true
 			local shown = select(2, string.gsub(d.Text, "❤️", ""))
 			check(bots[1].player:GetAttribute("Out") or shown == hearts, string.format("GPS shows %d hearts but player has %s", shown, tostring(hearts)))
@@ -671,8 +685,8 @@ check(stats.huntOk, "neighbors hunted at the wrong time")
 check(stats.searching and (counts.bush or 0) > 0, "bots never searched a hiding spot")
 check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked up or thrown")
 check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
-print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d",
-	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0))
+print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d, play again %d",
+	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0, stats.again or 0))
 print(string.format("Events: hunt %d, dawn %d, dropped %d, gift %d, twist %d, out %d",
 	counts.hunt or 0, counts.dawn or 0, counts.dropped or 0, counts.gift or 0, counts.twist or 0, counts.out or 0))
 local catchList = {}

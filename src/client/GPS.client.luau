@@ -257,7 +257,7 @@ local function showHearts()
 	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
 	local tag = if workspace:GetAttribute("Daily") then "⭐ " else "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
-	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
+	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "👻 Ghost" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
 end
 -- Lantern button
 task.spawn(function()
@@ -501,6 +501,37 @@ local overText = new("TextLabel", {
 	Parent = over,
 })
 new("UITextSizeConstraint", { MaxTextSize = 34, Parent = overText })
+local overCount = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.66),
+	Size = UDim2.new(0.8, 0, 0, 30),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 24,
+	TextColor3 = Color3.fromRGB(255, 225, 120),
+	Text = "",
+	ZIndex = 21,
+	Parent = over,
+})
+local function overButton(text: string, x: number, color: Color3): TextButton
+	local button = new("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, x, 0.78, 0),
+		Size = UDim2.fromOffset(210, 60),
+		BackgroundColor3 = color,
+		Font = FONT,
+		TextSize = 28,
+		TextColor3 = Color3.fromRGB(20, 20, 20),
+		Text = text,
+		ZIndex = 22,
+		Parent = over,
+	})
+	round(button, UDim.new(0, 16))
+	new("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = button })
+	return button
+end
+local againButton = overButton("▶ Play again", -115, GREEN)
+local overMenuButton = overButton("☰ Menu", 115, Color3.fromRGB(200, 200, 200))
 local overId = 0
 local function gameOver(text: string)
 	overId += 1
@@ -509,7 +540,19 @@ local function gameOver(text: string)
 	over.BackgroundTransparency = 1
 	over.Visible = true
 	TweenService:Create(over, TweenInfo.new(0.6), { BackgroundTransparency = 0.35 }):Play()
-	task.delay(4.5, function()
+	local start = workspace:GetAttribute("RoundStart")
+	task.spawn(function()
+		for left = 5, 1, -1 do
+			if id ~= overId or workspace:GetAttribute("RoundStart") ~= start then
+				break
+			end
+			overCount.Text = "New round in " .. left
+			task.wait(1)
+		end
+		while id == overId and workspace:GetAttribute("RoundStart") == start do
+			overCount.Text = "New round soon"
+			task.wait(0.5)
+		end
 		if id == overId then
 			over.Visible = false
 		end
@@ -650,6 +693,9 @@ musicButton.Activated:Connect(function()
 	music.Playing = not music.Playing
 	musicButton.Text = if music.Playing then "🎵" else "🔇"
 end)
+if Config.MusicId ~= 0 then
+	music:Play()
+end
 
 -- Banner
 local banner = new("TextLabel", {
@@ -762,32 +808,43 @@ end
 
 local WHITE = Color3.new(1, 1, 1)
 local GRAY = Color3.fromRGB(180, 180, 180)
-cardText(Config.GameName .. " 🐱", 14, 50, 46, Color3.fromRGB(255, 180, 90))
-cardText("by " .. Config.Creator, 62, 22, 18, GRAY)
-cardText("Find " .. Config.CatName .. " with your GPS and bring her home. Lantern off 🔦 = neighbors can't see you!", 90, 52, 20, WHITE)
-cardText("Who are you?", 146, 26, 22, GREEN)
-cardText("Pick a mode", 276, 26, 22, GREEN)
+cardText(Config.GameName .. " 🐱", 12, 50, 36, Color3.fromRGB(255, 180, 90))
+cardText("by " .. Config.Creator, 56, 22, 18, GRAY)
+cardText("Find " .. Config.CatName .. " with your GPS and bring her home!", 82, 26, 20, WHITE)
+cardText("1. Who are you?", 114, 26, 22, GREEN)
+cardText("2. Pick a mode", 214, 26, 22, GREEN)
 
+local DARK = Color3.fromRGB(20, 20, 20)
 local selectedHero = "Patrick"
+local selectedMode = "Easy"
 local heroStrokes: { [string]: UIStroke } = {}
 local modeStrokes: { [string]: UIStroke } = {}
+local playButton: TextButton
+local levelLabel: TextLabel
+
+local function currentMode(): string
+	return if workspace:GetAttribute("Daily") then "Daily" else (workspace:GetAttribute("Mode") :: string?) or "Easy"
+end
 
 local function refreshIntro()
 	for name, stroke in heroStrokes do
 		stroke.Enabled = name == selectedHero
 	end
-	local current = if workspace:GetAttribute("Daily") then "Daily" else workspace:GetAttribute("Mode")
 	for name, stroke in modeStrokes do
-		stroke.Enabled = name == current
+		stroke.Enabled = name == selectedMode
 	end
+	local level = if selectedMode == "Daily" then Config.DailyLevel
+		elseif selectedMode == currentMode() then (workspace:GetAttribute("Level") :: number?) or 1
+		else 1
+	levelLabel.Text = (if selectedMode == "Daily" then "⭐ Same forest for everyone today. " else "") .. "Level " .. level
 end
 
 for i, name in Config.HeroOrder do
 	local hero = Config.Heroes[name]
 	local button = new("TextButton", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, (i - 2) * 168, 0, 176),
-		Size = UDim2.fromOffset(156, 86),
+		Position = UDim2.new(0.5, (i - 2) * 168, 0, 142),
+		Size = UDim2.fromOffset(156, 66),
 		BackgroundColor3 = Color3.fromRGB(55, 62, 55),
 		Text = "",
 		ZIndex = 12,
@@ -801,8 +858,8 @@ for i, name in Config.HeroOrder do
 		Parent = button,
 	})
 	new("TextLabel", {
-		Position = UDim2.fromOffset(0, 8),
-		Size = UDim2.new(1, 0, 0, 40),
+		Position = UDim2.fromOffset(0, 4),
+		Size = UDim2.new(1, 0, 0, 34),
 		BackgroundTransparency = 1,
 		Font = FONT,
 		TextSize = if #name > 8 then 20 else 26,
@@ -812,11 +869,11 @@ for i, name in Config.HeroOrder do
 		Parent = button,
 	})
 	new("TextLabel", {
-		Position = UDim2.fromOffset(6, 48),
-		Size = UDim2.new(1, -12, 0, 32),
+		Position = UDim2.fromOffset(6, 36),
+		Size = UDim2.new(1, -12, 0, 26),
 		BackgroundTransparency = 1,
 		Font = FONT,
-		TextSize = 15,
+		TextSize = 14,
 		TextWrapped = true,
 		TextColor3 = GRAY,
 		Text = hero.Skill,
@@ -831,7 +888,6 @@ end
 
 local playing = false
 
-local DARK = Color3.fromRGB(20, 20, 20)
 local MODES = {
 	{ mode = "Easy", color = GREEN, note = "Find her", text = DARK },
 	{ mode = "Normal", color = Color3.fromRGB(255, 120, 90), note = "Tricky!", text = DARK },
@@ -841,11 +897,11 @@ for i, info in MODES do
 	local mode = info.mode
 	local button = new("TextButton", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, (i - 2) * 168, 0, 306),
-		Size = UDim2.fromOffset(156, 60),
+		Position = UDim2.new(0.5, (i - 2) * 168, 0, 242),
+		Size = UDim2.fromOffset(156, 50),
 		BackgroundColor3 = info.color,
 		Font = FONT,
-		TextSize = 28,
+		TextSize = 26,
 		TextColor3 = info.text,
 		Text = mode,
 		ZIndex = 12,
@@ -854,38 +910,34 @@ for i, info in MODES do
 	round(button, UDim.new(0, 14))
 	modeStrokes[mode] = new("UIStroke", {
 		Color = WHITE,
-		Thickness = 3,
+		Thickness = 4,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 		Parent = button,
 	})
 	new("TextLabel", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, (i - 2) * 168, 0, 370),
-		Size = UDim2.fromOffset(156, 22),
+		Position = UDim2.new(0.5, (i - 2) * 168, 0, 294),
+		Size = UDim2.fromOffset(156, 20),
 		BackgroundTransparency = 1,
 		Font = FONT,
-		TextSize = 16,
+		TextSize = 15,
 		TextColor3 = GRAY,
 		Text = info.note,
 		ZIndex = 12,
 		Parent = card,
 	})
 	button.Activated:Connect(function()
-		playing = true
-		modeEvent:FireServer(mode, selectedHero)
-		if Config.MusicId ~= 0 and not music.IsPlaying and musicButton.Text == "🎵" then
-			music:Play()
-		end
-		intro.Visible = false
+		selectedMode = mode
+		refreshIntro()
 	end)
 end
 local dailyButton = new("TextButton", {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 400),
-	Size = UDim2.fromOffset(492, 50),
+	Position = UDim2.new(0.5, 0, 0, 320),
+	Size = UDim2.fromOffset(492, 40),
 	BackgroundColor3 = Color3.fromRGB(255, 205, 70),
 	Font = FONT,
-	TextSize = 24,
+	TextSize = 22,
 	TextColor3 = DARK,
 	Text = "⭐ Daily challenge",
 	ZIndex = 12,
@@ -894,19 +946,37 @@ local dailyButton = new("TextButton", {
 round(dailyButton, UDim.new(0, 14))
 modeStrokes.Daily = new("UIStroke", {
 	Color = WHITE,
-	Thickness = 3,
+	Thickness = 4,
 	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 	Parent = dailyButton,
 })
 dailyButton.Activated:Connect(function()
+	selectedMode = "Daily"
+	refreshIntro()
+end)
+
+playButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 376),
+	Size = UDim2.fromOffset(260, 64),
+	BackgroundColor3 = GREEN,
+	Font = FONT,
+	TextSize = 36,
+	TextColor3 = DARK,
+	Text = "▶ Play",
+	ZIndex = 12,
+	Parent = card,
+})
+round(playButton, UDim.new(0, 18))
+new("UIStroke", { Color = WHITE, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = playButton })
+levelLabel = cardText("", 446, 22, 17, Color3.fromRGB(255, 225, 120))
+cardText("The mode is the same for everyone here.", 470, 20, 14, GRAY)
+
+playButton.Activated:Connect(function()
 	playing = true
-	modeEvent:FireServer("Daily", selectedHero)
-	if Config.MusicId ~= 0 and not music.IsPlaying and musicButton.Text == "🎵" then
-		music:Play()
-	end
+	modeEvent:FireServer(selectedMode, selectedHero)
 	intro.Visible = false
 end)
-cardText("The mode is the same for everyone here.", 458, 22, 15, GRAY)
 
 local closeButton = new("TextButton", {
 	AnchorPoint = Vector2.new(1, 0),
@@ -926,14 +996,24 @@ closeButton.Activated:Connect(function()
 	modeEvent:FireServer(nil, selectedHero)
 	intro.Visible = false
 end)
+selectedMode = currentMode()
 refreshIntro()
-workspace:GetAttributeChangedSignal("Mode"):Connect(refreshIntro)
-workspace:GetAttributeChangedSignal("Daily"):Connect(refreshIntro)
+workspace:GetAttributeChangedSignal("Level"):Connect(refreshIntro)
 
-menuButton.Activated:Connect(function()
+local function openMenu()
+	selectedMode = currentMode()
 	refreshIntro()
 	closeButton.Visible = playing
 	intro.Visible = true
+end
+menuButton.Activated:Connect(openMenu)
+againButton.Activated:Connect(function()
+	over.Visible = false
+	modeEvent:FireServer(currentMode(), selectedHero)
+end)
+overMenuButton.Activated:Connect(function()
+	over.Visible = false
+	openMenu()
 end)
 
 -- Shop
@@ -1320,7 +1400,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "bitten" then
 		flash.BackgroundTransparency = 0.6
 		TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
-		popText("Ouch! 🐀", Color3.fromRGB(255, 120, 120))
+		popText("Rat bite! -1 ❤️ 🐀", Color3.fromRGB(255, 120, 120))
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if root and clipSound then
@@ -1391,12 +1471,12 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		TweenService:Create(heartsLabel, TweenInfo.new(0.8), { TextSize = 22, TextColor3 = Color3.new(1, 1, 1) }):Play()
 	elseif kind == "out" then
 		if who == player then
-			showBanner("😵 Out of hearts!\nWait for the next round.", 4)
+			showBanner("😵 Out of hearts!\nYou are a ghost 👻 until the next round.", 5)
 		else
 			showBanner(nameOf(who) .. " is out of hearts! 😵", 3)
 		end
 	elseif kind == "hearts" then
-		gameOver("Everyone is out of hearts.\n" .. cat .. " is still lost 😿")
+		gameOver((if #Players:GetPlayers() > 1 then "Everyone is out of hearts.\n" else "Out of hearts! 😵\n") .. cat .. " is still lost 😿")
 		tryAgain(5)
 	elseif kind == "held" then
 		if who == player then
@@ -1408,7 +1488,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			showBanner(nameOf(who) .. " was caught\nby a neighbor! 😱", 3)
 		end
 	elseif kind == "hunt" then
-		showBanner("🔦 Night! The neighbors are hunting.\nStay out of their light!", 4)
+		showBanner("🌙 Night! The neighbors are hunting.\nLantern off 🔦 = they can't see you!", 4)
 	elseif kind == "dawn" then
 		showBanner("☀️ Morning! The neighbors went home.", 3)
 	elseif kind == "hunted" then

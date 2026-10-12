@@ -1085,14 +1085,29 @@ end
 
 local function setGhost(player: Player)
 	local character = player.Character
-	if not character then
+	local head = character and character:FindFirstChild("Head")
+	if not character or not head then
 		return
 	end
 	for _, part in character:GetDescendants() do
 		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
 			part.Transparency = math.max(part.Transparency, 0.6)
+		elseif part:IsA("Decal") then
+			part.Transparency = math.max(part.Transparency, 0.6)
 		end
 	end
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "Ghost"
+	tag.Size = UDim2.fromOffset(60, 60)
+	tag.StudsOffset = Vector3.new(0, 3, 0)
+	tag.AlwaysOnTop = true
+	tag.Parent = head
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.TextScaled = true
+	label.Text = "👻"
+	label.Parent = tag
 end
 
 local function maxHearts(player: Player): number
@@ -1528,14 +1543,14 @@ local function spawnRats(catPos: Vector3)
 	end
 end
 
-local function biteBy(rat: Rat, player: Player, humanoid: Humanoid)
+local loseHeart: (Player, boolean?) -> ()
+local function biteBy(rat: Rat, player: Player)
 	local now = os.clock()
-	rat.cooldown = now + 2
-	if now - (lastBitten[player] or 0) < 0.5 then
+	rat.cooldown = now + 3
+	if now - (lastBitten[player] or 0) < 2.5 then
 		return
 	end
 	lastBitten[player] = now
-	humanoid:TakeDamage(math.max(0, math.min(Config.RatBite, humanoid.Health - 1)))
 	player:SetAttribute("SlowUntil", now + 1.5)
 	applyHero(player)
 	task.delay(1.6, applyHero, player)
@@ -1544,9 +1559,7 @@ local function biteBy(rat: Rat, player: Player, humanoid: Humanoid)
 		rat.bubble.Enabled = false
 	end)
 	catEvent:FireClient(player, "bitten")
-	if carrier == player and humanoid.Health <= 30 then
-		dropCat(player)
-	end
+	loseHeart(player)
 end
 
 local function squash(rat: Rat, player: Player)
@@ -2644,7 +2657,7 @@ dropCat = function(player: Player, by: string?)
 	catEvent:FireAllClients("dropped", player, by or "rats")
 end
 
-local function loseHeart(player: Player, all: boolean?)
+loseHeart = function(player: Player, all: boolean?)
 	if not roundActive() or player:GetAttribute("Out") then
 		return
 	end
@@ -2655,11 +2668,11 @@ local function loseHeart(player: Player, all: boolean?)
 		return
 	end
 	player:SetAttribute("Out", true)
-	setGhost(player)
-	catEvent:FireAllClients("out", player)
 	returnKittens(player)
 	for _, other in Players:GetPlayers() do
 		if not other:GetAttribute("Out") then
+			setGhost(player)
+			catEvent:FireAllClients("out", player)
 			return
 		end
 	end
@@ -3141,6 +3154,10 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 		shownLevel = 1
 		catEvent:FireAllClients("mode", player, if daily then "the Daily challenge" else mode)
 		newRound()
+	elseif valid and #Players:GetPlayers() <= 1 and not busy and now - lastModeChange >= 5 then
+		-- Play alone: fresh round so the timer starts now
+		lastModeChange = now
+		newRound()
 	end
 end)
 
@@ -3403,7 +3420,7 @@ do
 				end
 				local safe = (t.pos - homeFlat).Magnitude < Config.RatSafeRadius
 				local inLeash = (t.pos - rat.nest).Magnitude < Config.RatLeash
-				if distance < targetDistance and inLeash and not safe and t.humanoid.Health > 25 and t.root.Position.Y < 5.5 then
+				if distance < targetDistance and inLeash and not safe and t.root.Position.Y < 5.5 then
 					target, targetDistance = t, distance
 				end
 			end
@@ -3429,7 +3446,7 @@ do
 						rat.windup = now + 0.3
 					elseif now >= rat.windup then
 						rat.windup = 0
-						biteBy(rat, target.player, target.humanoid)
+						biteBy(rat, target.player)
 					end
 				else
 					rat.windup = 0

@@ -1,8 +1,10 @@
-# Find Pianka
+# Find Pianka the Cat
 
 A Roblox game by Mr. Scientist 84.
 
 Pianka the cat is lost in the dark forest. Use your GPS to find her!
+
+Pick a hero, pick a mode, press **▶ Play**. Search music plays while you look for her, chase music when you carry her home.
 
 ## Heroes
 
@@ -24,13 +26,13 @@ Every rescue is one level up (up to 10): more dogs, wider lights, more rats, les
 
 Pick up bones 🦴 (up to 3). Tap the bone button or press G: it flies to the closest dog, and every guard dog near it stops to eat. Save one for a friend in trouble. The Umulig pack does not care about bones.
 
-You have 3 hearts (2 in Normal). A dog bite or a neighbor grab costs one. Out of hearts? You faint 😵 until the next round. If everyone faints, the round is lost. Pianka leaves a trail of birds 🐦 that leads to her, like a cat gift. Each one gives a heart back.
+You have 3 hearts (2 in Normal). A dog bite or a neighbor grab costs one. Out of hearts? You are a ghost 👻 until the next round. If everyone is out, it is game over: press **▶ Play again** or wait for the next round. Pianka leaves a trail of birds 🐦 that leads to her, like a cat gift. Each one gives a heart back.
 
 The GPS always shows Pianka. Enemies show up only when you can see them, and the GPS gets fuzzy when they are close. Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
 
 In Umulig a pack of dogs follows behind you in a V. They only attack if you get into their light, so keep running and avoid mud.
 
-Watch out for rats! They nibble and slow you down. Jump on them to squash them, or click your lantern to scare them away.
+Watch out for rats! A bite costs a heart. Jump on them to squash them, or click your lantern to scare them away.
 
 Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten pet.
 

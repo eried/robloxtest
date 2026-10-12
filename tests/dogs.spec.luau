@@ -270,7 +270,7 @@ local function ratStep(rat, bot, alive: boolean, world): boolean
 	local now = bot.time
 	local d = (bot.pos - rat.pos).Magnitude
 	local safe = (bot.pos - HOME).Magnitude < Config.RatSafeRadius
-	local hunting = alive and d < Config.RatAggro and (bot.pos - rat.nest).Magnitude < Config.RatLeash and not safe and bot.hp > 25
+	local hunting = alive and d < Config.RatAggro and (bot.pos - rat.nest).Magnitude < Config.RatLeash and not safe
 	local goal, speed = nil, 0
 	local bit = false
 	if hunting and now > rat.cooldown then
@@ -281,8 +281,8 @@ local function ratStep(rat, bot, alive: boolean, world): boolean
 				rat.windup = now + 0.3
 			elseif now >= rat.windup then
 				rat.windup = 0
-				rat.cooldown = now + 2
-				if now - bot.lastBite >= 0.5 then
+				rat.cooldown = now + 3
+				if now - bot.lastBite >= 2.5 then
 					bot.lastBite = now
 					bit = true
 				end
@@ -483,7 +483,6 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 		walk = walk,
 		time = 0,
 		slowUntil = 0,
-		hp = 100,
 		kid = kind == "kid",
 		wander = SPAWN,
 		wanderUntil = 0,
@@ -596,7 +595,6 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 		if alive then
 			botStep(bot, goal, active, world, mud, careful)
 		end
-		bot.hp = math.min(100, bot.hp + DT)
 		if hunting and alive and phase ~= "escape" and (bot.pos - HOME).Magnitude >= Config.RatSafeRadius then
 			for _, h in hunters do
 				if h.seeker and now >= h.nextSeek and (h.state == "patrol" or h.state == "turn") then
@@ -695,11 +693,10 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 			for _, rat in rats do
 				if ratStep(rat, bot, alive, world) then
 					r.ratBites += 1
-					bot.hp -= math.min(Config.RatBite, bot.hp - 1)
+					hearts -= 1
 					bot.slowUntil = bot.time + 1.5
-					if phase == "carry" and bot.hp <= 30 then
-						phase = "find"
-						cat = dropSpot(world, bot.pos)
+					if hearts <= 0 then
+						return finish("hearts")
 					end
 				end
 			end
