@@ -170,7 +170,7 @@ def status():
 
 PASS_IMAGES = {
     "LanternRainbow": ("art/passes/rainbow-lantern.png", "A rainbow lantern that glows in every color."),
-    "Pet": ("art/passes/kitten-pet.png", "A little black kitten that follows you everywhere."),
+    "Pet": ("art/passes/kitten-pet.png", "A little black kitten that rides on your shoulder."),
     "Crown": ("art/passes/golden-crown.png", "A shiny golden crown."),
     "ExtraHeart": ("art/passes/extra-heart.png", "One more heart in every round."),
 }

@@ -11,6 +11,8 @@ return {
 	RockCount = 60,
 	SpawnClearRadius = 30,
 	MinCatDistance = 150,
+	CatDistance = { Easy = 150, Normal = 230, Umulig = 250 },
+	Hedges = { Easy = 2, Normal = 8, Umulig = 12 },
 	HomePosition = Vector3.new(10, 0, 0),
 	HomeRadius = 8,
 	CarryTime = 75,

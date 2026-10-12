@@ -15,8 +15,8 @@ Pick a hero, pick a mode, press **▶ Play**. Search music plays while you look 
 ## Modes (same for everyone on a server)
 
 - **Easy**: find Pianka with the GPS and bring her home.
-- **Normal**: thick fog, Pianka runs away 3 times. And there is a surprise when you catch her!
-- **Umulig** (almost impossible): like Normal, then run home with the kittens while a pack of dogs follows you.
+- **Normal**: Pianka is far away behind thorn hedges, thick fog, she runs away 3 times. And there is a surprise when you catch her!
+- **Umulig** (almost impossible): even farther, even more hedges, then run home with the kittens while a pack of dogs follows you.
 
 Pianka hides in a bush, barrel, log or crate. The GPS only shows the area, so search the spots and listen for her meow. Wrong spots can hide a frog, a rat or a fish gift.
 
@@ -34,7 +34,7 @@ In Umulig a pack of dogs follows behind you in a V. They only attack if you get 
 
 Watch out for rats! A bite costs a heart. Jump on them to squash them, or click your lantern to scare them away.
 
-Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten pet.
+Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten that rides on your shoulder.
 
 Every round can have a twist: Pianka up a tree, zoomies, a rat party, a full moon or a golden Pianka.
 

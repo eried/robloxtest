@@ -4,7 +4,7 @@ local process = require("@lune/process")
 local roblox = require("@lune/roblox")
 local Engine = require("./engine")
 
-local V3, CF = roblox.Vector3, roblox.CFrame
+local V3, CF = roblox.Vector3, Engine.CFrame
 local Enum = roblox.Enum
 local MINUTES = tonumber(process.args[1]) or 12
 local DT = 1 / 20
@@ -102,8 +102,7 @@ end
 
 -- UI helpers
 local function gui(bot: any): any
-	local pg = bot.player:FindFirstChild("PlayerGui")
-	return pg and pg:FindFirstChild("GPS")
+	return bot.player:FindFirstChild("PlayerGui")
 end
 
 local function findButton(bot: any, match: (any) -> boolean): any

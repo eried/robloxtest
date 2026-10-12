@@ -99,10 +99,10 @@ local function isFree(world, p: Vector3, radius: number): boolean
 	return true
 end
 
-local function randomCatSpot(world): Vector3
+local function randomCatSpot(world, mode: string): Vector3
 	for _ = 1, 300 do
 		local p = Vector3.new(rand(-HALF + 15, HALF - 15), 0, rand(-HALF + 15, HALF - 15))
-		if (p - HOME).Magnitude >= Config.MinCatDistance and isFree(world, p, 5) then
+		if (p - HOME).Magnitude >= Config.CatDistance[mode] and isFree(world, p, 5) then
 			return p
 		end
 	end
@@ -314,6 +314,56 @@ local function ratStep(rat, bot, alive: boolean, world): boolean
 	return bit
 end
 
+-- Distance between two segments on the ground
+local function segmentGap(p1: Vector3, p2: Vector3, a: Vector3, b: Vector3): number
+	local function cross(o: Vector3, u: Vector3, v: Vector3): number
+		return (u.X - o.X) * (v.Z - o.Z) - (u.Z - o.Z) * (v.X - o.X)
+	end
+	local d1, d2 = cross(a, b, p1), cross(a, b, p2)
+	local d3, d4 = cross(p1, p2, a), cross(p1, p2, b)
+	if d1 * d2 < 0 and d3 * d4 < 0 then
+		return 0
+	end
+	local function toSeg(p: Vector3, s0: Vector3, s1: Vector3): number
+		local d = s1 - s0
+		local t = if d:Dot(d) > 1e-6 then math.clamp((p - s0):Dot(d) / d:Dot(d), 0, 1) else 0
+		return (s0 + d * t - p).Magnitude
+	end
+	return math.min(toSeg(p1, a, b), toSeg(p2, a, b), toSeg(a, p1, p2), toSeg(b, p1, p2))
+end
+
+-- Players go around hedges: walk to the corner on their side, then the corner on the far side
+local function detour(world, from: Vector3, goal: Vector3, depth: number, memo): Vector3
+	local best, bestD = nil, math.huge
+	for _, h in world.hedges or {} do
+		if segmentGap(from, goal, h.a, h.b) < 1.5 then
+			local d = segmentGap(from, from, h.a, h.b)
+			if d < bestD then
+				best, bestD = h, d
+			end
+		end
+	end
+	if not best then
+		return goal
+	end
+	local dir = (best.b - best.a).Unit
+	local n = Vector3.new(-dir.Z, 0, dir.X)
+	local side = if (from - best.a):Dot(n) >= 0 then 1 else -1
+	local nearA, farA = best.a - dir * 4 + n * side * 4, best.a - dir * 4 - n * side * 4
+	local nearB, farB = best.b + dir * 4 + n * side * 4, best.b + dir * 4 - n * side * 4
+	local useA = memo[best]
+	if useA == nil then
+		useA = (nearA - from).Magnitude + (goal - farA).Magnitude <= (nearB - from).Magnitude + (goal - farB).Magnitude
+		memo[best] = useA
+	end
+	local near, far = if useA then nearA else nearB, if useA then farA else farB
+	local pick = if segmentGap(from, far, best.a, best.b) >= 1.5 then far else near
+	if depth > 0 then
+		return detour(world, from, pick, depth - 1, memo)
+	end
+	return pick
+end
+
 -- A bot player. "naive" walks straight, "careful" steers around cones, "kid" wanders like a searching player.
 local function botStep(bot, goal: Vector3, dogs, world, mud, careful: boolean)
 	if bot.kid and (goal - bot.pos).Magnitude > 40 then
@@ -325,6 +375,8 @@ local function botStep(bot, goal: Vector3, dogs, world, mud, careful: boolean)
 		end
 		goal = bot.wander
 	end
+	bot.detours = bot.detours or {}
+	goal = detour(world, bot.pos, goal, 2, bot.detours)
 	local toGoal = goal - bot.pos
 	local desire = if toGoal.Magnitude > 0.01 then toGoal.Unit else Vector3.new(1, 0, 0)
 	local nearTrees = DogBrain.treesNear(world, bot.pos, bot.pos, 5)
@@ -458,7 +510,15 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 	local walk = if hero == "Patrick" then Config.PatrickSpeed else 16
 	local calm = if hero == "Milenkitka" then 0.92 else 1
 	local world = makeWorld()
-	local cat = randomCatSpot(world)
+	local cat = randomCatSpot(world, mode)
+	-- Thorn hedges, same rules as the game
+	world.hedges = DogBrain.hedges(rand, world, HOME, cat, Config.Hedges[mode], Config.RatSafeRadius)
+	for _, h in world.hedges do
+		for _, p in DogBrain.hedgePoints(h) do
+			table.insert(world.trees, p)
+		end
+	end
+	DogBrain.index(world)
 	local dogs, placed = makePatrols(world, cat, s)
 	local hunters = makeHunters(world, hs)
 	local mud = makeMud(Config.MudCount[mode], cat)
@@ -798,6 +858,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 
 		if (goal - lastGoal).Magnitude > 1 then
 			best, lastGoal, lastProgress = math.huge, goal, now
+			bot.detours = {}
 		end
 		local d = (bot.pos - goal).Magnitude
 		if d < best - 1 then

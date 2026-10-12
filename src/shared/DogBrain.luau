@@ -484,6 +484,74 @@ function DogBrain.patrolPaths(
 	return paths
 end
 
+-- Thorn hedges, mostly across the way from home to Pianka
+function DogBrain.hedges(
+	rand: (number, number) -> number,
+	world: World,
+	home: Vector3,
+	catPos: Vector3,
+	count: number,
+	safeRadius: number
+): { { a: Vector3, b: Vector3 } }
+	local list: { { a: Vector3, b: Vector3 } } = {}
+	local toCat = flat(catPos - home)
+	local line = if toCat.Magnitude > 1 then toCat.Unit else Vector3.new(1, 0, 0)
+	local across = rotateY(line, math.pi / 2)
+	for i = 1, count do
+		for _ = 1, 60 do
+			local center = if i % 4 == 0
+				then Vector3.new(rand(-world.half + 30, world.half - 30), 0, rand(-world.half + 30, world.half - 30))
+				else flat(home):Lerp(flat(catPos), rand(0.2, 0.85)) + across * rand(-35, 35)
+			local dir = rotateY(across, rand(-0.5, 0.5))
+			local len = rand(24, 44)
+			local a = center - dir * (len / 2)
+			local b = center + dir * (len / 2)
+			local edge = world.half - 12
+			local ok = math.abs(a.X) < edge and math.abs(a.Z) < edge and math.abs(b.X) < edge and math.abs(b.Z) < edge
+			ok = ok and (closestOnSegment(a, b, flat(home)) - flat(home)).Magnitude > safeRadius + 10
+			ok = ok and (closestOnSegment(a, b, flat(catPos)) - flat(catPos)).Magnitude > 18
+			if ok then
+				for _, c in world.cabins do
+					if (closestOnSegment(a, b, c) - c).Magnitude < 16 then
+						ok = false
+						break
+					end
+				end
+			end
+			if ok then
+				for step = 0, len, 4 do
+					local p = a + dir * step
+					for _, other in list do
+						if (closestOnSegment(other.a, other.b, p) - p).Magnitude < 10 then
+							ok = false
+							break
+						end
+					end
+					if not ok then
+						break
+					end
+				end
+			end
+			if ok then
+				table.insert(list, { a = a, b = b })
+				break
+			end
+		end
+	end
+	return list
+end
+
+-- Points along a hedge, used like trees so dogs and sight are blocked
+function DogBrain.hedgePoints(hedge: { a: Vector3, b: Vector3 }): { Vector3 }
+	local points = {}
+	local d = hedge.b - hedge.a
+	local steps = math.max(1, math.ceil(d.Magnitude / 2))
+	for i = 0, steps do
+		table.insert(points, hedge.a + d * (i / steps))
+	end
+	return points
+end
+
 -- A short straight path in a neighbor's yard
 function DogBrain.yardPath(
 	rand: (number, number) -> number,

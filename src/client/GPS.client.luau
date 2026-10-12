@@ -55,6 +55,21 @@ local gui = new("ScreenGui", {
 	Parent = player:WaitForChild("PlayerGui"),
 })
 
+-- Full screen layers that also cover the notch area on phones
+local function layer(name: string, order: number): ScreenGui
+	return new("ScreenGui", {
+		Name = name,
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ScreenInsets = Enum.ScreenInsets.None,
+		ClipToDeviceSafeArea = false,
+		DisplayOrder = order,
+		Parent = player:WaitForChild("PlayerGui"),
+	})
+end
+local backLayer = layer("Shade", -1)
+local frontLayer = layer("Cover", 10)
+
 -- GPS device
 local device = new("Frame", {
 	AnchorPoint = if touch then Vector2.new(1, 0) else Vector2.new(1, 1),
@@ -472,7 +487,7 @@ local over = new("Frame", {
 	BackgroundTransparency = 1,
 	Visible = false,
 	ZIndex = 20,
-	Parent = gui,
+	Parent = frontLayer,
 })
 local overTitle = new("TextLabel", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -775,7 +790,7 @@ local intro = new("Frame", {
 	BackgroundColor3 = Color3.new(0, 0, 0),
 	BackgroundTransparency = 0.4,
 	ZIndex = 10,
-	Parent = gui,
+	Parent = frontLayer,
 })
 local card = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -933,11 +948,11 @@ for i, info in MODES do
 end
 local dailyButton = new("TextButton", {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 320),
-	Size = UDim2.fromOffset(492, 40),
+	Position = UDim2.new(0.5, 0, 0, 318),
+	Size = UDim2.fromOffset(492, 52),
 	BackgroundColor3 = Color3.fromRGB(255, 205, 70),
 	Font = FONT,
-	TextSize = 22,
+	TextSize = 26,
 	TextColor3 = DARK,
 	Text = "⭐ Daily challenge",
 	ZIndex = 12,
@@ -957,11 +972,11 @@ end)
 
 playButton = new("TextButton", {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 376),
-	Size = UDim2.fromOffset(260, 64),
+	Position = UDim2.new(0.5, 0, 0, 380),
+	Size = UDim2.fromOffset(492, 52),
 	BackgroundColor3 = GREEN,
 	Font = FONT,
-	TextSize = 36,
+	TextSize = 30,
 	TextColor3 = DARK,
 	Text = "▶ Play",
 	ZIndex = 12,
@@ -969,8 +984,8 @@ playButton = new("TextButton", {
 })
 round(playButton, UDim.new(0, 18))
 new("UIStroke", { Color = WHITE, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = playButton })
-levelLabel = cardText("", 446, 22, 17, Color3.fromRGB(255, 225, 120))
-cardText("The mode is the same for everyone here.", 470, 20, 14, GRAY)
+levelLabel = cardText("", 440, 22, 17, Color3.fromRGB(255, 225, 120))
+cardText("The mode is the same for everyone here.", 464, 20, 14, GRAY)
 
 playButton.Activated:Connect(function()
 	playing = true
@@ -1533,13 +1548,12 @@ local tint = new("ColorCorrectionEffect", { Parent = Lighting })
 local blackout = 0
 local lastSky = os.clock()
 local shade = new("Frame", {
-	Position = UDim2.fromOffset(0, -80),
-	Size = UDim2.new(1, 0, 1, 160),
+	Size = UDim2.fromScale(1, 1),
 	BackgroundColor3 = Color3.new(0, 0, 0),
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	ZIndex = 0,
-	Parent = gui,
+	Parent = backLayer,
 })
 
 local function updateSky(): number

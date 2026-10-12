@@ -1126,6 +1126,23 @@ local function mockTypeof(v: any): string
 	return realTypeof(v)
 end
 
+-- Lune's CFrame.lookAt flips Z for some directions, so build it the way Roblox does
+local function lookAt(at: any, target: any, up: any?): any
+	local look = target - at
+	if look.Magnitude < 1e-6 then
+		return CF.new(at)
+	end
+	look = look.Unit
+	local right = look:Cross(up or V3.new(0, 1, 0))
+	if right.Magnitude < 1e-6 then
+		right = look:Cross(V3.new(0, 0, 1))
+	end
+	right = right.Unit
+	return CF.fromMatrix(at, right, right:Cross(look), -look)
+end
+local FixedCFrame = setmetatable({ lookAt = lookAt }, { __index = CF })
+Engine.CFrame = FixedCFrame
+
 -- Scripts
 local BUILTINS = {
 	math = math, table = table, string = string, coroutine = coroutine, debug = debug, utf8 = utf8, bit32 = bit32,
@@ -1156,6 +1173,7 @@ local function makeEnv(ctx: any, scriptInst: any): any
 		"PhysicalProperties", "Axes", "Faces", "Region3" } do
 		env[name] = (roblox :: any)[name]
 	end
+	env.CFrame = FixedCFrame
 	env.Random = Random
 	env.TweenInfo = TweenInfo
 	env.RaycastParams = RaycastParams
