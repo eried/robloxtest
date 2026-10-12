@@ -5,6 +5,7 @@ python3 tools/roblox.py audio    uploads sounds whose id is 0 in Config.luau
 python3 tools/roblox.py passes   creates game passes whose id is 0 in Config.luau
 python3 tools/roblox.py publish  publishes FindPianka.rbxlx
 python3 tools/roblox.py restart  restarts running servers so players get the new version
+python3 tools/roblox.py name     sets the game name to GameName in Config.luau
 """
 import json
 import os
@@ -231,5 +232,16 @@ def make_public():
     print("Visibility:", res.get("visibility"))
 
 
+def set_name():
+    with open(CONFIG) as f:
+        name = re.search(r'GameName = "([^"]+)"', f.read()).group(1)
+    place = place_id()
+    universe = universe_id(place)
+    body = json.dumps({"displayName": name}).encode()
+    url = f"{API}/cloud/v2/universes/{universe}/places/{place}?updateMask=displayName"
+    res = call("PATCH", url, body, {"Content-Type": "application/json"})
+    print("Game name:", res.get("displayName"))
+
+
 if __name__ == "__main__":
-    {"audio": audio, "passes": passes, "publish": publish, "restart": restart, "status": status, "public": make_public}[sys.argv[1]]()
+    {"audio": audio, "passes": passes, "publish": publish, "restart": restart, "status": status, "public": make_public, "name": set_name}[sys.argv[1]]()
