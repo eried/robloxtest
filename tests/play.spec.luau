@@ -600,8 +600,8 @@ do
 	end
 	print(string.format("Daily: wins %d, fails %d, board: %s", diff(before, "allKittens"),
 		diff(before, "hearts") + diff(before, "timeUp") + diff(before, "lost"), (string.gsub(text, "\n", " | "))))
-	pickMode(bots[1], "Easy")
-	run(6)
+	wantMode = "Easy"
+	run(12)
 	check(not workspace:GetAttribute("Daily") and workspace:GetAttribute("Level") == 1, "daily: leaving did not reset")
 end
 
