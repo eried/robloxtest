@@ -253,7 +253,7 @@ local heartsLabel = new("TextLabel", {
 
 local function showHearts()
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	local max = Config.Hearts[mode] or 3
+	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
 	heartsLabel.Text = if player:GetAttribute("Out") then "😵" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
 end
@@ -571,6 +571,7 @@ end
 
 player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
 player:GetAttributeChangedSignal("Out"):Connect(showHearts)
+player:GetAttributeChangedSignal("MaxHearts"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
 showHearts()
 
@@ -852,7 +853,7 @@ local shop = new("Frame", {
 round(shop, UDim.new(0, 20))
 outline(shop, 4)
 if touch then
-	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 440, 0.5, 0.75), Parent = shop })
+	new("UIScale", { Name = "Fit", Scale = math.clamp((camera.ViewportSize.Y - 70) / 440, 0.5, 0.75), Parent = shop })
 end
 new("TextLabel", {
 	Position = UDim2.fromOffset(0, 12),
@@ -938,6 +939,79 @@ for i, item in Config.Shop do
 	table.insert(shopRows, { item = item, button = button })
 end
 
+-- Robux passes
+local MarketplaceService = game:GetService("MarketplaceService")
+local passRows: { { pass: any, button: TextButton } } = {}
+local passTop = 84 + #Config.Shop * 56 + 6
+local visiblePasses = 0
+for _, pass in Config.Passes do
+	if pass.id ~= 0 then
+		visiblePasses += 1
+	end
+end
+if visiblePasses > 0 then
+	new("TextLabel", {
+		Position = UDim2.fromOffset(0, passTop),
+		Size = UDim2.new(1, 0, 0, 24),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextSize = 20,
+		TextColor3 = Color3.fromRGB(120, 230, 140),
+		Text = "With Robux",
+		ZIndex = 21,
+		Parent = shop,
+	})
+	local y = passTop + 30
+	for _, pass in Config.Passes do
+		if pass.id == 0 then
+			continue
+		end
+		local row = new("Frame", {
+			Position = UDim2.fromOffset(20, y),
+			Size = UDim2.new(1, -40, 0, 48),
+			BackgroundColor3 = Color3.fromRGB(45, 70, 55),
+			ZIndex = 21,
+			Parent = shop,
+		})
+		round(row, UDim.new(0, 12))
+		new("TextLabel", {
+			Position = UDim2.fromOffset(14, 0),
+			Size = UDim2.new(1, -140, 1, 0),
+			BackgroundTransparency = 1,
+			Font = FONT,
+			TextSize = 20,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = Color3.new(1, 1, 1),
+			Text = (if pass.key == "ExtraHeart" then "❤️ " elseif pass.key == "Crown" then "👑 " elseif pass.key == "Pet" then "🐱 " else "🌈 ") .. pass.name,
+			ZIndex = 22,
+			Parent = row,
+		})
+		local button = new("TextButton", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -8, 0.5, 0),
+			Size = UDim2.fromOffset(100, 36),
+			BackgroundColor3 = Color3.fromRGB(0, 176, 111),
+			Font = FONT,
+			TextSize = 20,
+			TextColor3 = Color3.new(1, 1, 1),
+			Text = "R$ Buy",
+			ZIndex = 22,
+			Parent = row,
+		})
+		round(button, UDim.new(0, 10))
+		button.Activated:Connect(function()
+			MarketplaceService:PromptGamePassPurchase(player, pass.id)
+		end)
+		table.insert(passRows, { pass = pass, button = button })
+		y += 56
+	end
+	shop.Size = UDim2.fromOffset(420, y + 12)
+	local fit = shop:FindFirstChild("Fit") :: UIScale?
+	if fit then
+		fit.Scale = math.clamp((camera.ViewportSize.Y - 70) / (y + 12), 0.4, 0.75)
+	end
+end
+
 local function fishCount(): number
 	local stats = player:FindFirstChild("leaderstats")
 	local fish = stats and stats:FindFirstChild("Fish") :: IntValue?
@@ -965,6 +1039,12 @@ local function refreshShop()
 			row.button.BackgroundColor3 = Color3.fromRGB(140, 200, 255)
 		end
 	end
+	for _, row in passRows do
+		local has = if row.pass.key == "ExtraHeart" then player:GetAttribute("ExtraHeart") == true else table.find(owned, row.pass.key) ~= nil
+		row.button.Text = if has then "Owned ✓" else "R$ Buy"
+		row.button.BackgroundColor3 = if has then Color3.fromRGB(110, 110, 110) else Color3.fromRGB(0, 176, 111)
+		row.button.Active = not has
+	end
 end
 
 for _, row in shopRows do
@@ -977,7 +1057,7 @@ shopButton.Activated:Connect(function()
 	refreshShop()
 	shop.Visible = not shop.Visible
 end)
-for _, name in { "Owned", "Lantern", "Crown", "Pet" } do
+for _, name in { "Owned", "Lantern", "Crown", "Pet", "ExtraHeart" } do
 	player:GetAttributeChangedSignal(name):Connect(refreshShop)
 end
 task.spawn(function()

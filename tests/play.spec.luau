@@ -10,6 +10,14 @@ local MINUTES = tonumber(process.args[1]) or 12
 local DT = 1 / 20
 
 Engine.build()
+-- Fake pass ids so the Robux shop shows up in the test
+Engine.patch = function(name: string, module: any)
+	if name == "Config" then
+		for i, pass in module.Passes do
+			pass.id = 9000 + i
+		end
+	end
+end
 
 local counts: { [string]: number } = {}
 local timeline: { string } = {}
@@ -393,7 +401,7 @@ local function invariants()
 	end
 	for _, bot in bots do
 		local hearts = bot.player:GetAttribute("Hearts")
-		local max = Config.Hearts[mode] or 3
+		local max = bot.player:GetAttribute("MaxHearts") or Config.Hearts[mode] or 3
 		if type(hearts) ~= "number" or hearts < 0 or hearts > max then
 			stats.heartsOk = false
 			check(false, string.format("%s has bad hearts %s (max %d)", bot.name, tostring(hearts), max))
@@ -528,6 +536,42 @@ if fish then
 	run(2)
 	local owned = bots[1].player:GetAttribute("Owned") or ""
 	check(string.find(owned, "LanternPink", 1, true) ~= nil, "shop: buying a lantern did not work")
+end
+
+-- Game passes: owned on join, and bought from the shop
+do
+	local probe, probeCtx = Engine.addPlayer("Pat")
+	for _ = 1, 10 do
+		Engine.step(DT)
+	end
+	local id = probe.UserId
+	Engine.passes[id] = { [9002] = true }
+	Engine.removePlayer(probe)
+	local returning = Engine.addPlayer("Pat", id)
+	for _ = 1, 40 do
+		Engine.step(DT)
+	end
+	check(returning:GetAttribute("Pet") == true and string.find(returning:GetAttribute("Owned") or "", "Pet", 1, true) ~= nil,
+		"pass: owned kitten pet not given on join")
+	Engine.removePlayer(returning)
+
+	local buyer = bots[1]
+	local before = buyer.player:GetAttribute("MaxHearts")
+	local heartButton = findButton(buyer, function(b)
+		local row = b.Parent
+		for _, c in (row and row:GetChildren() or {}) do
+			if c.ClassName == "TextLabel" and string.find(c.Text, "Extra heart", 1, true) then
+				return true
+			end
+		end
+		return false
+	end)
+	check(heartButton ~= nil, "pass: Extra heart button missing in shop")
+	click(buyer, heartButton)
+	run(1)
+	check(buyer.player:GetAttribute("ExtraHeart") == true and buyer.player:GetAttribute("MaxHearts") == (before or 0) + 1,
+		"pass: buying Extra heart did not add a heart")
+	check(heartButton and heartButton.Text == "Owned ✓", "pass: shop does not show Extra heart as owned")
 end
 
 -- GPS screen agrees with the game

@@ -1078,9 +1078,14 @@ local function setGhost(player: Player)
 	end
 end
 
-local function resetHearts(player: Player)
+local function maxHearts(player: Player): number
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	player:SetAttribute("Hearts", Config.Hearts[mode] or 3)
+	return (Config.Hearts[mode] or 3) + (if player:GetAttribute("ExtraHeart") then 1 else 0)
+end
+
+local function resetHearts(player: Player)
+	player:SetAttribute("MaxHearts", maxHearts(player))
+	player:SetAttribute("Hearts", maxHearts(player))
 	if player:GetAttribute("Out") then
 		player:SetAttribute("Out", nil)
 		task.spawn(function()
@@ -1212,12 +1217,11 @@ end
 task.spawn(function()
 	while true do
 		task.wait(0.2)
-		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-		local max = Config.Hearts[mode] or 3
 		for i = #birds, 1, -1 do
 			local bird = birds[i]
 			for _, p in Players:GetPlayers() do
 				local r = getRoot(p)
+				local max = maxHearts(p)
 				if r and not p:GetAttribute("Out") and (Vector3.new(r.Position.X, 0, r.Position.Z) - bird.pos).Magnitude < 5 then
 					local hearts = (p:GetAttribute("Hearts") :: number?) or max
 					if hearts < max then
@@ -2470,6 +2474,8 @@ local okBoard, ranking = pcall(function()
 end)
 local loaded: { [Player]: boolean } = {}
 
+local checkPasses: (Player) -> ()
+
 local function ownedList(player: Player): { string }
 	local list = {}
 	for _, id in string.split((player:GetAttribute("Owned") :: string?) or "", ",") do
@@ -2605,6 +2611,69 @@ applyCosmetics = function(player: Player)
 	end
 end
 
+-- Game passes
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local function grantPass(player: Player, key: string, announce: boolean)
+	if key == "ExtraHeart" then
+		if not player:GetAttribute("ExtraHeart") then
+			player:SetAttribute("ExtraHeart", true)
+			player:SetAttribute("MaxHearts", maxHearts(player))
+			if not player:GetAttribute("Out") then
+				player:SetAttribute("Hearts", math.min(((player:GetAttribute("Hearts") :: number?) or 0) + 1, maxHearts(player)))
+			end
+		end
+	else
+		local owned = ownedList(player)
+		if not table.find(owned, key) then
+			table.insert(owned, key)
+			player:SetAttribute("Owned", table.concat(owned, ","))
+		end
+		if announce or key ~= "LanternRainbow" or player:GetAttribute("Lantern") == nil then
+			if key == "LanternRainbow" then
+				player:SetAttribute("Lantern", key)
+			elseif key == "Crown" then
+				player:SetAttribute("Crown", true)
+			elseif key == "Pet" then
+				player:SetAttribute("Pet", true)
+			end
+		end
+		applyHero(player)
+		applyCosmetics(player)
+	end
+	if announce then
+		for _, pass in Config.Passes do
+			if pass.key == key then
+				catEvent:FireClient(player, "bought", nil, pass.name)
+			end
+		end
+	end
+end
+
+checkPasses = function(player: Player)
+	for _, pass in Config.Passes do
+		if pass.id ~= 0 then
+			local ok, has = pcall(function()
+				return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.id)
+			end)
+			if ok and has and player.Parent then
+				grantPass(player, pass.key, false)
+			end
+		end
+	end
+end
+
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+	if not purchased then
+		return
+	end
+	for _, pass in Config.Passes do
+		if pass.id == passId and pass.id ~= 0 then
+			grantPass(player, pass.key, true)
+		end
+	end
+end)
+
 shopEvent.OnServerEvent:Connect(function(player, action, id)
 	local now = os.clock()
 	if type(id) ~= "string" or now - (lastShop[player] or 0) < 0.3 then
@@ -2688,9 +2757,10 @@ local function addPlayer(player: Player)
 			end
 			loaded[player] = ok
 		end
+		checkPasses(player)
 	end)
 
-	player:SetAttribute("Hearts", Config.Hearts[(workspace:GetAttribute("Mode") :: string?) or "Easy"] or 3)
+	resetHearts(player)
 	player:GetAttributeChangedSignal("Hero"):Connect(function()
 		dressHero(player)
 	end)

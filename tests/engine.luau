@@ -171,7 +171,7 @@ for _, name in {
 	"ChildRemoved", "DescendantAdded", "DescendantRemoving", "Equipped", "Unequipped", "PromptTriggered", "MessageOut",
 	"AncestryChanged", "Destroying", "HealthChanged", "Running", "StateChanged", "Hit", "PromptShown", "PromptHidden",
 	"TriggerEnded", "MouseEnter", "MouseLeave", "FocusLost", "Deactivated", "Loaded", "LastInputTypeChanged",
-	"CharacterAppearanceLoaded", "WindowFocused", "WindowFocusReleased",
+	"CharacterAppearanceLoaded", "WindowFocused", "WindowFocusReleased", "PromptGamePassPurchaseFinished",
 } do
 	EVENTS[name] = true
 end
@@ -793,7 +793,7 @@ local serviceClasses: { [string]: boolean } = {}
 for _, name in {
 	"Players", "ReplicatedStorage", "ServerScriptService", "Lighting", "TweenService", "RunService", "SoundService",
 	"StarterGui", "UserInputService", "ContentProvider", "DataStoreService", "StarterPlayer", "ServerStorage",
-	"ProximityPromptService", "Debris", "HttpService", "TextChatService", "CollectionService",
+	"ProximityPromptService", "Debris", "HttpService", "TextChatService", "CollectionService", "MarketplaceService",
 } do
 	serviceClasses[name] = true
 end
@@ -841,6 +841,25 @@ CLASS_METHODS.RunService = {
 	end,
 	IsRunning = function()
 		return true
+	end,
+}
+
+-- Game passes: Engine.passes[userId][passId] = true means owned
+Engine.passes = {} :: { [number]: { [number]: boolean } }
+CLASS_METHODS.MarketplaceService = {
+	UserOwnsGamePassAsync = function(self: any, userId: number, passId: number)
+		return (Engine.passes[userId] or {})[passId] == true
+	end,
+	PromptGamePassPurchase = function(self: any, player: any, passId: number)
+		local service = self
+		task.defer(function()
+			local owned = Engine.passes[player._props.UserId] or {}
+			Engine.passes[player._props.UserId] = owned
+			owned[passId] = true
+			event(service, "PromptGamePassPurchaseFinished"):FireIf(function(o)
+				return o == serverCtx
+			end, player, passId, true)
+		end)
 	end,
 }
 
@@ -1180,6 +1199,9 @@ local function makeEnv(ctx: any, scriptInst: any): any
 			error("Module was not prepared: " .. tostring(module._props.Name), 2)
 		end
 		local result = factory()
+		if Engine.patch then
+			Engine.patch(module._props.Name, result)
+		end
 		ctx.modules[module] = result
 		return result
 	end
@@ -1312,13 +1334,13 @@ CLASS_METHODS.Player = {
 	end,
 }
 
-function Engine.addPlayer(name: string): any
+function Engine.addPlayer(name: string, userId: number?): any
 	nextUserId += 1
 	local players = game:GetService("Players")
 	local player = newInstance("Player")
 	player._props.Name = name
 	player._props.DisplayName = name
-	player._props.UserId = nextUserId
+	player._props.UserId = userId or nextUserId
 	for _, class in { "Backpack", "PlayerGui", "PlayerScripts" } do
 		local i = newInstance(class)
 		i._props.Name = class

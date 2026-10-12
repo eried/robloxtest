@@ -34,6 +34,10 @@ Spooky neighbors live in cabins and talk in Norwegian. At night they come out wi
 
 Each hero has a look: Patrick wears a red cap, Aurelia has cat ears and a tail, Milenkitka has a hair bun and a yellow scarf. When you carry Pianka home the chase music plays and the screen rushes.
 
+## Game passes
+
+Make them in Creator Hub: the game, **Monetization**, **Passes**, **Create a Pass**. Use the images in `art/passes`. Put each pass id in `Passes` in `src/shared/Config.luau`. Rainbow lantern, kitten pet and golden crown can also be bought with fish; the extra heart is Robux only.
+
 ## Publish
 
 1. Open `FindPianka.rbxlx` in Roblox Studio and use **File > Publish to Roblox** once.
