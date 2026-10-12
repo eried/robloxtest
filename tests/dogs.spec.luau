@@ -441,9 +441,9 @@ local function astar(world, from: Vector3, goal: Vector3): { Vector3 }?
 	return nil
 end
 
-local function hedgeInWay(world, from: Vector3, goal: Vector3): boolean
+local function hedgeInWay(world, from: Vector3, goal: Vector3, margin: number): boolean
 	for _, h in world.hedges or {} do
-		if segmentGap(from, goal, h.a, h.b) < 2 then
+		if segmentGap(from, goal, h.a, h.b) < margin then
 			return true
 		end
 	end
@@ -452,7 +452,9 @@ end
 
 -- Straight to the goal, or along a planned path when a hedge is in the way
 local function steer(bot, world, goal: Vector3): Vector3
-	if not hedgeInWay(world, bot.pos, goal) then
+	-- Keep a path until the way is clearly open, so bots do not flip at hedge ends
+	local following = bot.path ~= nil and (bot.pathGoal - goal).Magnitude <= 3
+	if not hedgeInWay(world, bot.pos, goal, if following then 6 else 3) then
 		bot.path = nil
 		return goal
 	end
