@@ -61,6 +61,13 @@ jobs:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 tools/roblox.py audio | tee -a "$GITHUB_STEP_SUMMARY"
 
+      - name: Game passes
+        if: steps.check.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 tools/roblox.py passes | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Build place
         if: steps.check.outputs.ready == 'true'
         run: |
@@ -69,7 +76,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add src/shared/Config.luau FindPianka.rbxlx
-            git commit -m "Set uploaded sound ids"
+            git commit -m "Set uploaded sound and game pass ids"
             git push
           fi
 
@@ -78,6 +85,13 @@ jobs:
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 tools/roblox.py publish | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Restart servers
+        if: steps.check.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 tools/roblox.py restart | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Make public
         if: steps.check.outputs.ready == 'true' && inputs.make_public

@@ -96,10 +96,10 @@ return {
 
 	-- Game passes made in Creator Hub (Monetization, Passes). 0 hides the pass.
 	Passes = {
-		{ key = "LanternRainbow", name = "Rainbow lantern", id = 0 },
-		{ key = "Pet", name = "Kitten pet", id = 0 },
-		{ key = "Crown", name = "Golden crown", id = 0 },
-		{ key = "ExtraHeart", name = "Extra heart", id = 0 },
+		{ key = "LanternRainbow", name = "Rainbow lantern", price = 49, id = 0 },
+		{ key = "Pet", name = "Kitten pet", price = 99, id = 0 },
+		{ key = "Crown", name = "Golden crown", price = 149, id = 0 },
+		{ key = "ExtraHeart", name = "Extra heart", price = 99, id = 0 },
 	},
 
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here

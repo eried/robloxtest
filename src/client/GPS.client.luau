@@ -994,7 +994,7 @@ if visiblePasses > 0 then
 			Font = FONT,
 			TextSize = 20,
 			TextColor3 = Color3.new(1, 1, 1),
-			Text = "R$ Buy",
+			Text = "R$ " .. tostring(pass.price),
 			ZIndex = 22,
 			Parent = row,
 		})
@@ -1041,7 +1041,7 @@ local function refreshShop()
 	end
 	for _, row in passRows do
 		local has = if row.pass.key == "ExtraHeart" then player:GetAttribute("ExtraHeart") == true else table.find(owned, row.pass.key) ~= nil
-		row.button.Text = if has then "Owned ✓" else "R$ Buy"
+		row.button.Text = if has then "Owned ✓" else "R$ " .. tostring(row.pass.price)
 		row.button.BackgroundColor3 = if has then Color3.fromRGB(110, 110, 110) else Color3.fromRGB(0, 176, 111)
 		row.button.Active = not has
 	end

@@ -2,7 +2,9 @@
 """Upload sounds and publish the place with Roblox Open Cloud.
 
 python3 tools/roblox.py audio    uploads sounds whose id is 0 in Config.luau
+python3 tools/roblox.py passes   creates game passes whose id is 0 in Config.luau
 python3 tools/roblox.py publish  publishes FindPianka.rbxlx
+python3 tools/roblox.py restart  restarts running servers so players get the new version
 """
 import json
 import os
@@ -165,6 +167,62 @@ def status():
     print(f"https://www.roblox.com/games/{place}")
 
 
+PASS_IMAGES = {
+    "LanternRainbow": ("art/passes/rainbow-lantern.png", "A rainbow lantern that glows in every color."),
+    "Pet": ("art/passes/kitten-pet.png", "A little black kitten that follows you everywhere."),
+    "Crown": ("art/passes/golden-crown.png", "A shiny golden crown."),
+    "ExtraHeart": ("art/passes/extra-heart.png", "One more heart in every round."),
+}
+
+
+def multipart(fields, files):
+    boundary = uuid.uuid4().hex
+    body = b""
+    for name, value in fields.items():
+        body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode()
+    for name, (filename, content, kind) in files.items():
+        body += (
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\n"
+            f"Content-Type: {kind}\r\n\r\n"
+        ).encode() + content + b"\r\n"
+    body += f"--{boundary}--\r\n".encode()
+    return body, {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+
+
+def passes():
+    key_info()
+    universe = universe_id(place_id())
+    with open(CONFIG) as f:
+        config = f.read()
+    pattern = re.compile(r'\{ key = "(\w+)", name = "([^"]+)", price = (\d+), id = 0 \}')
+    found = pattern.findall(config)
+    if not found:
+        print("All game passes already have ids")
+        return
+    for key, name, price in found:
+        path, description = PASS_IMAGES[key]
+        with open(path, "rb") as f:
+            image = f.read()
+        body, headers = multipart(
+            {"name": name, "description": description, "isForSale": "true", "price": price},
+            {"imageFile": (os.path.basename(path), image, "image/png")},
+        )
+        res = call("POST", f"{API}/game-passes/v1/universes/{universe}/game-passes", body, headers)
+        pass_id = res.get("gamePassId") or res.get("id")
+        if not pass_id:
+            sys.exit(f"Unexpected answer for {name}: {res}")
+        print(f"{name} = {pass_id} ({price} R$)")
+        config = config.replace(f'{{ key = "{key}", name = "{name}", price = {price}, id = 0 }}', f'{{ key = "{key}", name = "{name}", price = {price}, id = {pass_id} }}')
+        with open(CONFIG, "w") as f:
+            f.write(config)
+
+
+def restart():
+    universe = universe_id(place_id())
+    call("POST", f"{API}/cloud/v2/universes/{universe}:restartServers", b"{}", {"Content-Type": "application/json"})
+    print("Servers restarting, players get the new version")
+
+
 def make_public():
     universe = universe_id(place_id())
     body = json.dumps({"visibility": "PUBLIC"}).encode()
@@ -174,4 +232,4 @@ def make_public():
 
 
 if __name__ == "__main__":
-    {"audio": audio, "publish": publish, "status": status, "public": make_public}[sys.argv[1]]()
+    {"audio": audio, "passes": passes, "publish": publish, "restart": restart, "status": status, "public": make_public}[sys.argv[1]]()
