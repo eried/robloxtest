@@ -6179,6 +6179,32 @@ local callSound = new("Sound", {
 	Volume = 1,
 	Parent = gui,
 })
+-- Only the clip on screen: no buttons, no GPS, no Roblox controls
+local function showControls(on: boolean)
+	gui.Enabled = on
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, on)
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+	end)
+	local playerGui = player:FindFirstChildOfClass("PlayerGui")
+	local touchGui = playerGui and playerGui:FindFirstChild("TouchGui")
+	if touchGui and touchGui:IsA("ScreenGui") then
+		touchGui.Enabled = on
+	end
+	pcall(function()
+		local scripts = player:FindFirstChild("PlayerScripts")
+		local module = scripts and scripts:FindFirstChild("PlayerModule")
+		if module and module:IsA("ModuleScript") then
+			local controls = (require(module) :: any):GetControls()
+			if on then
+				controls:Enable()
+			else
+				controls:Disable()
+			end
+		end
+	end)
+end
+
 local function playIntro()
 	local camp = workspace:WaitForChild("Camp", 10)
 	local house = camp and camp:WaitForChild("House", 10)
@@ -6189,6 +6215,7 @@ local function playIntro()
 		return
 	end
 	intro.Visible = false
+	showControls(false)
 	local parts: { GuiObject } = {}
 	for i, y in { 0, 1 } do
 		parts[i] = new("Frame", {
@@ -6251,7 +6278,16 @@ local function playIntro()
 	local hide = workspace:GetAttribute("CatPosition") :: Vector3?
 	local away = if hide then Vector3.new(hide.X - foot.X, 0, hide.Z - foot.Z) else out
 	away = if away.Magnitude > 1 then away.Unit else out
-	local eyeStart = foot + out * 15 + side * 4 + Vector3.new(0, 4.5, 0)
+	-- She runs into the forest in front of the house, never back through it
+	if away:Dot(out) < 0.4 then
+		away = (out * 0.6 + side * (if away:Dot(side) >= 0 then 0.8 else -0.8)).Unit
+	end
+	-- The camera always stays in front of the house
+	local function outside(p: Vector3): Vector3
+		local along = (p - floor.Position):Dot(out)
+		return if along < 9 then p + out * (9 - along) else p
+	end
+	local eyeStart = outside(foot + out * 15 + side * 4 + Vector3.new(0, 4.5, 0))
 	camera.CameraType = Enum.CameraType.Scriptable
 	cat.Parent = workspace
 
@@ -6273,6 +6309,7 @@ local function playIntro()
 			part:Destroy()
 		end
 		camera.CameraType = Enum.CameraType.Custom
+		showControls(true)
 		if not playing then
 			intro.Visible = true
 		end
@@ -6328,7 +6365,7 @@ local function playIntro()
 		if t < 2.2 then
 			eye, focus = eyeStart, foot + up * 3
 		elseif t < 6 then
-			local follow = at + side * 9 - away * 7 + up * 4
+			local follow = outside(at + side * 9 + out * 3 - away * 6 + up * 4)
 			eye, focus = eyeStart:Lerp(follow, math.clamp((t - 2.2) / 0.8, 0, 1)), at + up
 		elseif t < 8.5 then
 			eye, focus = edge - away * 6 + side * 2.5 + up * 2.2, edge + up * 1.8
@@ -6337,7 +6374,13 @@ local function playIntro()
 			eye = (edge - away * 24 + up * 16):Lerp(edge - away * 6 + up * 9, k)
 			focus = at:Lerp(edge + away * 70, math.clamp((t - 11) / 4, 0, 1))
 		end
-		camera.CFrame = CFrame.lookAt(eye, focus)
+		camera.CFrame = CFrame.lookAt(outside(eye), focus)
+		-- Phone controls can appear late, keep them hidden while the clip plays
+		local playerGui = player:FindFirstChildOfClass("PlayerGui")
+		local touchGui = playerGui and playerGui:FindFirstChild("TouchGui")
+		if touchGui and touchGui:IsA("ScreenGui") then
+			touchGui.Enabled = false
+		end
 		if t > 1.1 and not spoke then
 			spoke = true
 			caption.Text = "\"Piankaaaa! Where are you going?!\""
