@@ -42,7 +42,7 @@ return {
 			patrolCount = 6, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5,
 			chaseFactor = 1.25, chaseTime = 4, catch = 3,
 			packCount = 6, packConeRange = 10, packSpeedFactor = 1.08, packGap = 15, packGapMin = 6,
-			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
+			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.9,
 		},
 	},
 
