@@ -8,6 +8,7 @@ local V3 = roblox.Vector3
 Engine.build()
 Engine.startServer()
 local workspace = Engine.workspace
+local Config = Engine.server.modules[Engine.game:GetService("ReplicatedStorage"):FindFirstChild("Shared"):FindFirstChild("Config")]
 local player, ctx = Engine.addPlayer("Ana")
 for _ = 1, 20 * 25 do
 	Engine.step(1 / 20)
@@ -96,12 +97,41 @@ spots()
 local setMode = Engine.game:GetService("ReplicatedStorage"):FindFirstChild("SetMode")
 for i = 1, 12 do
 	Engine.asClient(ctx, function()
-		setMode:FireServer(if i % 2 == 1 then "Normal" else "Easy")
+		setMode:FireServer(if i % 2 == 0 then "Normal" else "Easy")
 	end)
 	for _ = 1, 20 * 7 do
 		Engine.step(1 / 20)
 	end
 	spots()
+end
+
+-- Map data: hedges, guard lines, cabins, home and Pianka's area
+do
+	local map = { kind = "map", hedges = {}, dogs = {}, cabins = {}, home = { Config.HomePosition.X, Config.HomePosition.Z }, low = 0, parts = {}, pivot = { 0, 0 } }
+	for _, hedge in workspace:FindFirstChild("Hedges"):GetChildren() do
+		local core = hedge:FindFirstChild("Core")
+		if core then
+			local half = core.CFrame.LookVector * core.Size.Z / 2
+			table.insert(map.hedges, { core.Position.X - half.X, core.Position.Z - half.Z, core.Position.X + half.X, core.Position.Z + half.Z })
+		end
+	end
+	for _, dog in workspace:FindFirstChild("Dogs"):GetChildren() do
+		local a, b = dog:GetAttribute("PathA"), dog:GetAttribute("PathB")
+		if a and b then
+			local p = dog.PrimaryPart.Position
+			table.insert(map.dogs, { a.X, a.Z, b.X, b.Z, p.X, p.Z })
+		end
+	end
+	for _, m in workspace:FindFirstChild("Neighbors"):GetChildren() do
+		if m.Name == "Cabin" then
+			local p = m:GetPivot().Position
+			table.insert(map.cabins, { p.X, p.Z })
+		end
+	end
+	local cat = workspace:GetAttribute("CatPosition")
+	map.cat = if cat then { cat.X, cat.Z } else nil
+	map.size = Config.ForestSize
+	table.insert(out, map)
 end
 
 local character = player.Character

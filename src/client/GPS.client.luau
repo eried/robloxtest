@@ -201,11 +201,21 @@ if Config.SoundsId ~= 0 then
 	end)
 end
 
-local function playClip(parent: Instance, clip: { any }, volume: number, speed: number, range: number)
-	if not clipSound then
+local voiceSound: Sound? = nil
+if Config.VoicesId ~= 0 then
+	local sound = new("Sound", { SoundId = "rbxassetid://" .. Config.VoicesId, Parent = SoundService })
+	voiceSound = sound
+	task.spawn(function()
+		ContentProvider:PreloadAsync({ sound })
+	end)
+end
+
+local function playClip(parent: Instance, clip: { any }, volume: number, speed: number, range: number, source: Sound?)
+	local from = source or clipSound
+	if not from then
 		return
 	end
-	local sound = clipSound:Clone()
+	local sound = from:Clone()
 	sound.Volume = volume
 	sound.PlaybackSpeed = speed
 	sound.RollOffMode = Enum.RollOffMode.InverseTapered
@@ -460,9 +470,56 @@ local function throwBone()
 	end
 end
 boneButton.Activated:Connect(throwBone)
+
+-- Call button: Pianka meows back, but dogs and neighbors nearby hear it
+local callEvent = ReplicatedStorage:WaitForChild("Call") :: RemoteEvent
+local callButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 96, 1, -24),
+	Size = UDim2.fromOffset(68, 68),
+	BackgroundColor3 = Color3.fromRGB(25, 28, 34),
+	BackgroundTransparency = 0.15,
+	Font = FONT,
+	TextSize = 30,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "📣",
+	ZIndex = 2,
+	Parent = gui,
+})
+round(callButton, UDim.new(1, 0))
+local callRing = new("UIStroke", { Color = Color3.fromRGB(120, 200, 255), Thickness = 3, Parent = callButton })
+if not touch then
+	new("TextLabel", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, -2, 1, 2),
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+		Font = FONT,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "C",
+		ZIndex = 3,
+		Parent = callButton,
+	})
+end
+local lastCallTime = -100
+local function callPianka()
+	if os.clock() - lastCallTime >= Config.CallCooldown and not player:GetAttribute("Out") then
+		lastCallTime = os.clock()
+		callEvent:FireServer()
+	end
+end
+callButton.Activated:Connect(callPianka)
+RunService.Heartbeat:Connect(function()
+	local ready = os.clock() - lastCallTime >= Config.CallCooldown
+	callButton.TextTransparency = if ready then 0 else 0.6
+	callRing.Transparency = if ready then 0 else 0.6
+end)
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.G then
 		throwBone()
+	elseif not processed and input.KeyCode == Enum.KeyCode.C then
+		callPianka()
 	end
 end)
 
@@ -995,6 +1052,200 @@ local function openMenu()
 	intro.Visible = true
 end
 menuButton.Activated:Connect(openMenu)
+
+-- Map: the whole forest from above, to plan a way past the guards
+local mapButton = topButton("🗺 Map", 270, 80)
+local MAP = 420
+local mapFrame = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(MAP + 20, MAP + 56),
+	BackgroundColor3 = PANEL,
+	Visible = false,
+	ZIndex = 25,
+	Parent = gui,
+})
+round(mapFrame, UDim.new(0, 16))
+outline(mapFrame, 3)
+if touch then
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / (MAP + 56), 0.5, 0.8), Parent = mapFrame })
+end
+new("TextLabel", {
+	Position = UDim2.fromOffset(0, 8),
+	Size = UDim2.new(1, 0, 0, 30),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 24,
+	TextColor3 = GREEN,
+	Text = if touch then "🗺 Map" else "🗺 Map (M)",
+	ZIndex = 26,
+	Parent = mapFrame,
+})
+local mapClose = new("TextButton", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -8, 0, 6),
+	Size = UDim2.fromOffset(34, 34),
+	BackgroundColor3 = Color3.fromRGB(70, 75, 70),
+	Font = FONT,
+	TextSize = 20,
+	TextColor3 = WHITE,
+	Text = "X",
+	ZIndex = 27,
+	Parent = mapFrame,
+})
+round(mapClose, UDim.new(0, 10))
+local mapArea = new("Frame", {
+	Position = UDim2.fromOffset(10, 46),
+	Size = UDim2.fromOffset(MAP, MAP),
+	BackgroundColor3 = Color3.fromRGB(28, 52, 30),
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+	ZIndex = 26,
+	Parent = mapFrame,
+})
+local mapScale = 1
+local mapCenter = Vector3.zero
+
+-- Zoom on home, you and Pianka's area so the guard lines are easy to see
+local function fitMap()
+	local points = { Config.HomePosition }
+	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
+	if catPos and workspace:GetAttribute("Mode") ~= "Umulig" then
+		table.insert(points, catPos)
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		table.insert(points, root.Position)
+	end
+	local minX, maxX, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in points do
+		minX, maxX = math.min(minX, p.X), math.max(maxX, p.X)
+		minZ, maxZ = math.min(minZ, p.Z), math.max(maxZ, p.Z)
+	end
+	mapCenter = Vector3.new((minX + maxX) / 2, 0, (minZ + maxZ) / 2)
+	mapScale = MAP / math.max(math.max(maxX - minX, maxZ - minZ) + 140, 260)
+end
+
+local function toMap(p: Vector3): UDim2
+	return UDim2.fromOffset((p.X - mapCenter.X) * mapScale + MAP / 2, (p.Z - mapCenter.Z) * mapScale + MAP / 2)
+end
+
+local function mapLine(a: Vector3, b: Vector3, color: Color3, thick: number)
+	local d = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = toMap((a + b) / 2),
+		Size = UDim2.fromOffset(math.max(d.Magnitude * mapScale, 2), thick),
+		Rotation = math.deg(math.atan2(d.Z, d.X)),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		ZIndex = 27,
+		Parent = mapArea,
+	})
+end
+
+local function mapIcon(p: Vector3, text: string, size: number, rotation: number?)
+	new("TextLabel", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = toMap(p),
+		Size = UDim2.fromOffset(size, size),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextScaled = true,
+		TextColor3 = WHITE,
+		Text = text,
+		Rotation = rotation or 0,
+		ZIndex = 28,
+		Parent = mapArea,
+	})
+end
+
+local function drawMap()
+	mapArea:ClearAllChildren()
+	fitMap()
+	local hedges = workspace:FindFirstChild("Hedges")
+	for _, hedge in (if hedges then hedges:GetChildren() else {}) do
+		local core = hedge:FindFirstChild("Core") :: BasePart?
+		if core then
+			local half = core.CFrame.LookVector * core.Size.Z / 2
+			mapLine(core.Position - half, core.Position + half, Color3.fromRGB(30, 140, 50), 4)
+		end
+	end
+	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
+	if catPos and workspace:GetAttribute("Mode") ~= "Umulig" then
+		local area = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = toMap(catPos),
+			Size = UDim2.fromOffset(70 * mapScale, 70 * mapScale),
+			BackgroundColor3 = Color3.fromRGB(255, 210, 90),
+			BackgroundTransparency = 0.6,
+			ZIndex = 27,
+			Parent = mapArea,
+		})
+		round(area, UDim.new(1, 0))
+		mapIcon(catPos, "❓", 18)
+	end
+	local dogs = workspace:FindFirstChild("Dogs")
+	for _, dog in (if dogs then dogs:GetChildren() else {}) do
+		local a, b = dog:GetAttribute("PathA") :: Vector3?, dog:GetAttribute("PathB") :: Vector3?
+		if a and b then
+			mapLine(a, b, Color3.fromRGB(230, 70, 60), 3)
+		end
+		if dog:IsA("Model") and dog.PrimaryPart then
+			mapIcon(dog.PrimaryPart.Position, "🐕", 16)
+		end
+	end
+	local neighbors = workspace:FindFirstChild("Neighbors")
+	for _, m in (if neighbors then neighbors:GetChildren() else {}) do
+		if m.Name == "Cabin" and m:IsA("Model") then
+			mapIcon(m:GetPivot().Position, "🏚", 18)
+		elseif m:GetAttribute("Hunting") and m:IsA("Model") and m.PrimaryPart then
+			local a, b = m:GetAttribute("PathA") :: Vector3?, m:GetAttribute("PathB") :: Vector3?
+			if a and b then
+				mapLine(a, b, Color3.fromRGB(255, 170, 60), 3)
+			end
+			mapIcon(m.PrimaryPart.Position, "🔦", 14)
+		end
+	end
+	mapIcon(Config.HomePosition, "🏠", 22)
+	for _, other in Players:GetPlayers() do
+		local character = other.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and other == player then
+			local look = camera.CFrame.LookVector
+			mapIcon(root.Position, "▲", 18, math.deg(math.atan2(look.X, -look.Z)))
+		elseif root then
+			mapIcon(root.Position, "🔵", 12)
+		end
+	end
+end
+
+local function toggleMap(show: boolean?)
+	mapFrame.Visible = if show == nil then not mapFrame.Visible else show
+	if mapFrame.Visible then
+		drawMap()
+	end
+end
+mapButton.Activated:Connect(function()
+	toggleMap()
+end)
+mapClose.Activated:Connect(function()
+	toggleMap(false)
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.M then
+		toggleMap()
+	end
+end)
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		if mapFrame.Visible then
+			drawMap()
+		end
+	end
+end)
 againButton.Activated:Connect(function()
 	over.Visible = false
 	modeEvent:FireServer(currentMode(), selectedHero)
@@ -1084,7 +1335,6 @@ local function playIntro()
 	local away = if hide then Vector3.new(hide.X - foot.X, 0, hide.Z - foot.Z) else out
 	away = if away.Magnitude > 1 then away.Unit else out
 	local eyeStart = foot + out * 15 + side * 4 + Vector3.new(0, 4.5, 0)
-	local eyeEnd = foot + out * 8 - away * 6 + Vector3.new(0, 9, 0)
 	camera.CameraType = Enum.CameraType.Scriptable
 	cat.Parent = workspace
 
@@ -1117,24 +1367,60 @@ local function playIntro()
 		tween:Play()
 	end
 	skip.Activated:Connect(finish)
+	local up = Vector3.new(0, 1, 0)
+	local runStart = foot + out * 6
+	local edge = runStart + away * 50
+	local function turned(from: Vector3, alpha: number): Vector3
+		return CFrame.Angles(0, math.pi * math.clamp(alpha, 0, 1), 0):VectorToWorldSpace(from)
+	end
+	local meowed = false
 	conn = RunService.RenderStepped:Connect(function()
 		local t = os.clock() - start
 		-- Late afternoon turns into night
-		introClock = 16.6 + math.clamp((t - 2.5) / 5, 0, 1) * 2.2
+		introClock = 16.6 + math.clamp((t - 7) / 7, 0, 1) * 2.2
 		local open = math.clamp((t - 0.6) / 0.5, 0, 1)
 		door.CFrame = hinge * CFrame.Angles(0, -math.rad(105) * open, 0) * closed
-		local at = if t < 1 then foot - out * 2
-			elseif t < 1.8 then (foot - out * 2):Lerp(foot + out * 6, (t - 1) / 0.8)
-			else foot + out * 6 + away * (t - 1.8) * 16
-		local dir = if t < 1.8 then out else away
-		local hop = if t > 1 then math.abs(math.sin(t * 14)) * 0.5 else 0
+		-- Pianka runs out, stops at the forest edge, looks back, then runs into the trees
+		local at: Vector3
+		local dir: Vector3
+		if t < 1 then
+			at, dir = foot - out * 2, out
+		elseif t < 1.8 then
+			at, dir = (foot - out * 2):Lerp(runStart, (t - 1) / 0.8), out
+		elseif t < 6 then
+			at, dir = runStart:Lerp(edge, (t - 1.8) / 4.2), away
+		elseif t < 8.5 then
+			at = edge
+			dir = if t < 8 then turned(away, (t - 6) / 0.6) else turned(-away, (t - 8) / 0.5)
+		else
+			at, dir = edge + away * (t - 8.5) * 14, away
+		end
+		local running = (t > 1 and t < 6) or t > 8.5
+		local hop = if running then math.abs(math.sin(t * 14)) * 0.5 else 0
 		local body = at + Vector3.new(0, lift + hop, 0)
 		cat:PivotTo(CFrame.lookAt(body, body + dir))
-		if t < 2.6 then
-			camera.CFrame = CFrame.lookAt(eyeStart, foot + Vector3.new(0, 3, 0))
-		else
-			camera.CFrame = CFrame.lookAt(eyeStart:Lerp(eyeEnd, math.clamp((t - 2.6) / 2, 0, 1)), at + Vector3.new(0, 1, 0))
+		if t > 6.5 and not meowed then
+			meowed = true
+			if cat.PrimaryPart then
+				playClip(cat.PrimaryPart, Config.Meow, 1.4, 1, 90)
+			end
 		end
+		-- Camera: the door, then following her, a close look, then the dark forest
+		local eye: Vector3
+		local focus: Vector3
+		if t < 2.2 then
+			eye, focus = eyeStart, foot + up * 3
+		elseif t < 6 then
+			local follow = at + side * 9 - away * 7 + up * 4
+			eye, focus = eyeStart:Lerp(follow, math.clamp((t - 2.2) / 0.8, 0, 1)), at + up
+		elseif t < 8.5 then
+			eye, focus = edge - away * 6 + side * 2.5 + up * 2.2, edge + up * 1.8
+		else
+			local k = math.clamp((t - 8.5) / 8, 0, 1)
+			eye = (edge - away * 24 + up * 16):Lerp(edge - away * 6 + up * 9, k)
+			focus = at:Lerp(edge + away * 70, math.clamp((t - 11) / 4, 0, 1))
+		end
+		camera.CFrame = CFrame.lookAt(eye, focus)
 		if t > 1.1 and not spoke then
 			spoke = true
 			caption.Text = "\"Piankaaaa! Where are you going?!\""
@@ -1142,12 +1428,18 @@ local function playIntro()
 				callSound:Play()
 			end
 		end
-		if t > 5.2 and not said then
+		if t > 6 and t < 10.5 then
+			caption.Text = ""
+		end
+		if t > 10.5 and not said then
 			said = true
+			caption.Text = "It's getting dark..."
+		end
+		if t > 13 then
 			caption.Text = "It's getting dark...\nSomeone has to find her! 🔦"
 		end
-		fade.BackgroundTransparency = 1 - math.clamp((t - 8.6) / 0.5, 0, 1)
-		if t > 9.2 then
+		fade.BackgroundTransparency = 1 - math.clamp((t - 16.6) / 0.5, 0, 1)
+		if t > 17.3 then
 			finish()
 		end
 	end)
@@ -1446,6 +1738,7 @@ local TWISTS = {
 -- Events
 local wobble = Vector2.zero
 local lastWobble = 0
+local trend, trendFrom, trendAt = 0, 0, 0
 local best: { [string]: number } = {}
 
 local function nameOf(who: Player?): string
@@ -1464,6 +1757,56 @@ local function winText(text: string, seconds: number): string
 	return text
 end
 
+-- A hiding spot wobbles: Pianka moving inside
+local shaking: { [BasePart]: boolean } = {}
+local function shake(part: BasePart, strength: number)
+	if shaking[part] then
+		return
+	end
+	shaking[part] = true
+	local base = part.CFrame
+	local kids: { [BasePart]: CFrame } = {}
+	for _, d in part:GetDescendants() do
+		if d:IsA("BasePart") then
+			kids[d] = base:ToObjectSpace(d.CFrame)
+		end
+	end
+	local start = os.clock()
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.RenderStepped:Connect(function()
+		local t = os.clock() - start
+		local cf = base
+		if t < 0.8 and part.Parent then
+			cf = base * CFrame.Angles(math.sin(t * 38) * 0.05 * strength, 0, math.cos(t * 31) * 0.05 * strength)
+		end
+		part.CFrame = cf
+		for d, offset in kids do
+			d.CFrame = cf * offset
+		end
+		if t >= 0.8 or not part.Parent then
+			shaking[part] = nil
+			if conn then
+				conn:Disconnect()
+			end
+		end
+	end)
+end
+
+local function hidingPlace(near: Vector3): BasePart?
+	local spots = workspace:FindFirstChild("Twist")
+	for _, spot in (if spots then spots:GetChildren() else {}) do
+		if spot:IsA("BasePart") and spot:GetAttribute("Pianka") and (spot.Position - near).Magnitude < 4 then
+			return spot
+		end
+	end
+	return nil
+end
+
+local function myRoot(): BasePart?
+	local character = player.Character
+	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
 local function tryAgain(delay: number)
 	task.delay(delay, function()
 		showBanner("Try again! Use your GPS.", 3)
@@ -1477,6 +1820,10 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		if who == player then
 			showBanner("You found " .. cat .. "! 🐱\nBring her home to her bed.", 4)
 			chime()
+			local root = myRoot()
+			if root then
+				playClip(root, Config.Voices.Got, 1, 1, 80, voiceSound)
+			end
 		else
 			showBanner(nameOf(who) .. " found " .. cat .. "!", 3)
 		end
@@ -1495,7 +1842,50 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		gameOver(cat .. " ran away! 😿")
 		tryAgain(5)
 	elseif kind == "fled" then
-		showBanner(cat .. " ran off! Chase her!", 2)
+		popText(cat .. " ran off! 💨", Color3.fromRGB(255, 200, 120))
+		local root = myRoot()
+		if root then
+			playClip(root, Config.Voices.Back, 1, 1, 80, voiceSound)
+		end
+	elseif kind == "call" then
+		if typeof(value) == "Instance" and value:IsA("BasePart") then
+			playClip(value, Config.Voices.Call, 1, 1, 120, voiceSound)
+		end
+	elseif kind == "meowBack" and typeof(value) == "Vector3" then
+		local at = Instance.new("Attachment")
+		at.Position = value
+		at.Parent = workspace.Terrain
+		playClip(at, Config.Meow, 2, 1, 400)
+		local tag = new("BillboardGui", {
+			Size = UDim2.fromOffset(130, 44),
+			StudsOffset = Vector3.new(0, 4, 0),
+			AlwaysOnTop = true,
+			MaxDistance = if workspace:GetAttribute("Mode") == "Umulig" then 120 else 400,
+			Parent = at,
+		})
+		new("TextLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Font = FONT,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(255, 220, 140),
+			TextStrokeTransparency = 0.2,
+			Text = "Meow! 🐱",
+			Parent = tag,
+		})
+		local spot = hidingPlace(value)
+		if spot then
+			shake(spot, 1.6)
+		end
+		task.delay(3, function()
+			at:Destroy()
+		end)
+	elseif kind == "heard" then
+		popText("Shh! Something heard you 👂", Color3.fromRGB(255, 170, 80))
+	elseif kind == "heyYou" then
+		if typeof(value) == "Instance" and value:IsA("BasePart") then
+			playClip(value, Config.Voices.HeyYou, 1.3, 1, 110, voiceSound)
+		end
 	elseif kind == "kittens" then
 		showBanner("💥 Pop! " .. cat .. " is safe at home.\nFind her " .. Config.KittenCount .. " kittens!", 5)
 		chime()
@@ -1604,6 +1994,10 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "kittensBack" then
 		showBanner(if who == player then "Your kittens ran back\ninto the forest! 🐾" else nameOf(who) .. "'s kittens ran\nback into the forest! 🐾", 3)
 	elseif kind == "heart" then
+		local root = myRoot()
+		if root then
+			playClip(root, Config.Voices.Ouch, 1, 1, 60, voiceSound)
+		end
 		heartsLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
 		heartsLabel.TextSize = 30
 		TweenService:Create(heartsLabel, TweenInfo.new(0.8), { TextSize = 22, TextColor3 = Color3.new(1, 1, 1) }):Play()
@@ -1859,8 +2253,13 @@ local function animalSounds()
 		if spots then
 			for _, spot in spots:GetChildren() do
 				if spot:IsA("BasePart") and spot:GetAttribute("Pianka") then
-					playClip(spot, Config.Meow, 1.6, math.random(95, 105) / 100, 120)
-					nextMeow = now + math.random(40, 60) / 10
+					-- Quiet meow and a rustle only up close; call her to hear her from far
+					playClip(spot, Config.Meow, 1, math.random(95, 105) / 100, 40)
+					nextMeow = now + math.random(70, 100) / 10
+					local root = myRoot()
+					if root and (root.Position - spot.Position).Magnitude < 25 then
+						shake(spot, 0.6)
+					end
 				end
 			end
 		end
@@ -1992,7 +2391,25 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local distance = offset.Magnitude
 
 	showDogs(root.Position, right)
-	catDot.Visible = true
+	-- Enemies nearby, seen or not, make the signal fade
+	local danger = 0
+	if player:GetAttribute("Hero") ~= "Aurelia" then
+		for _, folderName in { "Dogs", "Neighbors" } do
+			local folder = workspace:FindFirstChild(folderName)
+			for _, m in (if folder then folder:GetChildren() else {}) do
+				local body = if m:IsA("Model") then m.PrimaryPart else nil
+				if body and (folderName == "Dogs" or m:GetAttribute("Hunting")) then
+					danger = math.max(danger, 1 - (body.Position - root.Position).Magnitude / 60)
+				end
+			end
+		end
+	end
+	local flicker = danger * (0.6 + 0.4 * math.random())
+	-- Umulig: only the distance to Pianka and her kittens, find the way by calling
+	local blind = workspace:GetAttribute("Mode") == "Umulig" and (mode == "cat" or mode == "kitten")
+	catDot.Visible = not blind
+	catDot.TextTransparency = 0.8 * flicker
+	distanceLabel.TextTransparency = 0.6 * flicker
 	local hidden = mode == "cat" and workspace:GetAttribute("CatHidden") == true
 	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" elseif hidden then "❓" else "🐱"
 	local spot = radarPos(offset, right)
@@ -2001,8 +2418,14 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local meters = math.floor(distance * 0.28)
 	local label = if mode == "home" or mode == "escape" then "Home" elseif mode == "kitten" then "Kitten" else Config.CatName
 	distanceLabel.Text = label .. ": " .. meters .. " m"
-	if fuzz > 0.35 then
+	if now - trendAt > 1.5 then
+		trend = distance - trendFrom
+		trendFrom, trendAt = distance, now
+	end
+	if fuzz > 0.35 or danger > 0.5 then
 		hintLabel.Text = "📡 Fuzzy signal!"
+	elseif blind then
+		hintLabel.Text = if distance < 15 then "Right here! 👀" elseif trend < -3 then "Warmer 🔥" elseif trend > 3 then "Colder ❄️" else "Call her 📣"
 	elseif mode == "escape" then
 		hintLabel.Text = "Run! 🐕🐕🐕"
 	elseif mode == "home" then

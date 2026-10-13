@@ -373,6 +373,19 @@ local function botStep(bot: any, dt: number)
 		end
 	end
 
+	-- Calling: near her area bots call her to hear where she hides
+	local catArea = workspace:GetAttribute("CatPosition")
+	if catArea and workspace:GetAttribute("CatHidden") and (flat(catArea) - pos).Magnitude < 120 and now - (bot.lastCall or -100) > 8 then
+		bot.lastCall = now
+		if bot.kind == "kid" then
+			click(bot, findButton(bot, function(b)
+				return b.Text == "📣"
+			end))
+		else
+			Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = Enum.KeyCode.C, UserInputType = Enum.UserInputType.Keyboard }, false)
+		end
+	end
+
 	-- Bones: careful bots press G when a dog comes close, kids tap the button late
 	if (player:GetAttribute("Bones") or 0) > 0 and now - (bot.lastBone or -10) > 1 and bot.kind ~= "naive" then
 		for _, e in enemies() do
@@ -638,6 +651,24 @@ do
 	check(heartButton and heartButton.Text == "Owned ✓", "pass: shop does not show Extra heart as owned")
 end
 
+-- Map opens with M and shows hedges, guard lines and home
+do
+	local bot = bots[1]
+	Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = Enum.KeyCode.M, UserInputType = Enum.UserInputType.Keyboard }, false)
+	run(1)
+	local shown, items = false, 0
+	for _, d in gui(bot):GetDescendants() do
+		if d.ClassName == "TextLabel" and string.find(d.Text, "Map", 1, true) and d.Parent.Visible then
+			shown = true
+			local area = d.Parent:FindFirstChildOfClass("Frame")
+			items = if area then #area:GetChildren() else 0
+		end
+	end
+	check(shown and items > 5, "map did not open or is empty (" .. items .. " items)")
+	Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = Enum.KeyCode.M, UserInputType = Enum.UserInputType.Keyboard }, false)
+	run(1)
+end
+
 -- GPS screen agrees with the game
 do
 	local root = gui(bots[1])
@@ -665,10 +696,11 @@ check(stats.nightSeen and stats.daySeen, "should see both day and night")
 check((counts.hunt or 0) > 0, "neighbors never started hunting")
 check(stats.huntOk, "neighbors hunted at the wrong time")
 check(stats.searching and (counts.bush or 0) > 0, "bots never searched a hiding spot")
+check((counts.call or 0) > 0 and (counts.meowBack or 0) > 0, "calling Pianka never got a meow back")
 check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked up or thrown")
 check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
-print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d, play again %d",
-	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0, stats.again or 0))
+print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d, play again %d, calls %d, meows back %d, heard %d",
+	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0, stats.again or 0, counts.call or 0, counts.meowBack or 0, counts.heard or 0))
 print(string.format("Events: hunt %d, dawn %d, dropped %d, gift %d, twist %d, out %d",
 	counts.hunt or 0, counts.dawn or 0, counts.dropped or 0, counts.gift or 0, counts.twist or 0, counts.out or 0))
 local catchList = {}

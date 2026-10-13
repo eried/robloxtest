@@ -20,6 +20,7 @@ export type Settings = {
 	lungeTime: number,
 	restTime: number,
 	hiddenFactor: number,
+	lines: number?,
 }
 
 export type Runner = {
@@ -45,6 +46,7 @@ export type Dog = {
 	back: number,
 	target: number?,
 	bone: Vector3?,
+	noise: Vector3?,
 }
 
 export type World = {
@@ -255,7 +257,35 @@ local function spot(dog: Dog, s: Settings, runners: { Runner }, world: World, no
 	return nil, nil
 end
 
+-- A dog or neighbor heard a call: it walks to the sound and looks around
+function DogBrain.hear(dog: Dog, pos: Vector3, now: number)
+	if dog.kind == "pack" or dog.state == "alert" or dog.state == "chase" or dog.state == "bone" then
+		return
+	end
+	dog.state = "listen"
+	dog.noise = flat(pos)
+	dog.untilTime = now + 6
+end
+
 local function stepPatrol(dog: Dog, dt: number, now: number, runners: { Runner }, world: World, s: Settings): (string?, number?)
+	if dog.state == "listen" then
+		local event, id = spot(dog, s, runners, world, now)
+		if event then
+			dog.noise = nil
+			return event, id
+		end
+		local goal = dog.noise or dog.pos
+		if now >= dog.untilTime then
+			dog.noise = nil
+			dog.state = "return"
+			dog.untilTime = now
+		elseif (goal - dog.pos).Magnitude > 3 then
+			moveTo(dog, goal, s.patrolSpeed * 1.4, dt, world)
+		else
+			dog.dir = rotateY(dog.dir, dt * 1.5)
+		end
+		return nil, nil
+	end
 	if dog.state == "patrol" or dog.state == "turn" then
 		local event, id = spot(dog, s, runners, world, now)
 		if event then
@@ -425,16 +455,26 @@ function DogBrain.patrolPaths(
 	catPos: Vector3,
 	home: Vector3,
 	count: number,
-	safeRadius: number
+	safeRadius: number,
+	lines: number?
 ): { { a: Vector3, b: Vector3 } }
 	local paths: { { a: Vector3, b: Vector3 } } = {}
 	local toCat = flat(catPos - home)
 	local line = if toCat.Magnitude > 1 then toCat.Unit else Vector3.new(1, 0, 0)
+	local across = rotateY(line, math.pi / 2)
+	local guardLines = lines or 0
 	for i = 1, count do
 		for _ = 1, 80 do
 			local center: Vector3
 			local dir: Vector3
-			if i % 3 == 1 then
+			if i <= guardLines * 2 then
+				-- Security lines across the way: two dogs per line, side by side
+				local k = (i - 1) // 2
+				local frac = 0.25 + k / math.max(guardLines - 1, 1) * 0.6
+				local half = if (i - 1) % 2 == 0 then -1 else 1
+				center = flat(home):Lerp(flat(catPos), frac + rand(-0.04, 0.04)) + across * (half * 19 + rand(-5, 5))
+				dir = rotateY(across, rand(-0.12, 0.12))
+			elseif i % 3 == 1 then
 				center = flat(home):Lerp(flat(catPos), rand(0.35, 0.8)) + Vector3.new(rand(-15, 15), 0, rand(-15, 15))
 				dir = rotateY(line, math.pi / 2 + rand(-0.35, 0.35))
 			elseif i % 3 == 2 then

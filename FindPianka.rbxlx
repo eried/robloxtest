@@ -25,14 +25,14 @@
 	CatColor = Color3.fromRGB(34, 34, 40),
 	EyeColor = Color3.fromRGB(255, 210, 40),
 
-	ForestSize = 600,
-	TreeCount = 350,
-	BushCount = 150,
-	RockCount = 60,
+	ForestSize = 840,
+	TreeCount = 680,
+	BushCount = 290,
+	RockCount = 115,
 	SpawnClearRadius = 30,
 	MinCatDistance = 150,
-	CatDistance = { Easy = 150, Normal = 230, Umulig = 250 },
-	Hedges = { Easy = 2, Normal = 8, Umulig = 12 },
+	CatDistance = { Easy = 200, Normal = 330, Umulig = 370 },
+	Hedges = { Easy = 3, Normal = 12, Umulig = 16 },
 	HomePosition = Vector3.new(10, 0, 0),
 	HomeRadius = 8,
 	CarryTime = 75,
@@ -47,22 +47,22 @@
 
 	Dogs = {
 		Easy = {
-			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8,
+			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8, lines = 0,
 			chaseFactor = 1.1, chaseTime = 2.5, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
 			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
 		Normal = {
-			patrolCount = 6, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.7,
+			patrolCount = 8, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.7, lines = 3,
 			chaseFactor = 1.15, chaseTime = 3, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
 			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
 		Umulig = {
-			patrolCount = 6, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5,
+			patrolCount = 10, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5, lines = 4,
 			chaseFactor = 1.25, chaseTime = 4, catch = 3,
-			packCount = 6, packConeRange = 10, packSpeedFactor = 1.08, packGap = 15, packGapMin = 6,
-			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.9,
+			packCount = 6, packConeRange = 10, packSpeedFactor = 1.05, packGap = 15, packGapMin = 6,
+			packClose = 0.6, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.9,
 		},
 	},
 
@@ -72,7 +72,7 @@
 		Umulig = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3, hiddenFactor = 0.3 },
 	},
 	HuntByDay = { Umulig = true },
-	Seekers = { Easy = 1, Normal = 1, Umulig = 2 },
+	Seekers = { Easy = 1, Normal = 0, Umulig = 1 },
 	SeekEvery = 20,
 	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
 	-- Each rescue raises the level up to Max
@@ -80,8 +80,7 @@
 		Max = 10, dogsEvery = 2, maxDogs = 4, cone = 0.6, maxCone = 5, chase = 0.012,
 		rats = 1, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
 	},
-	HideSpots = 3,
-	DailyLevel = 3,
+	HideSpots = { Easy = 3, Normal = 5, Umulig = 6 },
 	BoneCount = { Easy = 4, Normal = 3, Umulig = 3 },
 	BoneMax = 3,
 	BoneReach = 30,
@@ -99,7 +98,7 @@
 	RatLeash = 50,
 	RatSafeRadius = 40,
 
-	FishCount = 25,
+	FishCount = 45,
 	MushroomCount = { Easy = 8, Normal = 6, Umulig = 4 },
 	MudCount = { Easy = 8, Normal = 14, Umulig = 20 },
 	TeamBonus = 3,
@@ -114,7 +113,7 @@
 		{ id = "Pet", name = "Kitten pet", price = 300, kind = "pet", color = Color3.fromRGB(34, 34, 40) },
 	},
 
-	NeighborCount = 6,
+	NeighborCount = 9,
 	NeighborSpeed = 3,
 
 	PatrickSpeed = 20,
@@ -139,6 +138,18 @@
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
 	ChaseMusicId = 100600567252458,
 	CallId = 75168345863555,
+	-- Player and neighbor voices: start and length in seconds
+	VoicesId = 0,
+	Voices = {
+		Call = { 0.3, 2.79 },
+		Back = { 3.59, 2.201 },
+		Ouch = { 6.291, 1.474 },
+		Got = { 8.265, 2.208 },
+		HeyYou = { 10.973, 1.487 },
+	},
+	-- Calling Pianka: she meows back, but dogs and neighbors this close hear it
+	CallCooldown = 6,
+	CallHeard = 45,
 
 	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
 	SoundsId = 91539648212607,
@@ -154,7 +165,7 @@
 		{ 27.772, 5.358, "Det er sent. Du burde ikke være ute nå.", "It is late. You should not be out now." },
 		{ 37.038, 4.381, "Hysj! Ikke vekk hundene.", "Shh! Do not wake the dogs." },
 	},
-	Hunt = { "Hva gjør du her?!", "What are you doing here?!" },
+	Hunt = { "Hei du!", "Hey you!" },
 	Chase = { "Stopp!", "Stop!" },
 	Grab = { "Ut herfra!", "Get out of here!" },
 }
@@ -186,6 +197,7 @@ export type Settings = {
 	lungeTime: number,
 	restTime: number,
 	hiddenFactor: number,
+	lines: number?,
 }
 
 export type Runner = {
@@ -211,6 +223,7 @@ export type Dog = {
 	back: number,
 	target: number?,
 	bone: Vector3?,
+	noise: Vector3?,
 }
 
 export type World = {
@@ -421,7 +434,35 @@ local function spot(dog: Dog, s: Settings, runners: { Runner }, world: World, no
 	return nil, nil
 end
 
+-- A dog or neighbor heard a call: it walks to the sound and looks around
+function DogBrain.hear(dog: Dog, pos: Vector3, now: number)
+	if dog.kind == "pack" or dog.state == "alert" or dog.state == "chase" or dog.state == "bone" then
+		return
+	end
+	dog.state = "listen"
+	dog.noise = flat(pos)
+	dog.untilTime = now + 6
+end
+
 local function stepPatrol(dog: Dog, dt: number, now: number, runners: { Runner }, world: World, s: Settings): (string?, number?)
+	if dog.state == "listen" then
+		local event, id = spot(dog, s, runners, world, now)
+		if event then
+			dog.noise = nil
+			return event, id
+		end
+		local goal = dog.noise or dog.pos
+		if now >= dog.untilTime then
+			dog.noise = nil
+			dog.state = "return"
+			dog.untilTime = now
+		elseif (goal - dog.pos).Magnitude > 3 then
+			moveTo(dog, goal, s.patrolSpeed * 1.4, dt, world)
+		else
+			dog.dir = rotateY(dog.dir, dt * 1.5)
+		end
+		return nil, nil
+	end
 	if dog.state == "patrol" or dog.state == "turn" then
 		local event, id = spot(dog, s, runners, world, now)
 		if event then
@@ -591,16 +632,26 @@ function DogBrain.patrolPaths(
 	catPos: Vector3,
 	home: Vector3,
 	count: number,
-	safeRadius: number
+	safeRadius: number,
+	lines: number?
 ): { { a: Vector3, b: Vector3 } }
 	local paths: { { a: Vector3, b: Vector3 } } = {}
 	local toCat = flat(catPos - home)
 	local line = if toCat.Magnitude > 1 then toCat.Unit else Vector3.new(1, 0, 0)
+	local across = rotateY(line, math.pi / 2)
+	local guardLines = lines or 0
 	for i = 1, count do
 		for _ = 1, 80 do
 			local center: Vector3
 			local dir: Vector3
-			if i % 3 == 1 then
+			if i <= guardLines * 2 then
+				-- Security lines across the way: two dogs per line, side by side
+				local k = (i - 1) // 2
+				local frac = 0.25 + k / math.max(guardLines - 1, 1) * 0.6
+				local half = if (i - 1) % 2 == 0 then -1 else 1
+				center = flat(home):Lerp(flat(catPos), frac + rand(-0.04, 0.04)) + across * (half * 19 + rand(-5, 5))
+				dir = rotateY(across, rand(-0.12, 0.12))
+			elseif i % 3 == 1 then
 				center = flat(home):Lerp(flat(catPos), rand(0.35, 0.8)) + Vector3.new(rand(-15, 15), 0, rand(-15, 15))
 				dir = rotateY(line, math.pi / 2 + rand(-0.35, 0.35))
 			elseif i % 3 == 2 then
@@ -871,8 +922,7 @@ local DogBrain = require(ReplicatedStorage.Shared.DogBrain)
 local Sky = require(ReplicatedStorage.Shared.Sky)
 
 -- The forest is the same for everyone each day
-local DAY = os.time() // 86400
-local rng = Random.new(DAY)
+local rng = Random.new()
 local half = Config.ForestSize / 2
 local treeSpots: { Vector3 } = {}
 
@@ -1931,9 +1981,7 @@ end
 
 -- A rescue raises the level for the next round
 local function levelUp()
-	if not workspace:GetAttribute("Daily") then
-		workspace:SetAttribute("Level", math.min(level() + 1, Config.Level.Max))
-	end
+	workspace:SetAttribute("Level", math.min(level() + 1, Config.Level.Max))
 end
 
 local function clearUmulig()
@@ -1993,7 +2041,6 @@ local function failUmulig(player: Player?)
 end
 
 local spawnKitten: (Vector3) -> ()
-local recordDaily: (number) -> ()
 local kittenSpot: (Vector3, { Vector3 }) -> Vector3
 
 -- A player's kittens run back into the forest
@@ -3019,11 +3066,15 @@ local function spawnPatrols(catPos: Vector3)
 	local s = dogSettings()
 	local paths = DogBrain.patrolPaths(function(a: number, b: number): number
 		return rng:NextNumber(a, b)
-	end, brainWorld, catPos, home, s.patrolCount, Config.RatSafeRadius)
+	end, brainWorld, catPos, home, s.patrolCount, Config.RatSafeRadius, s.lines)
 	for _, path in paths do
 		local brain = DogBrain.newPatrol(path.a, path.b)
 		brain.pos = path.a:Lerp(path.b, rng:NextNumber())
 		addDog(brain, s.coneRange, s.coneAngle)
+		-- The map shows where each guard dog walks
+		local model = liveDogs[#liveDogs].model
+		model:SetAttribute("PathA", path.a)
+		model:SetAttribute("PathB", path.b)
 	end
 end
 
@@ -3258,9 +3309,6 @@ local function collectKitten(kitten: Cat, player: Player)
 		workspace:SetAttribute("KittenDeadline", nil)
 		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 		levelUp()
-		if workspace:GetAttribute("Daily") then
-			task.spawn(recordDaily, seconds)
-		end
 		catEvent:FireAllClients("allKittens", player, seconds)
 		fireworks()
 		task.wait(8)
@@ -3407,12 +3455,7 @@ end
 local shownLevel = 1
 
 function newRound()
-	if workspace:GetAttribute("Daily") then
-		rng = Random.new(DAY * 7919 + 1)
-		workspace:SetAttribute("Level", Config.DailyLevel)
-	else
-		rng = Random.new()
-	end
+	rng = Random.new()
 	if wildTween then
 		wildTween:Cancel()
 	end
@@ -3481,9 +3524,7 @@ function newRound()
 	if twist then
 		catEvent:FireAllClients("twist", nil, twist)
 	end
-	if workspace:GetAttribute("Daily") then
-		catEvent:FireAllClients("daily")
-	elseif level() > shownLevel then
+	if level() > shownLevel then
 		catEvent:FireAllClients("level", nil, level())
 	end
 	shownLevel = level()
@@ -3534,6 +3575,47 @@ local function hidingSpot(kind: string, spot: Vector3): BasePart
 			CanCollide = false,
 			Parent = main,
 		})
+	elseif kind == "leaves" then
+		main = makePart("Part", {
+			Name = "HidingSpot",
+			Size = Vector3.new(4.6, 1.2, 4.6),
+			CFrame = CFrame.new(spot + Vector3.new(0, 0.6, 0)) * yaw,
+			Color = Color3.fromRGB(190, 105, 40),
+			Material = Enum.Material.LeafyGrass,
+			Parent = twistFolder,
+		})
+		for _ = 1, 7 do
+			makePart("Part", {
+				Name = "Leaf",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * rng:NextNumber(1.4, 2.2),
+				Position = spot + Vector3.new(rng:NextNumber(-1.6, 1.6), rng:NextNumber(1, 1.7), rng:NextNumber(-1.6, 1.6)),
+				Color = ({ Color3.fromRGB(210, 120, 40), Color3.fromRGB(170, 70, 35), Color3.fromRGB(200, 160, 60) })[rng:NextInteger(1, 3)],
+				Material = Enum.Material.LeafyGrass,
+				CanCollide = false,
+				Parent = main,
+			})
+		end
+	elseif kind == "basket" then
+		main = makePart("Part", {
+			Name = "HidingSpot",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(2.4, 3.2, 3.2),
+			CFrame = CFrame.new(spot + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(175, 125, 65),
+			Material = Enum.Material.Fabric,
+			Parent = twistFolder,
+		})
+		makePart("Part", {
+			Name = "Rim",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.3, 3.4, 3.4),
+			CFrame = main.CFrame * CFrame.new(1.2, 0, 0),
+			Color = Color3.fromRGB(120, 80, 40),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+			Parent = main,
+		})
 	elseif kind == "crate" then
 		main = makePart("Part", {
 			Name = "HidingSpot",
@@ -3565,7 +3647,8 @@ hideInBushes = function(catPos: Vector3)
 		return
 	end
 	cat.model.Parent = nil
-	local count = math.min(7, Config.HideSpots + (level() - 1) // Config.Level.spotsEvery)
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local count = math.min(8, (Config.HideSpots[mode] or 3) + (level() - 1) // Config.Level.spotsEvery)
 	local spots = { catPos }
 	for _ = 1, 120 do
 		if #spots >= count then
@@ -3590,7 +3673,7 @@ hideInBushes = function(catPos: Vector3)
 	center = center / #spots + Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
 	workspace:SetAttribute("CatPosition", center)
 	workspace:SetAttribute("CatHidden", true)
-	local kinds = { "bush", "barrel", "log", "crate" }
+	local kinds = { "bush", "barrel", "log", "crate", "leaves", "basket" }
 	local surprises = { "frog", "confetti", "rat", "empty" }
 	for i, spot in spots do
 		local kind = kinds[rng:NextInteger(1, #kinds)]
@@ -3601,7 +3684,7 @@ hideInBushes = function(catPos: Vector3)
 		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = "Search"
-		prompt.ObjectText = ({ bush = "Bush", barrel = "Barrel", log = "Log", crate = "Crate" })[kind]
+		prompt.ObjectText = ({ bush = "Bush", barrel = "Barrel", log = "Log", crate = "Crate", leaves = "Leaves", basket = "Basket" })[kind]
 		prompt.HoldDuration = 0.3
 		prompt.MaxActivationDistance = 9
 		prompt.RequiresLineOfSight = false
@@ -3780,6 +3863,62 @@ do
 		end
 		lastThrow[player] = now
 		throwBone(player)
+	end)
+	-- Calling Pianka: she meows back from where she is, dogs and neighbors nearby come to look
+	local callEvent = Instance.new("RemoteEvent")
+	callEvent.Name = "Call"
+	callEvent.Parent = ReplicatedStorage
+	local lastCallAt: { [Player]: number } = {}
+	callEvent.OnServerEvent:Connect(function(player)
+		local now = os.clock()
+		local root = getRoot(player)
+		if not root or player:GetAttribute("Out") or now - (lastCallAt[player] or -100) < Config.CallCooldown then
+			return
+		end
+		lastCallAt[player] = now
+		local here = Vector3.new(root.Position.X, 0, root.Position.Z)
+		catEvent:FireAllClients("call", player, root)
+		local from: Vector3? = nil
+		for _, part in twistFolder:GetChildren() do
+			if part:IsA("BasePart") and part:GetAttribute("Pianka") then
+				from = part.Position
+			end
+		end
+		if not from and wildCat and wildCat.model.Parent then
+			from = wildCat.model:GetPivot().Position
+		end
+		if not from then
+			local best = math.huge
+			for _, kitten in kittenFolder:GetChildren() do
+				if kitten:IsA("Model") then
+					local p = kitten:GetPivot().Position
+					if (p - root.Position).Magnitude < best then
+						best, from = (p - root.Position).Magnitude, p
+					end
+				end
+			end
+		end
+		if from then
+			task.delay(1.4, function()
+				catEvent:FireAllClients("meowBack", player, from)
+			end)
+		end
+		local heard = 0
+		for _, dog in liveDogs do
+			if dog.brain.kind ~= "pack" and (dog.brain.pos - here).Magnitude < Config.CallHeard then
+				DogBrain.hear(dog.brain, here, now)
+				heard += 1
+			end
+		end
+		for _, n in neighbors do
+			if n.brain and (n.brain.pos - here).Magnitude < Config.CallHeard then
+				DogBrain.hear(n.brain, here, now)
+				heard += 1
+			end
+		end
+		if heard > 0 then
+			catEvent:FireClient(player, "heard", nil, heard)
+		end
 	end)
 	local lastToggle: { [Player]: number } = {}
 	flashEvent.OnServerEvent:Connect(function(player)
@@ -4132,12 +4271,8 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 			applyHero(player)
 		end
 	end
-	local daily = mode == "Daily"
-	if daily then
-		mode = "Normal"
-	end
 	local valid = mode == "Easy" or mode == "Normal" or mode == "Umulig"
-	if valid and (mode ~= workspace:GetAttribute("Mode") or daily ~= (workspace:GetAttribute("Daily") == true)) then
+	if valid and mode ~= workspace:GetAttribute("Mode") then
 		local alone = #Players:GetPlayers() <= 1
 		local tooSoon = not alone and now - (lastChangeBy[player] or -math.huge) < 60
 		if (busy and not alone) or tooSoon or now - lastModeChange < 5 then
@@ -4147,10 +4282,9 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 		lastModeChange = now
 		lastChangeBy[player] = now
 		workspace:SetAttribute("Mode", mode)
-		workspace:SetAttribute("Daily", if daily then true else nil)
 		workspace:SetAttribute("Level", 1)
 		shownLevel = 1
-		catEvent:FireAllClients("mode", player, if daily then "the Daily challenge" else mode)
+		catEvent:FireAllClients("mode", player, mode)
 		newRound()
 	elseif valid and #Players:GetPlayers() <= 1 and not busy and now - lastModeChange >= 5 then
 		-- Play alone: fresh round so the timer starts now
@@ -4201,80 +4335,6 @@ do
 
 	local names: { [number]: string } = {}
 
-	-- Daily challenge board: best times today
-	local okDaily, dailyStore = pcall(function()
-		return DataStoreService:GetOrderedDataStore("Daily" .. DAY)
-	end)
-	local dailyBoard = makePart("Part", {
-		Name = "DailyBoard",
-		Size = Vector3.new(7, 9, 0.5),
-		CFrame = CFrame.lookAt(Vector3.new(-11, 5, 8), Vector3.new(0, 5, 0)),
-		Color = Color3.fromRGB(60, 45, 80),
-		Material = Enum.Material.Wood,
-		Parent = workspace:FindFirstChild("Camp"),
-	})
-	local dailyGui = Instance.new("SurfaceGui")
-	dailyGui.Face = Enum.NormalId.Front
-	dailyGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	dailyGui.Parent = dailyBoard
-	local dailyText = boardText:Clone()
-	dailyText.TextColor3 = Color3.fromRGB(255, 225, 120)
-	dailyText.Text = "⭐ Daily challenge\nNo times yet"
-	dailyText.Parent = dailyGui
-
-	local function nameOf(id: number): string
-		if not names[id] then
-			local got, name = pcall(function()
-				return Players:GetNameFromUserIdAsync(id)
-			end)
-			names[id] = if got then name else "?"
-		end
-		return names[id]
-	end
-
-	local function refreshDaily()
-		if not okDaily then
-			return
-		end
-		local ok, pages = pcall(function()
-			return dailyStore:GetSortedAsync(true, 6)
-		end)
-		if not ok then
-			return
-		end
-		local lines = { "⭐ Daily challenge" }
-		for i, entry in pages:GetCurrentPage() do
-			local tenths = entry.value
-			table.insert(lines, string.format("%d. %s  %d:%04.1f", i, nameOf(tonumber(entry.key) or 0), tenths // 600, (tenths % 600) / 10))
-		end
-		if #lines == 1 then
-			table.insert(lines, "No times yet")
-		end
-		dailyText.Text = table.concat(lines, "\n")
-	end
-
-	recordDaily = function(seconds: number)
-		local tenths = math.floor(seconds * 10 + 0.5)
-		for _, player in Players:GetPlayers() do
-			if okDaily and not player:GetAttribute("Out") then
-				pcall(function()
-					local key = tostring(player.UserId)
-					local best = dailyStore:GetAsync(key)
-					if type(best) ~= "number" or tenths < best then
-						dailyStore:SetAsync(key, tenths)
-					end
-				end)
-			end
-		end
-		refreshDaily()
-	end
-
-	task.spawn(function()
-		while true do
-			refreshDaily()
-			task.wait(60)
-		end
-	end)
 	task.spawn(function()
 		while okBoard do
 			local ok, pages = pcall(function()
@@ -4652,6 +4712,8 @@ do
 				brain.state = "return"
 				brain.untilTime = now + 2
 				n.brain = brain
+				n.model:SetAttribute("PathA", path.a)
+				n.model:SetAttribute("PathB", path.b)
 				n.nextSeek = now + rng:NextNumber(8, 8 + Config.SeekEvery)
 				n.angry = false
 				n.cone, n.light = makeCone(n.model, n.root, NEIGHBOR_NOSE, s.coneRange, s.coneAngle, CONE_HUNT)
@@ -4724,6 +4786,8 @@ do
 			n.lamp.Enabled = false
 			n.bubble.Enabled = false
 			n.model:SetAttribute("Hunting", nil)
+			n.model:SetAttribute("PathA", nil)
+			n.model:SetAttribute("PathB", nil)
 		end
 		if announce then
 			catEvent:FireAllClients("dawn")
@@ -4782,6 +4846,8 @@ do
 				local path = target and DogBrain.huntPath(rnd, brainWorld, target.pos, target.heading, home, Config.RatSafeRadius)
 				if path then
 					brain.a, brain.b = path.a, path.b
+					n.model:SetAttribute("PathA", path.a)
+					n.model:SetAttribute("PathB", path.b)
 					brain.state = "return"
 					brain.untilTime = now
 					if (brain.pos - path.a).Magnitude > 60 then
@@ -4794,7 +4860,7 @@ do
 			local player = if id then byId[id] else nil
 			if event == "alert" then
 				neighborSay(n, Config.Hunt, 2)
-				sayEvent:FireAllClients(n.head, 1, n.pitch)
+				catEvent:FireAllClients("heyYou", nil, n.head)
 				if player then
 					catEvent:FireClient(player, "hunted")
 				end
@@ -5052,11 +5118,21 @@ if Config.SoundsId ~= 0 then
 	end)
 end
 
-local function playClip(parent: Instance, clip: { any }, volume: number, speed: number, range: number)
-	if not clipSound then
+local voiceSound: Sound? = nil
+if Config.VoicesId ~= 0 then
+	local sound = new("Sound", { SoundId = "rbxassetid://" .. Config.VoicesId, Parent = SoundService })
+	voiceSound = sound
+	task.spawn(function()
+		ContentProvider:PreloadAsync({ sound })
+	end)
+end
+
+local function playClip(parent: Instance, clip: { any }, volume: number, speed: number, range: number, source: Sound?)
+	local from = source or clipSound
+	if not from then
 		return
 	end
-	local sound = clipSound:Clone()
+	local sound = from:Clone()
 	sound.Volume = volume
 	sound.PlaybackSpeed = speed
 	sound.RollOffMode = Enum.RollOffMode.InverseTapered
@@ -5122,7 +5198,7 @@ local function showHearts()
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
 	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
-	local tag = if workspace:GetAttribute("Daily") then "⭐ " else "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
+	local tag = "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
 	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "👻 Ghost" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
 end
 -- Lantern button
@@ -5311,9 +5387,56 @@ local function throwBone()
 	end
 end
 boneButton.Activated:Connect(throwBone)
+
+-- Call button: Pianka meows back, but dogs and neighbors nearby hear it
+local callEvent = ReplicatedStorage:WaitForChild("Call") :: RemoteEvent
+local callButton = new("TextButton", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 96, 1, -24),
+	Size = UDim2.fromOffset(68, 68),
+	BackgroundColor3 = Color3.fromRGB(25, 28, 34),
+	BackgroundTransparency = 0.15,
+	Font = FONT,
+	TextSize = 30,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "📣",
+	ZIndex = 2,
+	Parent = gui,
+})
+round(callButton, UDim.new(1, 0))
+local callRing = new("UIStroke", { Color = Color3.fromRGB(120, 200, 255), Thickness = 3, Parent = callButton })
+if not touch then
+	new("TextLabel", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, -2, 1, 2),
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+		Font = FONT,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "C",
+		ZIndex = 3,
+		Parent = callButton,
+	})
+end
+local lastCallTime = -100
+local function callPianka()
+	if os.clock() - lastCallTime >= Config.CallCooldown and not player:GetAttribute("Out") then
+		lastCallTime = os.clock()
+		callEvent:FireServer()
+	end
+end
+callButton.Activated:Connect(callPianka)
+RunService.Heartbeat:Connect(function()
+	local ready = os.clock() - lastCallTime >= Config.CallCooldown
+	callButton.TextTransparency = if ready then 0 else 0.6
+	callRing.Transparency = if ready then 0 else 0.6
+end)
 UserInputService.InputBegan:Connect(function(input, processed)
 	if not processed and input.KeyCode == Enum.KeyCode.G then
 		throwBone()
+	elseif not processed and input.KeyCode == Enum.KeyCode.C then
+		callPianka()
 	end
 end)
 
@@ -5548,7 +5671,6 @@ player:GetAttributeChangedSignal("Out"):Connect(showHearts)
 player:GetAttributeChangedSignal("MaxHearts"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
-workspace:GetAttributeChangedSignal("Daily"):Connect(showHearts)
 showHearts()
 
 local menuButton = topButton("Menu", -120, 80)
@@ -5646,7 +5768,7 @@ local intro = new("Frame", {
 local card = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromOffset(540, 500),
+	Size = UDim2.fromOffset(540, 446),
 	BackgroundColor3 = PANEL,
 	ZIndex = 11,
 	Parent = intro,
@@ -5654,7 +5776,7 @@ local card = new("Frame", {
 round(card, UDim.new(0, 20))
 outline(card, 4)
 if touch then
-	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 500, 0.5, 0.7), Parent = card })
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 446, 0.5, 0.7), Parent = card })
 end
 
 local function cardText(text: string, y: number, height: number, size: number, color: Color3)
@@ -5689,7 +5811,7 @@ local playButton: TextButton
 local levelLabel: TextLabel
 
 local function currentMode(): string
-	return if workspace:GetAttribute("Daily") then "Daily" else (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	return (workspace:GetAttribute("Mode") :: string?) or "Easy"
 end
 
 local function refreshIntro()
@@ -5699,10 +5821,8 @@ local function refreshIntro()
 	for name, stroke in modeStrokes do
 		stroke.Enabled = name == selectedMode
 	end
-	local level = if selectedMode == "Daily" then Config.DailyLevel
-		elseif selectedMode == currentMode() then (workspace:GetAttribute("Level") :: number?) or 1
-		else 1
-	levelLabel.Text = (if selectedMode == "Daily" then "⭐ Same forest for everyone today. " else "") .. "Level " .. level
+	local level = if selectedMode == currentMode() then (workspace:GetAttribute("Level") :: number?) or 1 else 1
+	levelLabel.Text = "Level " .. level
 end
 
 for i, name in Config.HeroOrder do
@@ -5797,34 +5917,10 @@ for i, info in MODES do
 		refreshIntro()
 	end)
 end
-local dailyButton = new("TextButton", {
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 318),
-	Size = UDim2.fromOffset(492, 52),
-	BackgroundColor3 = Color3.fromRGB(255, 205, 70),
-	Font = FONT,
-	TextSize = 26,
-	TextColor3 = DARK,
-	Text = "⭐ Daily challenge",
-	ZIndex = 12,
-	Parent = card,
-})
-round(dailyButton, UDim.new(0, 14))
-modeStrokes.Daily = new("UIStroke", {
-	Color = WHITE,
-	Thickness = 4,
-	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-	Parent = dailyButton,
-})
-dailyButton.Activated:Connect(function()
-	selectedMode = "Daily"
-	refreshIntro()
-end)
-
 playButton = new("TextButton", {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 380),
-	Size = UDim2.fromOffset(492, 52),
+	Position = UDim2.new(0.5, 0, 0, 326),
+	Size = UDim2.fromOffset(492, 56),
 	BackgroundColor3 = GREEN,
 	Font = FONT,
 	TextSize = 30,
@@ -5835,8 +5931,8 @@ playButton = new("TextButton", {
 })
 round(playButton, UDim.new(0, 18))
 new("UIStroke", { Color = WHITE, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = playButton })
-levelLabel = cardText("", 440, 22, 17, Color3.fromRGB(255, 225, 120))
-cardText("The mode is the same for everyone here.", 464, 20, 14, GRAY)
+levelLabel = cardText("", 390, 22, 17, Color3.fromRGB(255, 225, 120))
+cardText("The mode is the same for everyone here.", 414, 20, 14, GRAY)
 
 playButton.Activated:Connect(function()
 	playing = true
@@ -5873,6 +5969,200 @@ local function openMenu()
 	intro.Visible = true
 end
 menuButton.Activated:Connect(openMenu)
+
+-- Map: the whole forest from above, to plan a way past the guards
+local mapButton = topButton("🗺 Map", 270, 80)
+local MAP = 420
+local mapFrame = new("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromOffset(MAP + 20, MAP + 56),
+	BackgroundColor3 = PANEL,
+	Visible = false,
+	ZIndex = 25,
+	Parent = gui,
+})
+round(mapFrame, UDim.new(0, 16))
+outline(mapFrame, 3)
+if touch then
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / (MAP + 56), 0.5, 0.8), Parent = mapFrame })
+end
+new("TextLabel", {
+	Position = UDim2.fromOffset(0, 8),
+	Size = UDim2.new(1, 0, 0, 30),
+	BackgroundTransparency = 1,
+	Font = FONT,
+	TextSize = 24,
+	TextColor3 = GREEN,
+	Text = if touch then "🗺 Map" else "🗺 Map (M)",
+	ZIndex = 26,
+	Parent = mapFrame,
+})
+local mapClose = new("TextButton", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -8, 0, 6),
+	Size = UDim2.fromOffset(34, 34),
+	BackgroundColor3 = Color3.fromRGB(70, 75, 70),
+	Font = FONT,
+	TextSize = 20,
+	TextColor3 = WHITE,
+	Text = "X",
+	ZIndex = 27,
+	Parent = mapFrame,
+})
+round(mapClose, UDim.new(0, 10))
+local mapArea = new("Frame", {
+	Position = UDim2.fromOffset(10, 46),
+	Size = UDim2.fromOffset(MAP, MAP),
+	BackgroundColor3 = Color3.fromRGB(28, 52, 30),
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+	ZIndex = 26,
+	Parent = mapFrame,
+})
+local mapScale = 1
+local mapCenter = Vector3.zero
+
+-- Zoom on home, you and Pianka's area so the guard lines are easy to see
+local function fitMap()
+	local points = { Config.HomePosition }
+	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
+	if catPos and workspace:GetAttribute("Mode") ~= "Umulig" then
+		table.insert(points, catPos)
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		table.insert(points, root.Position)
+	end
+	local minX, maxX, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in points do
+		minX, maxX = math.min(minX, p.X), math.max(maxX, p.X)
+		minZ, maxZ = math.min(minZ, p.Z), math.max(maxZ, p.Z)
+	end
+	mapCenter = Vector3.new((minX + maxX) / 2, 0, (minZ + maxZ) / 2)
+	mapScale = MAP / math.max(math.max(maxX - minX, maxZ - minZ) + 140, 260)
+end
+
+local function toMap(p: Vector3): UDim2
+	return UDim2.fromOffset((p.X - mapCenter.X) * mapScale + MAP / 2, (p.Z - mapCenter.Z) * mapScale + MAP / 2)
+end
+
+local function mapLine(a: Vector3, b: Vector3, color: Color3, thick: number)
+	local d = Vector3.new(b.X - a.X, 0, b.Z - a.Z)
+	new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = toMap((a + b) / 2),
+		Size = UDim2.fromOffset(math.max(d.Magnitude * mapScale, 2), thick),
+		Rotation = math.deg(math.atan2(d.Z, d.X)),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		ZIndex = 27,
+		Parent = mapArea,
+	})
+end
+
+local function mapIcon(p: Vector3, text: string, size: number, rotation: number?)
+	new("TextLabel", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = toMap(p),
+		Size = UDim2.fromOffset(size, size),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextScaled = true,
+		TextColor3 = WHITE,
+		Text = text,
+		Rotation = rotation or 0,
+		ZIndex = 28,
+		Parent = mapArea,
+	})
+end
+
+local function drawMap()
+	mapArea:ClearAllChildren()
+	fitMap()
+	local hedges = workspace:FindFirstChild("Hedges")
+	for _, hedge in (if hedges then hedges:GetChildren() else {}) do
+		local core = hedge:FindFirstChild("Core") :: BasePart?
+		if core then
+			local half = core.CFrame.LookVector * core.Size.Z / 2
+			mapLine(core.Position - half, core.Position + half, Color3.fromRGB(30, 140, 50), 4)
+		end
+	end
+	local catPos = workspace:GetAttribute("CatPosition") :: Vector3?
+	if catPos and workspace:GetAttribute("Mode") ~= "Umulig" then
+		local area = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = toMap(catPos),
+			Size = UDim2.fromOffset(70 * mapScale, 70 * mapScale),
+			BackgroundColor3 = Color3.fromRGB(255, 210, 90),
+			BackgroundTransparency = 0.6,
+			ZIndex = 27,
+			Parent = mapArea,
+		})
+		round(area, UDim.new(1, 0))
+		mapIcon(catPos, "❓", 18)
+	end
+	local dogs = workspace:FindFirstChild("Dogs")
+	for _, dog in (if dogs then dogs:GetChildren() else {}) do
+		local a, b = dog:GetAttribute("PathA") :: Vector3?, dog:GetAttribute("PathB") :: Vector3?
+		if a and b then
+			mapLine(a, b, Color3.fromRGB(230, 70, 60), 3)
+		end
+		if dog:IsA("Model") and dog.PrimaryPart then
+			mapIcon(dog.PrimaryPart.Position, "🐕", 16)
+		end
+	end
+	local neighbors = workspace:FindFirstChild("Neighbors")
+	for _, m in (if neighbors then neighbors:GetChildren() else {}) do
+		if m.Name == "Cabin" and m:IsA("Model") then
+			mapIcon(m:GetPivot().Position, "🏚", 18)
+		elseif m:GetAttribute("Hunting") and m:IsA("Model") and m.PrimaryPart then
+			local a, b = m:GetAttribute("PathA") :: Vector3?, m:GetAttribute("PathB") :: Vector3?
+			if a and b then
+				mapLine(a, b, Color3.fromRGB(255, 170, 60), 3)
+			end
+			mapIcon(m.PrimaryPart.Position, "🔦", 14)
+		end
+	end
+	mapIcon(Config.HomePosition, "🏠", 22)
+	for _, other in Players:GetPlayers() do
+		local character = other.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root and other == player then
+			local look = camera.CFrame.LookVector
+			mapIcon(root.Position, "▲", 18, math.deg(math.atan2(look.X, -look.Z)))
+		elseif root then
+			mapIcon(root.Position, "🔵", 12)
+		end
+	end
+end
+
+local function toggleMap(show: boolean?)
+	mapFrame.Visible = if show == nil then not mapFrame.Visible else show
+	if mapFrame.Visible then
+		drawMap()
+	end
+end
+mapButton.Activated:Connect(function()
+	toggleMap()
+end)
+mapClose.Activated:Connect(function()
+	toggleMap(false)
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.M then
+		toggleMap()
+	end
+end)
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		if mapFrame.Visible then
+			drawMap()
+		end
+	end
+end)
 againButton.Activated:Connect(function()
 	over.Visible = false
 	modeEvent:FireServer(currentMode(), selectedHero)
@@ -5962,7 +6252,6 @@ local function playIntro()
 	local away = if hide then Vector3.new(hide.X - foot.X, 0, hide.Z - foot.Z) else out
 	away = if away.Magnitude > 1 then away.Unit else out
 	local eyeStart = foot + out * 15 + side * 4 + Vector3.new(0, 4.5, 0)
-	local eyeEnd = foot + out * 8 - away * 6 + Vector3.new(0, 9, 0)
 	camera.CameraType = Enum.CameraType.Scriptable
 	cat.Parent = workspace
 
@@ -5995,24 +6284,60 @@ local function playIntro()
 		tween:Play()
 	end
 	skip.Activated:Connect(finish)
+	local up = Vector3.new(0, 1, 0)
+	local runStart = foot + out * 6
+	local edge = runStart + away * 50
+	local function turned(from: Vector3, alpha: number): Vector3
+		return CFrame.Angles(0, math.pi * math.clamp(alpha, 0, 1), 0):VectorToWorldSpace(from)
+	end
+	local meowed = false
 	conn = RunService.RenderStepped:Connect(function()
 		local t = os.clock() - start
 		-- Late afternoon turns into night
-		introClock = 16.6 + math.clamp((t - 2.5) / 5, 0, 1) * 2.2
+		introClock = 16.6 + math.clamp((t - 7) / 7, 0, 1) * 2.2
 		local open = math.clamp((t - 0.6) / 0.5, 0, 1)
 		door.CFrame = hinge * CFrame.Angles(0, -math.rad(105) * open, 0) * closed
-		local at = if t < 1 then foot - out * 2
-			elseif t < 1.8 then (foot - out * 2):Lerp(foot + out * 6, (t - 1) / 0.8)
-			else foot + out * 6 + away * (t - 1.8) * 16
-		local dir = if t < 1.8 then out else away
-		local hop = if t > 1 then math.abs(math.sin(t * 14)) * 0.5 else 0
+		-- Pianka runs out, stops at the forest edge, looks back, then runs into the trees
+		local at: Vector3
+		local dir: Vector3
+		if t < 1 then
+			at, dir = foot - out * 2, out
+		elseif t < 1.8 then
+			at, dir = (foot - out * 2):Lerp(runStart, (t - 1) / 0.8), out
+		elseif t < 6 then
+			at, dir = runStart:Lerp(edge, (t - 1.8) / 4.2), away
+		elseif t < 8.5 then
+			at = edge
+			dir = if t < 8 then turned(away, (t - 6) / 0.6) else turned(-away, (t - 8) / 0.5)
+		else
+			at, dir = edge + away * (t - 8.5) * 14, away
+		end
+		local running = (t > 1 and t < 6) or t > 8.5
+		local hop = if running then math.abs(math.sin(t * 14)) * 0.5 else 0
 		local body = at + Vector3.new(0, lift + hop, 0)
 		cat:PivotTo(CFrame.lookAt(body, body + dir))
-		if t < 2.6 then
-			camera.CFrame = CFrame.lookAt(eyeStart, foot + Vector3.new(0, 3, 0))
-		else
-			camera.CFrame = CFrame.lookAt(eyeStart:Lerp(eyeEnd, math.clamp((t - 2.6) / 2, 0, 1)), at + Vector3.new(0, 1, 0))
+		if t > 6.5 and not meowed then
+			meowed = true
+			if cat.PrimaryPart then
+				playClip(cat.PrimaryPart, Config.Meow, 1.4, 1, 90)
+			end
 		end
+		-- Camera: the door, then following her, a close look, then the dark forest
+		local eye: Vector3
+		local focus: Vector3
+		if t < 2.2 then
+			eye, focus = eyeStart, foot + up * 3
+		elseif t < 6 then
+			local follow = at + side * 9 - away * 7 + up * 4
+			eye, focus = eyeStart:Lerp(follow, math.clamp((t - 2.2) / 0.8, 0, 1)), at + up
+		elseif t < 8.5 then
+			eye, focus = edge - away * 6 + side * 2.5 + up * 2.2, edge + up * 1.8
+		else
+			local k = math.clamp((t - 8.5) / 8, 0, 1)
+			eye = (edge - away * 24 + up * 16):Lerp(edge - away * 6 + up * 9, k)
+			focus = at:Lerp(edge + away * 70, math.clamp((t - 11) / 4, 0, 1))
+		end
+		camera.CFrame = CFrame.lookAt(eye, focus)
 		if t > 1.1 and not spoke then
 			spoke = true
 			caption.Text = "\"Piankaaaa! Where are you going?!\""
@@ -6020,12 +6345,18 @@ local function playIntro()
 				callSound:Play()
 			end
 		end
-		if t > 5.2 and not said then
+		if t > 6 and t < 10.5 then
+			caption.Text = ""
+		end
+		if t > 10.5 and not said then
 			said = true
+			caption.Text = "It's getting dark..."
+		end
+		if t > 13 then
 			caption.Text = "It's getting dark...\nSomeone has to find her! 🔦"
 		end
-		fade.BackgroundTransparency = 1 - math.clamp((t - 8.6) / 0.5, 0, 1)
-		if t > 9.2 then
+		fade.BackgroundTransparency = 1 - math.clamp((t - 16.6) / 0.5, 0, 1)
+		if t > 17.3 then
 			finish()
 		end
 	end)
@@ -6324,6 +6655,7 @@ local TWISTS = {
 -- Events
 local wobble = Vector2.zero
 local lastWobble = 0
+local trend, trendFrom, trendAt = 0, 0, 0
 local best: { [string]: number } = {}
 
 local function nameOf(who: Player?): string
@@ -6342,6 +6674,56 @@ local function winText(text: string, seconds: number): string
 	return text
 end
 
+-- A hiding spot wobbles: Pianka moving inside
+local shaking: { [BasePart]: boolean } = {}
+local function shake(part: BasePart, strength: number)
+	if shaking[part] then
+		return
+	end
+	shaking[part] = true
+	local base = part.CFrame
+	local kids: { [BasePart]: CFrame } = {}
+	for _, d in part:GetDescendants() do
+		if d:IsA("BasePart") then
+			kids[d] = base:ToObjectSpace(d.CFrame)
+		end
+	end
+	local start = os.clock()
+	local conn: RBXScriptConnection? = nil
+	conn = RunService.RenderStepped:Connect(function()
+		local t = os.clock() - start
+		local cf = base
+		if t < 0.8 and part.Parent then
+			cf = base * CFrame.Angles(math.sin(t * 38) * 0.05 * strength, 0, math.cos(t * 31) * 0.05 * strength)
+		end
+		part.CFrame = cf
+		for d, offset in kids do
+			d.CFrame = cf * offset
+		end
+		if t >= 0.8 or not part.Parent then
+			shaking[part] = nil
+			if conn then
+				conn:Disconnect()
+			end
+		end
+	end)
+end
+
+local function hidingPlace(near: Vector3): BasePart?
+	local spots = workspace:FindFirstChild("Twist")
+	for _, spot in (if spots then spots:GetChildren() else {}) do
+		if spot:IsA("BasePart") and spot:GetAttribute("Pianka") and (spot.Position - near).Magnitude < 4 then
+			return spot
+		end
+	end
+	return nil
+end
+
+local function myRoot(): BasePart?
+	local character = player.Character
+	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
 local function tryAgain(delay: number)
 	task.delay(delay, function()
 		showBanner("Try again! Use your GPS.", 3)
@@ -6355,6 +6737,10 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		if who == player then
 			showBanner("You found " .. cat .. "! 🐱\nBring her home to her bed.", 4)
 			chime()
+			local root = myRoot()
+			if root then
+				playClip(root, Config.Voices.Got, 1, 1, 80, voiceSound)
+			end
 		else
 			showBanner(nameOf(who) .. " found " .. cat .. "!", 3)
 		end
@@ -6373,7 +6759,50 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		gameOver(cat .. " ran away! 😿")
 		tryAgain(5)
 	elseif kind == "fled" then
-		showBanner(cat .. " ran off! Chase her!", 2)
+		popText(cat .. " ran off! 💨", Color3.fromRGB(255, 200, 120))
+		local root = myRoot()
+		if root then
+			playClip(root, Config.Voices.Back, 1, 1, 80, voiceSound)
+		end
+	elseif kind == "call" then
+		if typeof(value) == "Instance" and value:IsA("BasePart") then
+			playClip(value, Config.Voices.Call, 1, 1, 120, voiceSound)
+		end
+	elseif kind == "meowBack" and typeof(value) == "Vector3" then
+		local at = Instance.new("Attachment")
+		at.Position = value
+		at.Parent = workspace.Terrain
+		playClip(at, Config.Meow, 2, 1, 400)
+		local tag = new("BillboardGui", {
+			Size = UDim2.fromOffset(130, 44),
+			StudsOffset = Vector3.new(0, 4, 0),
+			AlwaysOnTop = true,
+			MaxDistance = if workspace:GetAttribute("Mode") == "Umulig" then 120 else 400,
+			Parent = at,
+		})
+		new("TextLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Font = FONT,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(255, 220, 140),
+			TextStrokeTransparency = 0.2,
+			Text = "Meow! 🐱",
+			Parent = tag,
+		})
+		local spot = hidingPlace(value)
+		if spot then
+			shake(spot, 1.6)
+		end
+		task.delay(3, function()
+			at:Destroy()
+		end)
+	elseif kind == "heard" then
+		popText("Shh! Something heard you 👂", Color3.fromRGB(255, 170, 80))
+	elseif kind == "heyYou" then
+		if typeof(value) == "Instance" and value:IsA("BasePart") then
+			playClip(value, Config.Voices.HeyYou, 1.3, 1, 110, voiceSound)
+		end
 	elseif kind == "kittens" then
 		showBanner("💥 Pop! " .. cat .. " is safe at home.\nFind her " .. Config.KittenCount .. " kittens!", 5)
 		chime()
@@ -6482,6 +6911,10 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "kittensBack" then
 		showBanner(if who == player then "Your kittens ran back\ninto the forest! 🐾" else nameOf(who) .. "'s kittens ran\nback into the forest! 🐾", 3)
 	elseif kind == "heart" then
+		local root = myRoot()
+		if root then
+			playClip(root, Config.Voices.Ouch, 1, 1, 60, voiceSound)
+		end
 		heartsLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
 		heartsLabel.TextSize = 30
 		TweenService:Create(heartsLabel, TweenInfo.new(0.8), { TextSize = 22, TextColor3 = Color3.new(1, 1, 1) }):Play()
@@ -6527,8 +6960,6 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "level" then
 		showBanner("Level " .. tostring(value) .. "! ⬆️\nMore dogs. Better hiding.", 3)
 		chime()
-	elseif kind == "daily" then
-		showBanner("⭐ Daily challenge\nSame forest for everyone today!", 4)
 	elseif kind == "mode" then
 		showBanner((if who == player then "You" else nameOf(who)) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end
@@ -6739,8 +7170,13 @@ local function animalSounds()
 		if spots then
 			for _, spot in spots:GetChildren() do
 				if spot:IsA("BasePart") and spot:GetAttribute("Pianka") then
-					playClip(spot, Config.Meow, 1.6, math.random(95, 105) / 100, 120)
-					nextMeow = now + math.random(40, 60) / 10
+					-- Quiet meow and a rustle only up close; call her to hear her from far
+					playClip(spot, Config.Meow, 1, math.random(95, 105) / 100, 40)
+					nextMeow = now + math.random(70, 100) / 10
+					local root = myRoot()
+					if root and (root.Position - spot.Position).Magnitude < 25 then
+						shake(spot, 0.6)
+					end
 				end
 			end
 		end
@@ -6872,7 +7308,25 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local distance = offset.Magnitude
 
 	showDogs(root.Position, right)
-	catDot.Visible = true
+	-- Enemies nearby, seen or not, make the signal fade
+	local danger = 0
+	if player:GetAttribute("Hero") ~= "Aurelia" then
+		for _, folderName in { "Dogs", "Neighbors" } do
+			local folder = workspace:FindFirstChild(folderName)
+			for _, m in (if folder then folder:GetChildren() else {}) do
+				local body = if m:IsA("Model") then m.PrimaryPart else nil
+				if body and (folderName == "Dogs" or m:GetAttribute("Hunting")) then
+					danger = math.max(danger, 1 - (body.Position - root.Position).Magnitude / 60)
+				end
+			end
+		end
+	end
+	local flicker = danger * (0.6 + 0.4 * math.random())
+	-- Umulig: only the distance to Pianka and her kittens, find the way by calling
+	local blind = workspace:GetAttribute("Mode") == "Umulig" and (mode == "cat" or mode == "kitten")
+	catDot.Visible = not blind
+	catDot.TextTransparency = 0.8 * flicker
+	distanceLabel.TextTransparency = 0.6 * flicker
 	local hidden = mode == "cat" and workspace:GetAttribute("CatHidden") == true
 	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" elseif hidden then "❓" else "🐱"
 	local spot = radarPos(offset, right)
@@ -6881,8 +7335,14 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local meters = math.floor(distance * 0.28)
 	local label = if mode == "home" or mode == "escape" then "Home" elseif mode == "kitten" then "Kitten" else Config.CatName
 	distanceLabel.Text = label .. ": " .. meters .. " m"
-	if fuzz > 0.35 then
+	if now - trendAt > 1.5 then
+		trend = distance - trendFrom
+		trendFrom, trendAt = distance, now
+	end
+	if fuzz > 0.35 or danger > 0.5 then
 		hintLabel.Text = "📡 Fuzzy signal!"
+	elseif blind then
+		hintLabel.Text = if distance < 15 then "Right here! 👀" elseif trend < -3 then "Warmer 🔥" elseif trend > 3 then "Colder ❄️" else "Call her 📣"
 	elseif mode == "escape" then
 		hintLabel.Text = "Run! 🐕🐕🐕"
 	elseif mode == "home" then

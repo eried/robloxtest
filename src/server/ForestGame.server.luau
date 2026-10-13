@@ -2153,11 +2153,15 @@ local function spawnPatrols(catPos: Vector3)
 	local s = dogSettings()
 	local paths = DogBrain.patrolPaths(function(a: number, b: number): number
 		return rng:NextNumber(a, b)
-	end, brainWorld, catPos, home, s.patrolCount, Config.RatSafeRadius)
+	end, brainWorld, catPos, home, s.patrolCount, Config.RatSafeRadius, s.lines)
 	for _, path in paths do
 		local brain = DogBrain.newPatrol(path.a, path.b)
 		brain.pos = path.a:Lerp(path.b, rng:NextNumber())
 		addDog(brain, s.coneRange, s.coneAngle)
+		-- The map shows where each guard dog walks
+		local model = liveDogs[#liveDogs].model
+		model:SetAttribute("PathA", path.a)
+		model:SetAttribute("PathB", path.b)
 	end
 end
 
@@ -2658,6 +2662,47 @@ local function hidingSpot(kind: string, spot: Vector3): BasePart
 			CanCollide = false,
 			Parent = main,
 		})
+	elseif kind == "leaves" then
+		main = makePart("Part", {
+			Name = "HidingSpot",
+			Size = Vector3.new(4.6, 1.2, 4.6),
+			CFrame = CFrame.new(spot + Vector3.new(0, 0.6, 0)) * yaw,
+			Color = Color3.fromRGB(190, 105, 40),
+			Material = Enum.Material.LeafyGrass,
+			Parent = twistFolder,
+		})
+		for _ = 1, 7 do
+			makePart("Part", {
+				Name = "Leaf",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * rng:NextNumber(1.4, 2.2),
+				Position = spot + Vector3.new(rng:NextNumber(-1.6, 1.6), rng:NextNumber(1, 1.7), rng:NextNumber(-1.6, 1.6)),
+				Color = ({ Color3.fromRGB(210, 120, 40), Color3.fromRGB(170, 70, 35), Color3.fromRGB(200, 160, 60) })[rng:NextInteger(1, 3)],
+				Material = Enum.Material.LeafyGrass,
+				CanCollide = false,
+				Parent = main,
+			})
+		end
+	elseif kind == "basket" then
+		main = makePart("Part", {
+			Name = "HidingSpot",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(2.4, 3.2, 3.2),
+			CFrame = CFrame.new(spot + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(175, 125, 65),
+			Material = Enum.Material.Fabric,
+			Parent = twistFolder,
+		})
+		makePart("Part", {
+			Name = "Rim",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.3, 3.4, 3.4),
+			CFrame = main.CFrame * CFrame.new(1.2, 0, 0),
+			Color = Color3.fromRGB(120, 80, 40),
+			Material = Enum.Material.Wood,
+			CanCollide = false,
+			Parent = main,
+		})
 	elseif kind == "crate" then
 		main = makePart("Part", {
 			Name = "HidingSpot",
@@ -2689,7 +2734,8 @@ hideInBushes = function(catPos: Vector3)
 		return
 	end
 	cat.model.Parent = nil
-	local count = math.min(7, Config.HideSpots + (level() - 1) // Config.Level.spotsEvery)
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local count = math.min(8, (Config.HideSpots[mode] or 3) + (level() - 1) // Config.Level.spotsEvery)
 	local spots = { catPos }
 	for _ = 1, 120 do
 		if #spots >= count then
@@ -2714,7 +2760,7 @@ hideInBushes = function(catPos: Vector3)
 	center = center / #spots + Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
 	workspace:SetAttribute("CatPosition", center)
 	workspace:SetAttribute("CatHidden", true)
-	local kinds = { "bush", "barrel", "log", "crate" }
+	local kinds = { "bush", "barrel", "log", "crate", "leaves", "basket" }
 	local surprises = { "frog", "confetti", "rat", "empty" }
 	for i, spot in spots do
 		local kind = kinds[rng:NextInteger(1, #kinds)]
@@ -2725,7 +2771,7 @@ hideInBushes = function(catPos: Vector3)
 		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = "Search"
-		prompt.ObjectText = ({ bush = "Bush", barrel = "Barrel", log = "Log", crate = "Crate" })[kind]
+		prompt.ObjectText = ({ bush = "Bush", barrel = "Barrel", log = "Log", crate = "Crate", leaves = "Leaves", basket = "Basket" })[kind]
 		prompt.HoldDuration = 0.3
 		prompt.MaxActivationDistance = 9
 		prompt.RequiresLineOfSight = false
@@ -2904,6 +2950,62 @@ do
 		end
 		lastThrow[player] = now
 		throwBone(player)
+	end)
+	-- Calling Pianka: she meows back from where she is, dogs and neighbors nearby come to look
+	local callEvent = Instance.new("RemoteEvent")
+	callEvent.Name = "Call"
+	callEvent.Parent = ReplicatedStorage
+	local lastCallAt: { [Player]: number } = {}
+	callEvent.OnServerEvent:Connect(function(player)
+		local now = os.clock()
+		local root = getRoot(player)
+		if not root or player:GetAttribute("Out") or now - (lastCallAt[player] or -100) < Config.CallCooldown then
+			return
+		end
+		lastCallAt[player] = now
+		local here = Vector3.new(root.Position.X, 0, root.Position.Z)
+		catEvent:FireAllClients("call", player, root)
+		local from: Vector3? = nil
+		for _, part in twistFolder:GetChildren() do
+			if part:IsA("BasePart") and part:GetAttribute("Pianka") then
+				from = part.Position
+			end
+		end
+		if not from and wildCat and wildCat.model.Parent then
+			from = wildCat.model:GetPivot().Position
+		end
+		if not from then
+			local best = math.huge
+			for _, kitten in kittenFolder:GetChildren() do
+				if kitten:IsA("Model") then
+					local p = kitten:GetPivot().Position
+					if (p - root.Position).Magnitude < best then
+						best, from = (p - root.Position).Magnitude, p
+					end
+				end
+			end
+		end
+		if from then
+			task.delay(1.4, function()
+				catEvent:FireAllClients("meowBack", player, from)
+			end)
+		end
+		local heard = 0
+		for _, dog in liveDogs do
+			if dog.brain.kind ~= "pack" and (dog.brain.pos - here).Magnitude < Config.CallHeard then
+				DogBrain.hear(dog.brain, here, now)
+				heard += 1
+			end
+		end
+		for _, n in neighbors do
+			if n.brain and (n.brain.pos - here).Magnitude < Config.CallHeard then
+				DogBrain.hear(n.brain, here, now)
+				heard += 1
+			end
+		end
+		if heard > 0 then
+			catEvent:FireClient(player, "heard", nil, heard)
+		end
 	end)
 	local lastToggle: { [Player]: number } = {}
 	flashEvent.OnServerEvent:Connect(function(player)
@@ -3697,6 +3799,8 @@ do
 				brain.state = "return"
 				brain.untilTime = now + 2
 				n.brain = brain
+				n.model:SetAttribute("PathA", path.a)
+				n.model:SetAttribute("PathB", path.b)
 				n.nextSeek = now + rng:NextNumber(8, 8 + Config.SeekEvery)
 				n.angry = false
 				n.cone, n.light = makeCone(n.model, n.root, NEIGHBOR_NOSE, s.coneRange, s.coneAngle, CONE_HUNT)
@@ -3769,6 +3873,8 @@ do
 			n.lamp.Enabled = false
 			n.bubble.Enabled = false
 			n.model:SetAttribute("Hunting", nil)
+			n.model:SetAttribute("PathA", nil)
+			n.model:SetAttribute("PathB", nil)
 		end
 		if announce then
 			catEvent:FireAllClients("dawn")
@@ -3827,6 +3933,8 @@ do
 				local path = target and DogBrain.huntPath(rnd, brainWorld, target.pos, target.heading, home, Config.RatSafeRadius)
 				if path then
 					brain.a, brain.b = path.a, path.b
+					n.model:SetAttribute("PathA", path.a)
+					n.model:SetAttribute("PathB", path.b)
 					brain.state = "return"
 					brain.untilTime = now
 					if (brain.pos - path.a).Magnitude > 60 then
@@ -3839,7 +3947,7 @@ do
 			local player = if id then byId[id] else nil
 			if event == "alert" then
 				neighborSay(n, Config.Hunt, 2)
-				sayEvent:FireAllClients(n.head, 1, n.pitch)
+				catEvent:FireAllClients("heyYou", nil, n.head)
 				if player then
 					catEvent:FireClient(player, "hunted")
 				end

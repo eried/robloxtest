@@ -206,8 +206,8 @@ local function makeRats(world, mode: string, catPos: Vector3, level: number)
 end
 
 -- Same as the game: Pianka hides in one of several spots around her
-local function hideSpots(world, cat: Vector3, level: number): { Vector3 }
-	local count = math.min(7, Config.HideSpots + (level - 1) // Config.Level.spotsEvery)
+local function hideSpots(world, cat: Vector3, level: number, mode: string): { Vector3 }
+	local count = math.min(8, Config.HideSpots[mode] + (level - 1) // Config.Level.spotsEvery)
 	local spots = { cat }
 	for _ = 1, 120 do
 		if #spots >= count then
@@ -591,7 +591,7 @@ end
 
 local function makePatrols(world, catPos: Vector3, s)
 	local dogs = {}
-	local paths = DogBrain.patrolPaths(rand, world, catPos, HOME, s.patrolCount, Config.RatSafeRadius)
+	local paths = DogBrain.patrolPaths(rand, world, catPos, HOME, s.patrolCount, Config.RatSafeRadius, s.lines)
 	for _, path in paths do
 		local dog = DogBrain.newPatrol(path.a, path.b)
 		dog.pos = path.a:Lerp(path.b, rand(0, 1))
@@ -642,7 +642,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 	local rats = makeRats(world, mode, cat, lv)
 	local birds = makeBirds(world, mode, cat, hero)
 	local bones = makeBones(world, mode, cat)
-	local spots = hideSpots(world, cat, lv)
+	local spots = hideSpots(world, cat, lv, mode)
 	local unchecked = table.clone(spots)
 	local hidden = true
 	local center = Vector3.zero
@@ -1044,6 +1044,18 @@ do
 		ate = event == "ate"
 	end
 	check(not bit and ate and (chaser.pos - Vector3.new(20, 0, 0)).Magnitude < 2, "bone stops the chase")
+
+	-- A dog hears a call, walks to the noise, then goes back to its path
+	local ear = DogBrain.newPatrol(Vector3.new(0, 0, 0), Vector3.new(0, 0, -40))
+	DogBrain.hear(ear, Vector3.new(30, 0, 0), 0)
+	t = 0
+	local closest = math.huge
+	while t < 8 do
+		t += DT
+		DogBrain.step(ear, DT, t, {}, world, Config.Dogs.Easy, 0)
+		closest = math.min(closest, (ear.pos - Vector3.new(30, 0, 0)).Magnitude)
+	end
+	check(closest < 4 and ear.state ~= "listen", "dog follows a noise and goes back")
 end
 
 local function pct(n: number, total: number): string

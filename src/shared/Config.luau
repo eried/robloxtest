@@ -5,14 +5,14 @@ return {
 	CatColor = Color3.fromRGB(34, 34, 40),
 	EyeColor = Color3.fromRGB(255, 210, 40),
 
-	ForestSize = 600,
-	TreeCount = 350,
-	BushCount = 150,
-	RockCount = 60,
+	ForestSize = 840,
+	TreeCount = 680,
+	BushCount = 290,
+	RockCount = 115,
 	SpawnClearRadius = 30,
 	MinCatDistance = 150,
-	CatDistance = { Easy = 150, Normal = 230, Umulig = 250 },
-	Hedges = { Easy = 2, Normal = 8, Umulig = 12 },
+	CatDistance = { Easy = 200, Normal = 330, Umulig = 370 },
+	Hedges = { Easy = 3, Normal = 12, Umulig = 16 },
 	HomePosition = Vector3.new(10, 0, 0),
 	HomeRadius = 8,
 	CarryTime = 75,
@@ -27,22 +27,22 @@ return {
 
 	Dogs = {
 		Easy = {
-			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8,
+			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8, lines = 0,
 			chaseFactor = 1.1, chaseTime = 2.5, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
 			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
 		Normal = {
-			patrolCount = 6, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.7,
+			patrolCount = 8, patrolSpeed = 6, coneAngle = 34, coneRange = 20, alertDelay = 0.7, lines = 3,
 			chaseFactor = 1.15, chaseTime = 3, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
 			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
 		Umulig = {
-			patrolCount = 6, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5,
+			patrolCount = 10, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5, lines = 4,
 			chaseFactor = 1.25, chaseTime = 4, catch = 3,
-			packCount = 6, packConeRange = 10, packSpeedFactor = 1.08, packGap = 15, packGapMin = 6,
-			packClose = 0.7, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.9,
+			packCount = 6, packConeRange = 10, packSpeedFactor = 1.05, packGap = 15, packGapMin = 6,
+			packClose = 0.6, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.9,
 		},
 	},
 
@@ -52,7 +52,7 @@ return {
 		Umulig = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3, hiddenFactor = 0.3 },
 	},
 	HuntByDay = { Umulig = true },
-	Seekers = { Easy = 1, Normal = 1, Umulig = 2 },
+	Seekers = { Easy = 1, Normal = 0, Umulig = 1 },
 	SeekEvery = 20,
 	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
 	-- Each rescue raises the level up to Max
@@ -60,7 +60,7 @@ return {
 		Max = 10, dogsEvery = 2, maxDogs = 4, cone = 0.6, maxCone = 5, chase = 0.012,
 		rats = 1, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
 	},
-	HideSpots = 3,
+	HideSpots = { Easy = 3, Normal = 5, Umulig = 6 },
 	BoneCount = { Easy = 4, Normal = 3, Umulig = 3 },
 	BoneMax = 3,
 	BoneReach = 30,
@@ -78,7 +78,7 @@ return {
 	RatLeash = 50,
 	RatSafeRadius = 40,
 
-	FishCount = 25,
+	FishCount = 45,
 	MushroomCount = { Easy = 8, Normal = 6, Umulig = 4 },
 	MudCount = { Easy = 8, Normal = 14, Umulig = 20 },
 	TeamBonus = 3,
@@ -93,7 +93,7 @@ return {
 		{ id = "Pet", name = "Kitten pet", price = 300, kind = "pet", color = Color3.fromRGB(34, 34, 40) },
 	},
 
-	NeighborCount = 6,
+	NeighborCount = 9,
 	NeighborSpeed = 3,
 
 	PatrickSpeed = 20,
@@ -118,6 +118,18 @@ return {
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
 	ChaseMusicId = 100600567252458,
 	CallId = 75168345863555,
+	-- Player and neighbor voices: start and length in seconds
+	VoicesId = 0,
+	Voices = {
+		Call = { 0.3, 2.79 },
+		Back = { 3.59, 2.201 },
+		Ouch = { 6.291, 1.474 },
+		Got = { 8.265, 2.208 },
+		HeyYou = { 10.973, 1.487 },
+	},
+	-- Calling Pianka: she meows back, but dogs and neighbors this close hear it
+	CallCooldown = 6,
+	CallHeard = 45,
 
 	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
 	SoundsId = 91539648212607,
@@ -133,7 +145,7 @@ return {
 		{ 27.772, 5.358, "Det er sent. Du burde ikke være ute nå.", "It is late. You should not be out now." },
 		{ 37.038, 4.381, "Hysj! Ikke vekk hundene.", "Shh! Do not wake the dogs." },
 	},
-	Hunt = { "Hva gjør du her?!", "What are you doing here?!" },
+	Hunt = { "Hei du!", "Hey you!" },
 	Chase = { "Stopp!", "Stop!" },
 	Grab = { "Ut herfra!", "Get out of here!" },
 }
