@@ -118,7 +118,7 @@ return {
 
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
 	ChaseMusicId = 100600567252458,
-	CallId = 0,
+	CallId = 75168345863555,
 
 	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
 	SoundsId = 91539648212607,
