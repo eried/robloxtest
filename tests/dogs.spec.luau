@@ -510,7 +510,7 @@ local function botStep(bot, goal: Vector3, dogs, world, mud, careful: boolean)
 			desire += away / m * (13 - m) * 0.3
 		end
 	end
-	if careful then
+	if careful and not bot.dash then
 		local threat = nil
 		for _, dog in dogs do
 			if (dog.state == "alert" or dog.state == "chase" or dog.state == "lunge") and (dog.pos - bot.pos).Magnitude < 30 then
@@ -769,6 +769,9 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 				end
 			end
 		end
+		-- Stuck behind a guard line: like a player, take the chance and dash through now and then
+		local stuck = now - lastProgress
+		bot.dash = stuck > 10 and stuck % 8 < 3
 		if alive then
 			botStep(bot, goal, active, world, mud, careful)
 		end
