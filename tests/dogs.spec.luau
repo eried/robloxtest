@@ -370,6 +370,23 @@ local function astar(world, from: Vector3, goal: Vector3): { Vector3 }?
 	local blocked = world.blocked
 	local sx, sz = cellOf(from)
 	local gx, gz = cellOf(goal)
+	-- A goal inside a blocked cell (next to a hedge): aim for the closest open cell to it
+	if blocked[gx * SIDE + gz] then
+		local best = math.huge
+		local bx, bz = gx, gz
+		for dx = -3, 3 do
+			for dz = -3, 3 do
+				local nx, nz = gx + dx, gz + dz
+				if nx >= 0 and nz >= 0 and nx < SIDE and nz < SIDE and not blocked[nx * SIDE + nz] then
+					local d = (centerOf(nx, nz) - goal).Magnitude
+					if d < best then
+						best, bx, bz = d, nx, nz
+					end
+				end
+			end
+		end
+		gx, gz = bx, bz
+	end
 	local start, target = sx * SIDE + sz, gx * SIDE + gz
 	local heap, cost, came = { start }, { [start] = 0 }, {}
 	local score = { [start] = 0 }
