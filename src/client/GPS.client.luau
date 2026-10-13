@@ -879,7 +879,7 @@ end
 
 local WHITE = Color3.new(1, 1, 1)
 local GRAY = Color3.fromRGB(180, 180, 180)
-cardText(Config.GameName .. " 🐱", 12, 50, 36, Color3.fromRGB(255, 180, 90))
+cardText(Config.GameName .. " 🐱", 12, 50, 32, Color3.fromRGB(255, 180, 90))
 cardText("by " .. Config.Creator, 56, 22, 18, GRAY)
 cardText("Find " .. Config.CatName .. " with your GPS and bring her home!", 82, 26, 20, WHITE)
 cardText("1. Who are you?", 114, 26, 22, GREEN)

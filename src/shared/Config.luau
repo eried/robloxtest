@@ -1,5 +1,5 @@
 return {
-	GameName = "Find Pianka the Cat",
+	GameName = "Find Pianka the Cat L2",
 	Creator = "Mr. Scientist 84",
 	CatName = "Pianka",
 	CatColor = Color3.fromRGB(34, 34, 40),
