@@ -18,7 +18,9 @@ When you join, a short clip shows Pianka running out of the house at sunset. Eve
 - **Normal**: Pianka is far away behind thorn hedges, guard dogs walk lines across the way, thick fog, she runs away 3 times. And there is a surprise when you catch her!
 - **Umulig** (almost impossible): even farther, more hedges and guard lines, the GPS only tells the distance, then run home with the kittens while a pack of dogs follows you.
 
-Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS only shows the area. Press **📣 Call** (C) and she meows back from her hiding place, but dogs and neighbors nearby hear you too and come to look. Up close her hiding place rustles. Wrong spots can hide a frog, a rat or a fish gift.
+Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS only shows the area. Press **📣 Call** (C) and she meows back from her hiding place, but dogs and neighbors nearby hear you too and come to look. Up close her hiding place rustles. Wrong spots can hide a frog, a rat or a fish gift. Any bush in the forest can be searched once per round for a fish.
+
+In Normal and Umulig, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her.
 
 Open the **🗺 Map** (M) to plan your way: hedges, guard dog lines, neighbors with lanterns, cabins, home and the area where Pianka is.
 

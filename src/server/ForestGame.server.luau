@@ -1027,6 +1027,7 @@ local kittens: { Cat } = {}
 local kittensLeft = 0
 local umulig = false
 local stacks: { [Player]: { Cat } } = {}
+local ride: { player: Player?, cat: Cat? } = {}
 
 local dogFolder = Instance.new("Folder")
 dogFolder.Name = "Dogs"
@@ -1085,6 +1086,8 @@ local function clearUmulig()
 		player:SetAttribute("Kittens", nil)
 	end
 	table.clear(stacks)
+	removeCat(ride.cat)
+	ride.player, ride.cat = nil, nil
 end
 
 local roundOver = 0
@@ -1881,6 +1884,16 @@ end
 
 local hideInBushes: (Vector3) -> ()
 
+local function catAtHome(): Cat
+	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.45, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
+	local cat = homeCat :: Cat
+	cat.tagText.Text = "Home! ❤️"
+	cat.sparkles.SparkleColor = Color3.fromRGB(255, 120, 180)
+	cat.model.Parent = workspace
+	homeTween = wagTail(cat.tail)
+	return cat
+end
+
 local function deliver(player: Player)
 	local myRound = round
 	removeCat(carried)
@@ -1901,13 +1914,7 @@ local function deliver(player: Player)
 		end
 	end
 	fireworks()
-
-	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.45, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
-	local cat = homeCat :: Cat
-	cat.tagText.Text = "Home! ❤️"
-	cat.sparkles.SparkleColor = Color3.fromRGB(255, 120, 180)
-	cat.model.Parent = workspace
-	homeTween = wagTail(cat.tail)
+	catAtHome()
 
 	local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 	levelUp()
@@ -1975,12 +1982,24 @@ local function stackKitten(player: Player): boolean
 		if humanoid then
 			humanoid.Died:Once(function()
 				if stacks[player] == fresh and #fresh > 0 then
-					failUmulig(player)
+					if umulig then
+						failUmulig(player)
+					else
+						stacks[player] = nil
+						player:SetAttribute("Kittens", 0)
+					end
 				end
 			end)
 		end
 	end
-	local kitten = carryCat(character, 0.45, #stack * 1.4)
+	local head = character:FindFirstChild("Head") :: BasePart?
+	if not head then
+		return false
+	end
+	local n = #stack
+	local lift = (if ride.player == player and ride.cat then 1.3 else 0) + n * 1.1
+	local side = if n % 2 == 0 then 1 else -1
+	local kitten = carryCat(character, 0.45, lift, CFrame.new(side * 0.15, head.Size.Y / 2 + lift, 0) * CFrame.Angles(0, math.rad(side * 25), 0))
 	if not kitten then
 		return false
 	end
@@ -2350,6 +2369,9 @@ local function startEscape()
 						end
 						clearDogs("pack")
 						workspace:SetAttribute("Escape", nil)
+						removeCat(ride.cat)
+						ride.player, ride.cat = nil, nil
+						catAtHome()
 						levelUp()
 						catEvent:FireAllClients("escaped", player, seconds)
 						giveFish(player, Config.Reward.Umulig * (if twist == "golden" then 2 else 1))
@@ -2371,15 +2393,12 @@ local function collectKitten(kitten: Cat, player: Player)
 	if kitten.model.Parent ~= kittenFolder or kittensLeft <= 0 or player:GetAttribute("Out") then
 		return
 	end
-	if umulig and not stackKitten(player) then
+	if not stackKitten(player) and umulig then
 		return
 	end
 	local myRound = round
 	removeCat(kitten)
 	kittensLeft -= 1
-	if not umulig then
-		kittenAtHome(Config.KittenCount - kittensLeft)
-	end
 
 	local stats = player:FindFirstChild("leaderstats")
 	local count = stats and stats:FindFirstChild("Rescued") :: IntValue?
@@ -2420,7 +2439,7 @@ spawnKitten = function(pos: Vector3)
 	kitten.model.Parent = kittenFolder
 end
 
-local function startKittens(cat: Cat, ultra: boolean)
+local function startKittens(cat: Cat, ultra: boolean, player: Player)
 	local myRound = round
 	umulig = ultra
 	local center = cat.model:GetPivot().Position
@@ -2435,11 +2454,16 @@ local function startKittens(cat: Cat, ultra: boolean)
 	boom.ExplosionType = Enum.ExplosionType.NoCraters
 	boom.Parent = workspace
 
-	homeCat = makeCat(CFrame.new(home + Vector3.new(0, 1.45, 0)) * CFrame.Angles(0, math.rad(90), 0), 1)
-	local mom = homeCat :: Cat
-	mom.tagText.Text = "Mama " .. Config.CatName
-	mom.model.Parent = workspace
-	homeTween = wagTail(mom.tail)
+	local character = player.Character
+	local mom = character and carryCat(character, 0.6, 0)
+	if mom then
+		local tag = mom.tagText.Parent :: BillboardGui
+		tag:Destroy()
+		if twist == "golden" then
+			mom.collar.Color = GOLD
+		end
+		ride.player, ride.cat = player, mom
+	end
 
 	local taken: { Vector3 } = {}
 	for _ = 1, Config.KittenCount do
@@ -2498,7 +2522,7 @@ placeWildCat = function(pos: Vector3, height: number)
 			if wildTween then
 				wildTween:Cancel()
 			end
-			startKittens(cat, workspace:GetAttribute("Mode") == "Umulig")
+			startKittens(cat, workspace:GetAttribute("Mode") == "Umulig", player)
 			return
 		end
 		local newCarried = carryCat(character, 0.6, 0)
@@ -2735,14 +2759,14 @@ hideInBushes = function(catPos: Vector3)
 	end
 	cat.model.Parent = nil
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	local count = math.min(8, (Config.HideSpots[mode] or 3) + (level() - 1) // Config.Level.spotsEvery)
+	local count = math.min(Config.HideSpotsMax, (Config.HideSpots[mode] or 3) + (level() - 1) // Config.Level.spotsEvery)
 	local spots = { catPos }
 	for _ = 1, 120 do
 		if #spots >= count then
 			break
 		end
 		local angle = rng:NextNumber(0, math.pi * 2)
-		local try = catPos + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(10, 26)
+		local try = catPos + Vector3.new(math.cos(angle), 0, math.sin(angle)) * rng:NextNumber(10, 32)
 		local ok = math.abs(try.X) < half - 10 and math.abs(try.Z) < half - 10 and isFree(try, 4)
 		for _, other in spots do
 			if (other - try).Magnitude < 8 then
@@ -2761,7 +2785,7 @@ hideInBushes = function(catPos: Vector3)
 	workspace:SetAttribute("CatPosition", center)
 	workspace:SetAttribute("CatHidden", true)
 	local kinds = { "bush", "barrel", "log", "crate", "leaves", "basket" }
-	local surprises = { "frog", "confetti", "rat", "empty" }
+	local surprises = { "frog", "confetti", "empty" }
 	for i, spot in spots do
 		local kind = kinds[rng:NextInteger(1, #kinds)]
 		local part = hidingSpot(kind, spot)
@@ -2776,7 +2800,7 @@ hideInBushes = function(catPos: Vector3)
 		prompt.MaxActivationDistance = 9
 		prompt.RequiresLineOfSight = false
 		prompt.Parent = part
-		local surprise = surprises[rng:NextInteger(1, #surprises)]
+		local surprise = if rng:NextNumber() < Config.RatSurprise then "rat" else surprises[rng:NextInteger(1, #surprises)]
 		prompt.Triggered:Connect(function(player)
 			if not part.Parent or player:GetAttribute("Out") then
 				return
@@ -2816,6 +2840,34 @@ hideInBushes = function(catPos: Vector3)
 	end
 end
 
+-- Every bush in the forest can be searched once per round
+for _, bush in forest:GetChildren() do
+	if bush.Name == "Bush" and bush:IsA("BasePart") then
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = "Search"
+		prompt.ObjectText = "Bush"
+		prompt.HoldDuration = 0.3
+		prompt.MaxActivationDistance = 7
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = bush
+		prompt.Triggered:Connect(function(player)
+			if player:GetAttribute("Out") then
+				return
+			end
+			local found = "empty"
+			if bush:GetAttribute("Round") ~= round then
+				bush:SetAttribute("Round", round)
+				local roll = rng:NextNumber()
+				found = if roll < 0.3 then "fish" elseif roll < 0.5 then "frog" else "empty"
+				if found == "fish" then
+					giveFish(player, 1)
+				end
+			end
+			catEvent:FireClient(player, "bush", player, found, bush)
+		end)
+	end
+end
+
 dropCat = function(player: Player, by: string?)
 	local root = getRoot(player)
 	local from = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else home
@@ -2845,7 +2897,9 @@ loseHeart = function(player: Player, all: boolean?)
 		return
 	end
 	player:SetAttribute("Out", true)
-	returnKittens(player)
+	if umulig then
+		returnKittens(player)
+	end
 	for _, other in Players:GetPlayers() do
 		if not other:GetAttribute("Out") then
 			setGhost(player)

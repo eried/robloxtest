@@ -138,6 +138,34 @@ local character = player.Character
 if character then
 	dump(character, "player")
 end
+
+-- Normal: find Pianka, then stack every kitten on the head
+local function press(prompt: any)
+	if prompt then
+		Engine.fireServer(prompt.Triggered, player)
+		for _ = 1, 10 do
+			Engine.step(1 / 20)
+		end
+	end
+end
+for _, part in workspace:FindFirstChild("Twist"):GetChildren() do
+	if part:GetAttribute("Pianka") then
+		press(part:FindFirstChildOfClass("ProximityPrompt"))
+	end
+end
+for _, m in workspace:GetChildren() do
+	if m.Name == Config.CatName and m.ClassName == "Model" then
+		press(m:FindFirstChildWhichIsA("ProximityPrompt", true))
+	end
+end
+for _, kitten in workspace:FindFirstChild("Kittens"):GetChildren() do
+	press(kitten:FindFirstChildWhichIsA("ProximityPrompt", true))
+end
+character = player.Character
+if character then
+	print("tower kittens", player:GetAttribute("Kittens"))
+	dump(character, "tower")
+end
 fs.writeFile(process.args[1] or "geometry.json", require("@lune/serde").encode("json", out))
 for _, e in Engine.errors do
 	print("ERROR", e.msg)

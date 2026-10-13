@@ -150,7 +150,7 @@ end
 
 -- Bots
 local bots: { any } = {}
-local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1 }
+local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false }
 
 local function addBot(name: string, kind: string, hero: string): any
 	local player, ctx = Engine.addPlayer(name)
@@ -456,6 +456,19 @@ local function invariants()
 		end
 	end
 	for _, bot in bots do
+		local character = bot.player.Character
+		if character then
+			local tower, pianka = 0, false
+			for _, child in character:GetChildren() do
+				if child.Name == "Kitten" then
+					tower += 1
+				elseif child.Name == Config.CatName then
+					pianka = true
+				end
+			end
+			stats.tower = math.max(stats.tower, tower)
+			stats.towerPianka = stats.towerPianka or (pianka and tower > 0 and mode == "Normal")
+		end
 		local hearts = bot.player:GetAttribute("Hearts")
 		local max = bot.player:GetAttribute("MaxHearts") or Config.Hearts[mode] or 3
 		if type(hearts) ~= "number" or hearts < 0 or hearts > max then
@@ -699,6 +712,8 @@ check(stats.searching and (counts.bush or 0) > 0, "bots never searched a hiding 
 check((counts.call or 0) > 0 and (counts.meowBack or 0) > 0, "calling Pianka never got a meow back")
 check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked up or thrown")
 check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
+check(stats.tower >= 2, "tower: kittens never stacked on a head")
+check(stats.towerPianka, "tower: Pianka not under the kittens in Normal")
 print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d, play again %d, calls %d, meows back %d, heard %d",
 	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0, stats.again or 0, counts.call or 0, counts.meowBack or 0, counts.heard or 0))
 print(string.format("Events: hunt %d, dawn %d, dropped %d, gift %d, twist %d, out %d",

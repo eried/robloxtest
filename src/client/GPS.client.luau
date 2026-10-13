@@ -189,8 +189,9 @@ local music = new("Sound", {
 	SoundId = if Config.MusicId ~= 0 then "rbxassetid://" .. Config.MusicId else "",
 	Looped = true,
 	Volume = 0.5,
-	Parent = gui,
+	Parent = SoundService,
 })
+local musicOn = Config.MusicId ~= 0
 
 local clipSound: Sound? = nil
 if Config.SoundsId ~= 0 then
@@ -670,7 +671,7 @@ local chaseMusic = new("Sound", {
 	SoundId = if Config.ChaseMusicId ~= 0 then "rbxassetid://" .. Config.ChaseMusicId else "",
 	Looped = true,
 	Volume = 0,
-	Parent = gui,
+	Parent = SoundService,
 })
 local rush = 0
 local lastSpot: Vector3? = nil
@@ -710,9 +711,12 @@ local function runEffects(dt: number)
 	local urgency = if deadline then math.clamp(1 - (deadline - workspace:GetServerTimeNow()) / 60, 0, 1)
 		elseif workspace:GetAttribute("Escape") then 0.6
 		else 0
+	if musicOn and not music.Playing then
+		music:Play()
+	end
 	if Config.ChaseMusicId ~= 0 then
 		chaseMusic.PlaybackSpeed = 1 + 0.2 * urgency
-		local mix = if chase then 1 else 0
+		local mix = if chase and chaseMusic.IsLoaded then 1 else 0
 		chaseMusic.Volume += (0.6 * mix - chaseMusic.Volume) * math.min(1, dt * 2)
 		music.Volume += (0.5 * (1 - mix) - music.Volume) * math.min(1, dt * 2)
 		if music.Playing and not chaseMusic.Playing then
@@ -761,8 +765,9 @@ local musicButton = topButton("🎵", 100, 40)
 local shopButton = topButton("🐟 Shop", 175, 90)
 musicButton.Visible = Config.MusicId ~= 0
 musicButton.Activated:Connect(function()
-	music.Playing = not music.Playing
-	musicButton.Text = if music.Playing then "🎵" else "🔇"
+	musicOn = not musicOn
+	music.Playing = musicOn
+	musicButton.Text = if musicOn then "🎵" else "🔇"
 end)
 if Config.MusicId ~= 0 then
 	music:Play()
@@ -1856,7 +1861,7 @@ local function tryAgain(delay: number)
 	end)
 end
 
-catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
+catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, part: Instance?)
 	local cat = Config.CatName
 	local seconds = if type(value) == "number" then value else 0
 	if kind == "picked" then
@@ -1930,11 +1935,11 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			playClip(value, Config.Voices.HeyYou, 1.3, 1, 110, voiceSound)
 		end
 	elseif kind == "kittens" then
-		showBanner("💥 Pop! " .. cat .. " is safe at home.\nFind her " .. Config.KittenCount .. " kittens!", 5)
+		showBanner("💥 Pop! " .. Config.KittenCount .. " kittens!\nStack them all on your head! 🐈", 5)
 		chime()
 	elseif kind == "kitten" then
 		local finder = if who == player then "You" else nameOf(who)
-		showBanner(finder .. " found a kitten! 🐾\n" .. seconds .. " left", 2)
+		showBanner(finder .. " found a kitten! 🐈\n" .. seconds .. " left", 2)
 		if who == player then
 			chime()
 		end
@@ -1984,6 +1989,9 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 		popText(texts[tostring(value)] or "Power up!", Color3.fromRGB(150, 220, 255))
 		chime()
 	elseif kind == "bush" then
+		if part and part:IsA("BasePart") then
+			shake(part, 1)
+		end
 		if value == "found" then
 			showBanner((if who == player then "You" else nameOf(who)) .. " found " .. cat .. "! 🐱", 3)
 			chime()
@@ -1993,6 +2001,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 			popText("A rat! 🐀 Run!", Color3.fromRGB(255, 150, 150))
 		elseif value == "empty" then
 			popText("Empty... 🍂", Color3.fromRGB(200, 200, 200))
+		elseif value == "fish" then
+			popText("+1 🐟", Color3.fromRGB(120, 200, 255))
 		else
 			popText("Confetti! 🎉", Color3.fromRGB(255, 210, 90))
 			confetti()
@@ -2035,7 +2045,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "bone" then
 		popText(if seconds > 0 then "🦴 Dogs went for the bone!" else "🦴 No dogs near it", Color3.fromRGB(245, 240, 225))
 	elseif kind == "kittensBack" then
-		showBanner(if who == player then "Your kittens ran back\ninto the forest! 🐾" else nameOf(who) .. "'s kittens ran\nback into the forest! 🐾", 3)
+		showBanner(if who == player then "Your kittens ran back\ninto the forest! 🐈" else nameOf(who) .. "'s kittens ran\nback into the forest! 🐈", 3)
 	elseif kind == "heart" then
 		local root = myRoot()
 		if root then
@@ -2454,7 +2464,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	catDot.TextTransparency = 0.8 * flicker
 	distanceLabel.TextTransparency = 0.6 * flicker
 	local hidden = mode == "cat" and workspace:GetAttribute("CatHidden") == true
-	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐾" elseif hidden then "❓" else "🐱"
+	catDot.Text = if mode == "home" or mode == "escape" then "🏠" elseif mode == "kitten" then "🐈" elseif hidden then "❓" else "🐱"
 	local spot = radarPos(offset, right)
 	catDot.Position = spot + UDim2.fromOffset(wobble.X * fuzz * 30, wobble.Y * fuzz * 30)
 

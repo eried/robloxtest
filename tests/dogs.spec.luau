@@ -207,14 +207,14 @@ end
 
 -- Same as the game: Pianka hides in one of several spots around her
 local function hideSpots(world, cat: Vector3, level: number, mode: string): { Vector3 }
-	local count = math.min(8, Config.HideSpots[mode] + (level - 1) // Config.Level.spotsEvery)
+	local count = math.min(Config.HideSpotsMax, Config.HideSpots[mode] + (level - 1) // Config.Level.spotsEvery)
 	local spots = { cat }
 	for _ = 1, 120 do
 		if #spots >= count then
 			break
 		end
 		local a = rand(0, math.pi * 2)
-		local try = cat + Vector3.new(math.cos(a), 0, math.sin(a)) * rand(10, 26)
+		local try = cat + Vector3.new(math.cos(a), 0, math.sin(a)) * rand(10, 32)
 		local ok = math.abs(try.X) < HALF - 10 and math.abs(try.Z) < HALF - 10 and isFree(world, try, 4)
 		for _, other in spots do
 			if (other - try).Magnitude < 8 then
@@ -922,7 +922,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 					r.searched += 1
 					if spot == spots[1] then
 						hidden = false
-					elseif rand(0, 1) < 0.25 then
+					elseif rand(0, 1) < Config.RatSurprise then
 						table.insert(rats, { nest = spot, pos = spot, wander = spot, cooldown = now + 1, windup = 0, speed = Config.RatSpeed.Easy })
 					end
 				end
