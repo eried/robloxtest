@@ -41,8 +41,8 @@ return {
 		Umulig = {
 			patrolCount = 10, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5, lines = 4,
 			chaseFactor = 1.25, chaseTime = 4, catch = 3,
-			packCount = 6, packConeRange = 10, packSpeedFactor = 1.05, packGap = 15, packGapMin = 6,
-			packClose = 0.6, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.9,
+			packCount = 6, packConeRange = 10, packSpeedFactor = 1.04, packGap = 15, packGapMin = 6,
+			packClose = 0.55, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.9,
 		},
 	},
 
