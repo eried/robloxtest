@@ -69,6 +69,8 @@ return {
 	BirdCount = { Easy = 2, Normal = 1, Umulig = 0 },
 
 	DayMinutes = 10,
+	-- Every round starts in the late afternoon and gets dark soon
+	DuskClock = 16.75,
 	NightShare = 0.55,
 
 	RatCount = { Easy = 4, Normal = 6, Umulig = 8 },
@@ -116,6 +118,7 @@ return {
 
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
 	ChaseMusicId = 100600567252458,
+	CallId = 0,
 
 	-- Upload sounds/PiankaSounds.mp3 to Roblox and paste its id here
 	SoundsId = 91539648212607,

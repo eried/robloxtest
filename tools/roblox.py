@@ -23,6 +23,7 @@ AUDIO = [
     ("MusicId", "music/PiankaMystery.mp3", "Find Pianka music"),
     ("SoundsId", "sounds/PiankaSounds.mp3", "Find Pianka sounds"),
     ("ChaseMusicId", "music/PiankaChase.mp3", "Find Pianka chase music"),
+    ("CallId", "sounds/PiankaCall.mp3", "Find Pianka call"),
 ]
 
 

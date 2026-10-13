@@ -213,6 +213,54 @@ do
 	bedText.Parent = bedTag
 end
 
+-- Home: the house Pianka runs away from
+do
+	local house = Instance.new("Model")
+	house.Name = "House"
+	local at = Vector3.new(24, 0, 0)
+	local wood = Color3.fromRGB(190, 120, 80)
+	local function part(name: string, size: Vector3, offset: Vector3, color: Color3, material: Enum.Material): BasePart
+		return makePart("Part", { Name = name, Size = size, Position = at + offset, Color = color, Material = material, Parent = house })
+	end
+	part("Floor", Vector3.new(10, 0.4, 12), Vector3.new(0, 0.2, 0), Color3.fromRGB(120, 80, 55), Enum.Material.WoodPlanks)
+	part("Back", Vector3.new(1, 8, 12), Vector3.new(5, 4, 0), wood, Enum.Material.WoodPlanks)
+	part("Left", Vector3.new(10, 8, 1), Vector3.new(0, 4, -6), wood, Enum.Material.WoodPlanks)
+	part("Right", Vector3.new(10, 8, 1), Vector3.new(0, 4, 6), wood, Enum.Material.WoodPlanks)
+	part("FrontA", Vector3.new(1, 8, 4.3), Vector3.new(-5, 4, -3.85), wood, Enum.Material.WoodPlanks)
+	part("FrontB", Vector3.new(1, 8, 4.3), Vector3.new(-5, 4, 3.85), wood, Enum.Material.WoodPlanks)
+	part("Lintel", Vector3.new(1, 2, 3.4), Vector3.new(-5, 7, 0), wood, Enum.Material.WoodPlanks)
+	for _, z in { -3.85, 3.85 } do
+		part("Window", Vector3.new(0.2, 1.8, 2), Vector3.new(-5.55, 4.6, z), Color3.fromRGB(255, 210, 120), Enum.Material.Neon)
+	end
+	for _, side in { -1, 1 } do
+		makePart("Part", {
+			Name = "Roof",
+			Size = Vector3.new(12, 0.6, 7.4),
+			CFrame = CFrame.new(at + Vector3.new(0, 10, side * 3.1)) * CFrame.Angles(side * math.rad(35), 0, 0),
+			Color = Color3.fromRGB(170, 50, 45),
+			Material = Enum.Material.Slate,
+			Parent = house,
+		})
+	end
+	for _, x in { -5, 5 } do
+		for i, width in { 11, 8, 5, 2 } do
+			part("Gable", Vector3.new(1, 1, width), Vector3.new(x, 7.5 + i, 0), wood, Enum.Material.WoodPlanks)
+		end
+	end
+	part("Door", Vector3.new(0.4, 6, 3.4), Vector3.new(-5.2, 3.2, 0), Color3.fromRGB(95, 55, 30), Enum.Material.Wood)
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 190, 120)
+	glow.Range = 16
+	glow.Brightness = 1.5
+	glow.Parent = house:FindFirstChild("Floor")
+	house.Parent = camp
+	for x = -5, 5, 2.5 do
+		for z = -6, 6, 3 do
+			table.insert(treeSpots, at + Vector3.new(x, 0, z))
+		end
+	end
+end
+
 -- Forest
 local forest = Instance.new("Folder")
 forest.Name = "Forest"
@@ -875,6 +923,17 @@ local function wagTail(tail: BasePart): Tween
 	)
 	tween:Play()
 	return tween
+end
+
+-- A copy of Pianka for the intro clip
+do
+	local template = makeCat(CFrame.new(0, 0, 0), 1)
+	template.model.Name = "CatTemplate"
+	local tag = template.tagText.Parent :: BillboardGui
+	tag:Destroy()
+	template.sparkles:Destroy()
+	template.model.PrimaryPart = template.body
+	template.model.Parent = ReplicatedStorage
 end
 
 local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
@@ -2539,6 +2598,7 @@ function newRound()
 	for _, player in Players:GetPlayers() do
 		resetHearts(player)
 	end
+	workspace:SetAttribute("DayStart", workspace:GetServerTimeNow() - Sky.offset(Config.DuskClock, Config.DayMinutes, Config.NightShare))
 	buildHedges(nil)
 	local pos = findCatSpot()
 	buildHedges(pos)
@@ -2937,7 +2997,8 @@ applyCosmetics = function(player: Player)
 		local cat = carryCat(character, 0.3, 0, CFrame.new(1.2, -head.Size.Y / 2 + 0.1, 0.1))
 		if cat then
 			cat.model.Name = "Pet"
-			(cat.tagText.Parent :: BillboardGui):Destroy()
+			local tag = cat.tagText.Parent :: BillboardGui
+			tag:Destroy()
 			cat.sparkles:Destroy()
 		end
 	end
@@ -3811,7 +3872,7 @@ do
 		local now = os.clock()
 		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
 		local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
-		local _, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
+		local clock, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
 		local want = Config.HuntByDay[mode] == true or daylight < 0.5
 		if want and (not hunting or huntMode ~= mode) then
 			local announce = not hunting
@@ -3819,7 +3880,8 @@ do
 			startHunt(now, mode, announce)
 		elseif not want and hunting then
 			hunting = false
-			stopHunt(daylight >= 0.5 and Config.HuntByDay[huntMode] ~= true)
+			-- Only a real morning is announced, not a new round at dusk
+			stopHunt(clock < 12 and Config.HuntByDay[huntMode] ~= true)
 		end
 		if not hunting then
 			return

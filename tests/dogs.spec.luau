@@ -671,7 +671,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 		lastThrow = -10,
 	}
 	local hearts = Config.Hearts[mode]
-	local dayOffset = rand(0, Config.DayMinutes * 60)
+	local dayOffset = Sky.offset(Config.DuskClock, Config.DayMinutes, Config.NightShare)
 	local hunting = false
 	local phase = "find"
 	local flees = (if mode == "Easy" then 0 else Config.HardFlees) + (lv - 1) // Config.Level.fleesEvery
@@ -1003,6 +1003,8 @@ do
 	local _, afternoon = Sky.at(0, Config.DayMinutes, Config.NightShare)
 	local _, midnight = Sky.at(day * (1 - Config.NightShare) * 5 / 12 + day * Config.NightShare / 2, Config.DayMinutes, Config.NightShare)
 	check(afternoon > 0.9 and midnight < 0.1, "sky clock")
+	local dusk = select(1, Sky.at(Sky.offset(Config.DuskClock, Config.DayMinutes, Config.NightShare), Config.DayMinutes, Config.NightShare))
+	check(math.abs(dusk - Config.DuskClock) < 0.01, "rounds start at dusk")
 
 	-- Standing in a dog's path in Easy costs every heart
 	local guard = DogBrain.newPatrol(Vector3.new(0, 0, 0), Vector3.new(0, 0, -40))

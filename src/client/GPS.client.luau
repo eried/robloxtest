@@ -1031,6 +1031,156 @@ overMenuButton.Activated:Connect(function()
 	openMenu()
 end)
 
+-- Intro clip: Pianka runs out of the house at dusk
+local introClock: number? = nil
+local callSound = new("Sound", {
+	SoundId = if Config.CallId ~= 0 then "rbxassetid://" .. Config.CallId else "",
+	Volume = 1,
+	Parent = gui,
+})
+local function playIntro()
+	local camp = workspace:WaitForChild("Camp", 10)
+	local house = camp and camp:WaitForChild("House", 10)
+	local door = house and house:FindFirstChild("Door") :: BasePart?
+	local floor = house and house:FindFirstChild("Floor") :: BasePart?
+	local template = ReplicatedStorage:WaitForChild("CatTemplate", 10) :: Model?
+	if not house or not door or not floor or not template then
+		return
+	end
+	intro.Visible = false
+	local parts: { GuiObject } = {}
+	for i, y in { 0, 1 } do
+		parts[i] = new("Frame", {
+			AnchorPoint = Vector2.new(0, y),
+			Position = UDim2.fromScale(0, y),
+			Size = UDim2.fromScale(1, 0.12),
+			BackgroundColor3 = Color3.new(0, 0, 0),
+			BorderSizePixel = 0,
+			ZIndex = 30,
+			Parent = frontLayer,
+		})
+	end
+	local caption = new("TextLabel", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.86),
+		Size = UDim2.new(0.9, 0, 0, 80),
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextScaled = true,
+		TextColor3 = Color3.new(1, 1, 1),
+		TextStrokeTransparency = 0.3,
+		Text = "",
+		ZIndex = 31,
+		Parent = frontLayer,
+	})
+	new("UITextSizeConstraint", { MaxTextSize = 40, Parent = caption })
+	local skip = new("TextButton", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -16, 1, -16),
+		Size = UDim2.fromOffset(110, 44),
+		BackgroundColor3 = Color3.fromRGB(40, 40, 40),
+		BackgroundTransparency = 0.2,
+		Font = FONT,
+		TextSize = 22,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "Skip ▶",
+		ZIndex = 32,
+		Parent = frontLayer,
+	})
+	round(skip, UDim.new(0, 12))
+	local fade = new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 33,
+		Parent = frontLayer,
+	})
+	table.insert(parts, caption)
+	table.insert(parts, skip)
+
+	local cat = template:Clone()
+	local lift = template:GetPivot().Y
+	local doorCF = door.CFrame
+	local hinge = doorCF * CFrame.new(0, 0, -door.Size.Z / 2)
+	local closed = hinge:ToObjectSpace(doorCF)
+	local foot = Vector3.new(door.Position.X, 0, door.Position.Z)
+	local out = Vector3.new(foot.X - floor.Position.X, 0, foot.Z - floor.Position.Z).Unit
+	local side = Vector3.new(-out.Z, 0, out.X)
+	local hide = workspace:GetAttribute("CatPosition") :: Vector3?
+	local away = if hide then Vector3.new(hide.X - foot.X, 0, hide.Z - foot.Z) else out
+	away = if away.Magnitude > 1 then away.Unit else out
+	local eyeStart = foot + out * 15 + side * 4 + Vector3.new(0, 4.5, 0)
+	local eyeEnd = foot + out * 8 - away * 6 + Vector3.new(0, 9, 0)
+	camera.CameraType = Enum.CameraType.Scriptable
+	cat.Parent = workspace
+
+	local start = os.clock()
+	local finished, spoke, said = false, false, false
+	local conn: RBXScriptConnection? = nil
+	local function finish()
+		if finished then
+			return
+		end
+		finished = true
+		if conn then
+			conn:Disconnect()
+		end
+		introClock = nil
+		door.CFrame = doorCF
+		cat:Destroy()
+		for _, part in parts do
+			part:Destroy()
+		end
+		camera.CameraType = Enum.CameraType.Custom
+		if not playing then
+			intro.Visible = true
+		end
+		fade.BackgroundTransparency = 0
+		local tween = TweenService:Create(fade, TweenInfo.new(0.6), { BackgroundTransparency = 1 })
+		tween.Completed:Once(function()
+			fade:Destroy()
+		end)
+		tween:Play()
+	end
+	skip.Activated:Connect(finish)
+	conn = RunService.RenderStepped:Connect(function()
+		local t = os.clock() - start
+		-- Late afternoon turns into night
+		introClock = 16.6 + math.clamp((t - 2.5) / 5, 0, 1) * 2.2
+		local open = math.clamp((t - 0.6) / 0.5, 0, 1)
+		door.CFrame = hinge * CFrame.Angles(0, -math.rad(105) * open, 0) * closed
+		local at = if t < 1 then foot - out * 2
+			elseif t < 1.8 then (foot - out * 2):Lerp(foot + out * 6, (t - 1) / 0.8)
+			else foot + out * 6 + away * (t - 1.8) * 16
+		local dir = if t < 1.8 then out else away
+		local hop = if t > 1 then math.abs(math.sin(t * 14)) * 0.5 else 0
+		local body = at + Vector3.new(0, lift + hop, 0)
+		cat:PivotTo(CFrame.lookAt(body, body + dir))
+		if t < 2.6 then
+			camera.CFrame = CFrame.lookAt(eyeStart, foot + Vector3.new(0, 3, 0))
+		else
+			camera.CFrame = CFrame.lookAt(eyeStart:Lerp(eyeEnd, math.clamp((t - 2.6) / 2, 0, 1)), at + Vector3.new(0, 1, 0))
+		end
+		if t > 1.1 and not spoke then
+			spoke = true
+			caption.Text = "\"Piankaaaa! Where are you going?!\""
+			if Config.CallId ~= 0 then
+				callSound:Play()
+			end
+		end
+		if t > 5.2 and not said then
+			said = true
+			caption.Text = "It's getting dark...\nSomeone has to find her! 🔦"
+		end
+		fade.BackgroundTransparency = 1 - math.clamp((t - 8.6) / 0.5, 0, 1)
+		if t > 9.2 then
+			finish()
+		end
+	end)
+end
+task.spawn(playIntro)
+
 -- Shop
 local shop = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1562,6 +1712,9 @@ local function updateSky(): number
 		return 1
 	end
 	local clock, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
+	if introClock then
+		clock, daylight = introClock, Sky.light(introClock)
+	end
 	local night = daylight < 0.5
 	if workspace:GetAttribute("Twist") == "fullmoon" then
 		daylight = math.max(daylight, 0.3)

@@ -4,7 +4,7 @@ A Roblox game by Mr. Scientist 84.
 
 Pianka the cat is lost in the dark forest. Use your GPS to find her!
 
-Pick a hero, pick a mode, press **▶ Play**. Search music plays while you look for her, chase music when you carry her home.
+When you join, a short clip shows Pianka running out of the house at sunset. Every round starts in the late afternoon and soon gets dark. Pick a hero, pick a mode, press **▶ Play**. Search music plays while you look for her, chase music when you carry her home.
 
 ## Heroes
 

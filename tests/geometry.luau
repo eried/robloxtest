@@ -78,6 +78,7 @@ for _, m in workspace:GetChildren() do
 end
 first("Bones", "bone", 1)
 first("Hedges", "hedge", 1)
+first("Camp", "house", 1)
 
 -- Hiding spots: switch modes a few times to see every kind
 local seen = {}
