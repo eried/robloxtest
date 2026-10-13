@@ -22,8 +22,6 @@ Pianka hides in a bush, barrel, log or crate. The GPS only shows the area, so se
 
 Every rescue is one level up (up to 10): more dogs, wider lights, more rats, less time, more hiding spots and Pianka runs more. Picking a mode starts again at level 1.
 
-**⭐ Daily challenge**: the same forest for everyone today, Normal at level 3. The fastest teams go on the Daily board at camp.
-
 Pick up bones 🦴 (up to 3). Tap the bone button or press G: it flies to the closest dog, and every guard dog near it stops to eat. Save one for a friend in trouble. The Umulig pack does not care about bones.
 
 You have 3 hearts (2 in Normal). A dog bite or a neighbor grab costs one. Out of hearts? You are a ghost 👻 until the next round. If everyone is out, it is game over: press **▶ Play again** or wait for the next round. Pianka leaves a trail of birds 🐦 that leads to her, like a cat gift. Each one gives a heart back.

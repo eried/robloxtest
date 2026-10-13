@@ -456,9 +456,6 @@ local function invariants()
 	local level = workspace:GetAttribute("Level") or 1
 	stats.maxLevel = math.max(stats.maxLevel, level)
 	check(level >= 1 and level <= Config.Level.Max, "level out of range: " .. tostring(level))
-	if workspace:GetAttribute("Daily") then
-		check(level == Config.DailyLevel and mode == "Normal", "daily must be Normal at the daily level")
-	end
 	local start = workspace:GetAttribute("RoundStart")
 	if start ~= lastRoundStart then
 		lastRoundStart = start
@@ -582,27 +579,13 @@ scenario("Easy after Umulig", "Easy", function()
 end, secs / 2)
 check(workspace:GetAttribute("Level") ~= nil, "level missing")
 
--- Daily challenge from the menu button
+-- Picking another mode starts again at level 1
 do
-	local before = snapshot()
-	pickMode(bots[1], "⭐ Daily challenge")
-	wantMode = nil
-	run(2)
-	check(workspace:GetAttribute("Daily") == true and workspace:GetAttribute("Mode") == "Normal", "daily: button did not start the daily challenge")
-	check(workspace:GetAttribute("Level") == Config.DailyLevel, "daily: wrong level")
-	check(diff(before, "daily") > 0, "daily: no daily banner")
-	run(secs)
-	local board = workspace:FindFirstChild("Camp"):FindFirstChild("DailyBoard")
-	local text = board and board:FindFirstChildOfClass("SurfaceGui"):FindFirstChildOfClass("TextLabel").Text or ""
-	check(string.find(text, "Daily", 1, true) ~= nil, "daily: board missing")
-	if diff(before, "allKittens") > 0 then
-		check(string.find(text, "1. ", 1, true) ~= nil, "daily: a win was not saved on the board")
-	end
-	print(string.format("Daily: wins %d, fails %d, board: %s", diff(before, "allKittens"),
-		diff(before, "hearts") + diff(before, "timeUp") + diff(before, "lost"), (string.gsub(text, "\n", " | "))))
+	wantMode = "Normal"
+	run(12)
+	check(workspace:GetAttribute("Mode") == "Normal" and workspace:GetAttribute("Level") == 1, "mode change did not reset the level")
 	wantMode = "Easy"
 	run(12)
-	check(not workspace:GetAttribute("Daily") and workspace:GetAttribute("Level") == 1, "daily: leaving did not reset")
 end
 
 -- Shop and lantern from the client

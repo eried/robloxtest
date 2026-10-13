@@ -9,8 +9,7 @@ local DogBrain = require(ReplicatedStorage.Shared.DogBrain)
 local Sky = require(ReplicatedStorage.Shared.Sky)
 
 -- The forest is the same for everyone each day
-local DAY = os.time() // 86400
-local rng = Random.new(DAY)
+local rng = Random.new()
 local half = Config.ForestSize / 2
 local treeSpots: { Vector3 } = {}
 
@@ -1069,9 +1068,7 @@ end
 
 -- A rescue raises the level for the next round
 local function levelUp()
-	if not workspace:GetAttribute("Daily") then
-		workspace:SetAttribute("Level", math.min(level() + 1, Config.Level.Max))
-	end
+	workspace:SetAttribute("Level", math.min(level() + 1, Config.Level.Max))
 end
 
 local function clearUmulig()
@@ -1131,7 +1128,6 @@ local function failUmulig(player: Player?)
 end
 
 local spawnKitten: (Vector3) -> ()
-local recordDaily: (number) -> ()
 local kittenSpot: (Vector3, { Vector3 }) -> Vector3
 
 -- A player's kittens run back into the forest
@@ -2396,9 +2392,6 @@ local function collectKitten(kitten: Cat, player: Player)
 		workspace:SetAttribute("KittenDeadline", nil)
 		local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 		levelUp()
-		if workspace:GetAttribute("Daily") then
-			task.spawn(recordDaily, seconds)
-		end
 		catEvent:FireAllClients("allKittens", player, seconds)
 		fireworks()
 		task.wait(8)
@@ -2545,12 +2538,7 @@ end
 local shownLevel = 1
 
 function newRound()
-	if workspace:GetAttribute("Daily") then
-		rng = Random.new(DAY * 7919 + 1)
-		workspace:SetAttribute("Level", Config.DailyLevel)
-	else
-		rng = Random.new()
-	end
+	rng = Random.new()
 	if wildTween then
 		wildTween:Cancel()
 	end
@@ -2619,9 +2607,7 @@ function newRound()
 	if twist then
 		catEvent:FireAllClients("twist", nil, twist)
 	end
-	if workspace:GetAttribute("Daily") then
-		catEvent:FireAllClients("daily")
-	elseif level() > shownLevel then
+	if level() > shownLevel then
 		catEvent:FireAllClients("level", nil, level())
 	end
 	shownLevel = level()
@@ -3270,12 +3256,8 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 			applyHero(player)
 		end
 	end
-	local daily = mode == "Daily"
-	if daily then
-		mode = "Normal"
-	end
 	local valid = mode == "Easy" or mode == "Normal" or mode == "Umulig"
-	if valid and (mode ~= workspace:GetAttribute("Mode") or daily ~= (workspace:GetAttribute("Daily") == true)) then
+	if valid and mode ~= workspace:GetAttribute("Mode") then
 		local alone = #Players:GetPlayers() <= 1
 		local tooSoon = not alone and now - (lastChangeBy[player] or -math.huge) < 60
 		if (busy and not alone) or tooSoon or now - lastModeChange < 5 then
@@ -3285,10 +3267,9 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 		lastModeChange = now
 		lastChangeBy[player] = now
 		workspace:SetAttribute("Mode", mode)
-		workspace:SetAttribute("Daily", if daily then true else nil)
 		workspace:SetAttribute("Level", 1)
 		shownLevel = 1
-		catEvent:FireAllClients("mode", player, if daily then "the Daily challenge" else mode)
+		catEvent:FireAllClients("mode", player, mode)
 		newRound()
 	elseif valid and #Players:GetPlayers() <= 1 and not busy and now - lastModeChange >= 5 then
 		-- Play alone: fresh round so the timer starts now
@@ -3339,80 +3320,6 @@ do
 
 	local names: { [number]: string } = {}
 
-	-- Daily challenge board: best times today
-	local okDaily, dailyStore = pcall(function()
-		return DataStoreService:GetOrderedDataStore("Daily" .. DAY)
-	end)
-	local dailyBoard = makePart("Part", {
-		Name = "DailyBoard",
-		Size = Vector3.new(7, 9, 0.5),
-		CFrame = CFrame.lookAt(Vector3.new(-11, 5, 8), Vector3.new(0, 5, 0)),
-		Color = Color3.fromRGB(60, 45, 80),
-		Material = Enum.Material.Wood,
-		Parent = workspace:FindFirstChild("Camp"),
-	})
-	local dailyGui = Instance.new("SurfaceGui")
-	dailyGui.Face = Enum.NormalId.Front
-	dailyGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	dailyGui.Parent = dailyBoard
-	local dailyText = boardText:Clone()
-	dailyText.TextColor3 = Color3.fromRGB(255, 225, 120)
-	dailyText.Text = "⭐ Daily challenge\nNo times yet"
-	dailyText.Parent = dailyGui
-
-	local function nameOf(id: number): string
-		if not names[id] then
-			local got, name = pcall(function()
-				return Players:GetNameFromUserIdAsync(id)
-			end)
-			names[id] = if got then name else "?"
-		end
-		return names[id]
-	end
-
-	local function refreshDaily()
-		if not okDaily then
-			return
-		end
-		local ok, pages = pcall(function()
-			return dailyStore:GetSortedAsync(true, 6)
-		end)
-		if not ok then
-			return
-		end
-		local lines = { "⭐ Daily challenge" }
-		for i, entry in pages:GetCurrentPage() do
-			local tenths = entry.value
-			table.insert(lines, string.format("%d. %s  %d:%04.1f", i, nameOf(tonumber(entry.key) or 0), tenths // 600, (tenths % 600) / 10))
-		end
-		if #lines == 1 then
-			table.insert(lines, "No times yet")
-		end
-		dailyText.Text = table.concat(lines, "\n")
-	end
-
-	recordDaily = function(seconds: number)
-		local tenths = math.floor(seconds * 10 + 0.5)
-		for _, player in Players:GetPlayers() do
-			if okDaily and not player:GetAttribute("Out") then
-				pcall(function()
-					local key = tostring(player.UserId)
-					local best = dailyStore:GetAsync(key)
-					if type(best) ~= "number" or tenths < best then
-						dailyStore:SetAsync(key, tenths)
-					end
-				end)
-			end
-		end
-		refreshDaily()
-	end
-
-	task.spawn(function()
-		while true do
-			refreshDaily()
-			task.wait(60)
-		end
-	end)
 	task.spawn(function()
 		while okBoard do
 			local ok, pages = pcall(function()

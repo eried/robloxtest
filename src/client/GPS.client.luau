@@ -271,7 +271,7 @@ local function showHearts()
 	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
 	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
-	local tag = if workspace:GetAttribute("Daily") then "⭐ " else "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
+	local tag = "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
 	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "👻 Ghost" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
 end
 -- Lantern button
@@ -697,7 +697,6 @@ player:GetAttributeChangedSignal("Out"):Connect(showHearts)
 player:GetAttributeChangedSignal("MaxHearts"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
-workspace:GetAttributeChangedSignal("Daily"):Connect(showHearts)
 showHearts()
 
 local menuButton = topButton("Menu", -120, 80)
@@ -795,7 +794,7 @@ local intro = new("Frame", {
 local card = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromOffset(540, 500),
+	Size = UDim2.fromOffset(540, 446),
 	BackgroundColor3 = PANEL,
 	ZIndex = 11,
 	Parent = intro,
@@ -803,7 +802,7 @@ local card = new("Frame", {
 round(card, UDim.new(0, 20))
 outline(card, 4)
 if touch then
-	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 500, 0.5, 0.7), Parent = card })
+	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / 446, 0.5, 0.7), Parent = card })
 end
 
 local function cardText(text: string, y: number, height: number, size: number, color: Color3)
@@ -838,7 +837,7 @@ local playButton: TextButton
 local levelLabel: TextLabel
 
 local function currentMode(): string
-	return if workspace:GetAttribute("Daily") then "Daily" else (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	return (workspace:GetAttribute("Mode") :: string?) or "Easy"
 end
 
 local function refreshIntro()
@@ -848,10 +847,8 @@ local function refreshIntro()
 	for name, stroke in modeStrokes do
 		stroke.Enabled = name == selectedMode
 	end
-	local level = if selectedMode == "Daily" then Config.DailyLevel
-		elseif selectedMode == currentMode() then (workspace:GetAttribute("Level") :: number?) or 1
-		else 1
-	levelLabel.Text = (if selectedMode == "Daily" then "⭐ Same forest for everyone today. " else "") .. "Level " .. level
+	local level = if selectedMode == currentMode() then (workspace:GetAttribute("Level") :: number?) or 1 else 1
+	levelLabel.Text = "Level " .. level
 end
 
 for i, name in Config.HeroOrder do
@@ -946,34 +943,10 @@ for i, info in MODES do
 		refreshIntro()
 	end)
 end
-local dailyButton = new("TextButton", {
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 318),
-	Size = UDim2.fromOffset(492, 52),
-	BackgroundColor3 = Color3.fromRGB(255, 205, 70),
-	Font = FONT,
-	TextSize = 26,
-	TextColor3 = DARK,
-	Text = "⭐ Daily challenge",
-	ZIndex = 12,
-	Parent = card,
-})
-round(dailyButton, UDim.new(0, 14))
-modeStrokes.Daily = new("UIStroke", {
-	Color = WHITE,
-	Thickness = 4,
-	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-	Parent = dailyButton,
-})
-dailyButton.Activated:Connect(function()
-	selectedMode = "Daily"
-	refreshIntro()
-end)
-
 playButton = new("TextButton", {
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 380),
-	Size = UDim2.fromOffset(492, 52),
+	Position = UDim2.new(0.5, 0, 0, 326),
+	Size = UDim2.fromOffset(492, 56),
 	BackgroundColor3 = GREEN,
 	Font = FONT,
 	TextSize = 30,
@@ -984,8 +957,8 @@ playButton = new("TextButton", {
 })
 round(playButton, UDim.new(0, 18))
 new("UIStroke", { Color = WHITE, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = playButton })
-levelLabel = cardText("", 440, 22, 17, Color3.fromRGB(255, 225, 120))
-cardText("The mode is the same for everyone here.", 464, 20, 14, GRAY)
+levelLabel = cardText("", 390, 22, 17, Color3.fromRGB(255, 225, 120))
+cardText("The mode is the same for everyone here.", 414, 20, 14, GRAY)
 
 playButton.Activated:Connect(function()
 	playing = true
@@ -1676,8 +1649,6 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any)
 	elseif kind == "level" then
 		showBanner("Level " .. tostring(value) .. "! ⬆️\nMore dogs. Better hiding.", 3)
 		chime()
-	elseif kind == "daily" then
-		showBanner("⭐ Daily challenge\nSame forest for everyone today!", 4)
 	elseif kind == "mode" then
 		showBanner((if who == player then "You" else nameOf(who)) .. " picked " .. tostring(value) .. "!\nNew round.", 3)
 	end

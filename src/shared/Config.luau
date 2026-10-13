@@ -61,7 +61,6 @@ return {
 		rats = 1, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
 	},
 	HideSpots = 3,
-	DailyLevel = 3,
 	BoneCount = { Easy = 4, Normal = 3, Umulig = 3 },
 	BoneMax = 3,
 	BoneReach = 30,
