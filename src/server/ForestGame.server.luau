@@ -24,11 +24,11 @@ local sayEvent = Instance.new("RemoteEvent")
 sayEvent.Name = "NeighborSay"
 sayEvent.Parent = ReplicatedStorage
 
-workspace:SetAttribute("Mode", "Easy")
+workspace:SetAttribute("Mode", "Practice")
 workspace:SetAttribute("Level", 1)
 
-local function isHardMode(): boolean
-	return workspace:GetAttribute("Mode") ~= "Easy"
+local function kittenMode(): boolean
+	return workspace:GetAttribute("Mode") ~= "Practice"
 end
 
 local function getRoot(player: Player): BasePart?
@@ -988,7 +988,7 @@ local function farFromPlayers(pos: Vector3): boolean
 end
 
 local function findCatSpot(): Vector3
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	local far = Config.CatDistance[mode] or Config.MinCatDistance
 	for _ = 1, 300 do
 		local pos = randomSpot(15)
@@ -1025,7 +1025,7 @@ kittenFolder.Name = "Kittens"
 kittenFolder.Parent = workspace
 local kittens: { Cat } = {}
 local kittensLeft = 0
-local umulig = false
+local hard = false
 local stacks: { [Player]: { Cat } } = {}
 local ride: { player: Player?, cat: Cat? } = {}
 
@@ -1063,8 +1063,8 @@ local function level(): number
 end
 
 local function dogSettings(): DogBrain.Settings
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-	return DogBrain.forLevel(Config.Dogs[mode] or Config.Dogs.Easy, level(), Config.Level)
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
+	return DogBrain.forLevel(Config.Dogs[mode] or Config.Dogs.Practice, level(), Config.Level)
 end
 
 -- A rescue raises the level for the next round
@@ -1072,7 +1072,7 @@ local function levelUp()
 	workspace:SetAttribute("Level", math.min(level() + 1, Config.Level.Max))
 end
 
-local function clearUmulig()
+local function clearHard()
 	if escapeConn then
 		escapeConn:Disconnect()
 		escapeConn = nil
@@ -1093,7 +1093,7 @@ end
 local roundOver = 0
 
 local function roundActive(): boolean
-	return roundOver ~= round and (wildCat ~= nil or carried ~= nil or kittensLeft > 0 or umulig)
+	return roundOver ~= round and (wildCat ~= nil or carried ~= nil or kittensLeft > 0 or hard)
 end
 
 local function failRound(player: Player?, kind: string)
@@ -1102,9 +1102,9 @@ local function failRound(player: Player?, kind: string)
 	end
 	roundOver = round
 	local myRound = round
-	umulig = false
+	hard = false
 	kittensLeft = 0
-	clearUmulig()
+	clearHard()
 	kittenFolder:ClearAllChildren()
 	if wildTween then
 		wildTween:Cancel()
@@ -1124,8 +1124,8 @@ local function failRound(player: Player?, kind: string)
 	end)
 end
 
-local function failUmulig(player: Player?)
-	if umulig then
+local function failHard(player: Player?)
+	if hard then
 		failRound(player, "caught")
 	end
 end
@@ -1184,7 +1184,7 @@ local function setGhost(player: Player)
 end
 
 local function maxHearts(player: Player): number
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	return (Config.Hearts[mode] or 3) + (if player:GetAttribute("ExtraHeart") then 1 else 0)
 end
 
@@ -1298,7 +1298,7 @@ end
 local function spawnBirds(catPos: Vector3)
 	birdFolder:ClearAllChildren()
 	table.clear(birds)
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	local count = Config.BirdCount[mode] or 3
 	for _, p in Players:GetPlayers() do
 		if p:GetAttribute("Hero") == "Aurelia" then
@@ -1576,7 +1576,7 @@ end
 
 local function spawnRats(catPos: Vector3)
 	clearRats()
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	local count = (Config.RatCount[mode] or 10) + (level() - 1) * Config.Level.rats
 	if twist == "ratparty" then
 		count = math.floor(count * 1.5)
@@ -1781,7 +1781,7 @@ local POWERS = {
 local function spawnMushrooms()
 	mushroomFolder:ClearAllChildren()
 	local myRound = round
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	for i = 1, Config.MushroomCount[mode] or 6 do
 		local power = POWERS[(i - 1) % #POWERS + 1]
 		local pos = randomSpot(15)
@@ -1856,7 +1856,7 @@ end
 local function spawnMud(catPos: Vector3)
 	mudFolder:ClearAllChildren()
 	table.clear(mudSpots)
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	for _ = 1, Config.MudCount[mode] or 8 do
 		for _ = 1, 20 do
 			local pos = randomSpot(15)
@@ -1917,7 +1917,6 @@ local function deliver(player: Player)
 	catAtHome()
 
 	local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
-	levelUp()
 	catEvent:FireAllClients("home", player, seconds)
 	task.wait(6)
 	if round == myRound then
@@ -1982,8 +1981,8 @@ local function stackKitten(player: Player): boolean
 		if humanoid then
 			humanoid.Died:Once(function()
 				if stacks[player] == fresh and #fresh > 0 then
-					if umulig then
-						failUmulig(player)
+					if hard then
+						failHard(player)
 					else
 						stacks[player] = nil
 						player:SetAttribute("Kittens", 0)
@@ -2110,7 +2109,7 @@ local function buildHedges(catPos: Vector3?)
 		table.insert(treeSpots, t)
 	end
 	if catPos then
-		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+		local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 		local list = DogBrain.hedges(function(a: number, b: number): number
 			return rng:NextNumber(a, b)
 		end, brainWorld, home, catPos, Config.Hedges[mode] or 0, Config.RatSafeRadius)
@@ -2228,7 +2227,7 @@ end
 local function spawnBones(catPos: Vector3)
 	boneFolder:ClearAllChildren()
 	table.clear(bones)
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	for i = 1, Config.BoneCount[mode] or 3 do
 		for _ = 1, 30 do
 			local try = home:Lerp(catPos, (i - 0.5) / (Config.BoneCount[mode] or 3) * 0.9) + Vector3.new(rng:NextNumber(-30, 30), 0, rng:NextNumber(-30, 30))
@@ -2310,7 +2309,7 @@ local function startEscape()
 		end
 	end
 	if #runners == 0 then
-		failUmulig(nil)
+		failHard(nil)
 		return
 	end
 
@@ -2347,7 +2346,7 @@ local function startEscape()
 				local root = getRoot(player)
 				if not root or not player.Parent then
 					finished = true
-					failUmulig(player)
+					failHard(player)
 					return
 				end
 				local pos = Vector3.new(root.Position.X, 0, root.Position.Z)
@@ -2361,7 +2360,7 @@ local function startEscape()
 					player:SetAttribute("Kittens", 0)
 					if delivered >= Config.KittenCount then
 						finished = true
-						umulig = false
+						hard = false
 						local seconds = workspace:GetServerTimeNow() - (workspace:GetAttribute("RoundStart") :: number)
 						if escapeConn then
 							escapeConn:Disconnect()
@@ -2374,7 +2373,7 @@ local function startEscape()
 						catAtHome()
 						levelUp()
 						catEvent:FireAllClients("escaped", player, seconds)
-						giveFish(player, Config.Reward.Umulig * (if twist == "golden" then 2 else 1))
+						giveFish(player, Config.Reward.Hard * (if twist == "golden" then 2 else 1))
 						fireworks()
 						task.delay(8, function()
 							if round == myRound then
@@ -2393,7 +2392,7 @@ local function collectKitten(kitten: Cat, player: Player)
 	if kitten.model.Parent ~= kittenFolder or kittensLeft <= 0 or player:GetAttribute("Out") then
 		return
 	end
-	if not stackKitten(player) and umulig then
+	if not stackKitten(player) and hard then
 		return
 	end
 	local myRound = round
@@ -2409,7 +2408,7 @@ local function collectKitten(kitten: Cat, player: Player)
 	workspace:SetAttribute("KittensLeft", kittensLeft)
 	catEvent:FireAllClients("kitten", player, kittensLeft)
 
-	if kittensLeft == 0 and umulig then
+	if kittensLeft == 0 and hard then
 		startEscape()
 	elseif kittensLeft == 0 then
 		workspace:SetAttribute("KittenDeadline", nil)
@@ -2441,18 +2440,11 @@ end
 
 local function startKittens(cat: Cat, ultra: boolean, player: Player)
 	local myRound = round
-	umulig = ultra
+	hard = ultra
 	local center = cat.model:GetPivot().Position
 	removeCat(cat)
 	wildCat = nil
 	workspace:SetAttribute("CatPosition", nil)
-
-	local boom = Instance.new("Explosion")
-	boom.Position = center
-	boom.BlastPressure = 0
-	boom.DestroyJointRadiusPercent = 0
-	boom.ExplosionType = Enum.ExplosionType.NoCraters
-	boom.Parent = workspace
 
 	local character = player.Character
 	local mom = character and carryCat(character, 0.6, 0)
@@ -2465,23 +2457,36 @@ local function startKittens(cat: Cat, ultra: boolean, player: Player)
 		ride.player, ride.cat = player, mom
 	end
 
+	-- She screams, pops into confetti and her kittens run off
 	local taken: { Vector3 } = {}
 	for _ = 1, Config.KittenCount do
-		local pos = kittenSpot(Vector3.new(center.X, 0, center.Z), taken)
-		table.insert(taken, pos)
-		spawnKitten(pos)
+		table.insert(taken, kittenSpot(Vector3.new(center.X, 0, center.Z), taken))
 	end
 	kittensLeft = Config.KittenCount
 	workspace:SetAttribute("KittensLeft", kittensLeft)
+	catEvent:FireAllClients("kittens", player, { from = center, to = taken })
+	task.wait(Config.KittenBurst[1])
+	local boom = Instance.new("Explosion")
+	boom.Position = center
+	boom.BlastPressure = 0
+	boom.DestroyJointRadiusPercent = 0
+	boom.ExplosionType = Enum.ExplosionType.NoCraters
+	boom.Parent = workspace
+	task.wait(Config.KittenBurst[2])
+	if round ~= myRound or kittensLeft == 0 then
+		return
+	end
+	for _, pos in taken do
+		spawnKitten(pos)
+	end
 	local kittenTime = math.max(100, Config.KittenTime - (level() - 1) * Config.Level.kittenTime)
 	workspace:SetAttribute("KittenDeadline", workspace:GetServerTimeNow() + kittenTime)
-	catEvent:FireAllClients("kittens")
 
 	task.wait(kittenTime)
 	if round == myRound and kittensLeft > 0 then
 		kittensLeft = 0
-		umulig = false
-		clearUmulig()
+		hard = false
+		clearHard()
 		kittenFolder:ClearAllChildren()
 		workspace:SetAttribute("KittenDeadline", nil)
 		catEvent:FireAllClients("timeUp")
@@ -2518,11 +2523,11 @@ placeWildCat = function(pos: Vector3, height: number)
 		if wildCat ~= cat or fleeing or not character or not getRoot(player) or player:GetAttribute("Out") then
 			return
 		end
-		if isHardMode() then
+		if kittenMode() then
 			if wildTween then
 				wildTween:Cancel()
 			end
-			startKittens(cat, workspace:GetAttribute("Mode") == "Umulig", player)
+			startKittens(cat, workspace:GetAttribute("Mode") == "Hard", player)
 			return
 		end
 		local newCarried = carryCat(character, 0.6, 0)
@@ -2587,8 +2592,8 @@ function newRound()
 	end
 	table.clear(kittens)
 	kittensLeft = 0
-	umulig = false
-	clearUmulig()
+	hard = false
+	clearHard()
 	workspace:SetAttribute("KittensLeft", nil)
 	workspace:SetAttribute("KittenDeadline", nil)
 	wildCat, carried, homeCat, carrier = nil, nil, nil, nil
@@ -2605,7 +2610,7 @@ function newRound()
 		elseif roll < 0.83 then "ratparty"
 		elseif roll < 0.92 then "fullmoon"
 		else "golden"
-	if twist == "tree" and isHardMode() then
+	if twist == "tree" and kittenMode() then
 		twist = nil
 	end
 	zoomies = twist == "zoomies"
@@ -2618,7 +2623,7 @@ function newRound()
 	buildHedges(nil)
 	local pos = findCatSpot()
 	buildHedges(pos)
-	fleesLeft = (if isHardMode() then Config.HardFlees else 0) + (level() - 1) // Config.Level.fleesEvery
+	fleesLeft = (if kittenMode() then Config.HardFlees else 0) + (level() - 1) // Config.Level.fleesEvery
 	fleesStart = fleesLeft
 	workspace:SetAttribute("RoundStart", workspace:GetServerTimeNow())
 	placeWildCat(pos, if twist == "tree" then buildTree(pos) else 0)
@@ -2758,7 +2763,7 @@ hideInBushes = function(catPos: Vector3)
 		return
 	end
 	cat.model.Parent = nil
-	local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+	local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 	local count = math.min(Config.HideSpotsMax, (Config.HideSpots[mode] or 3) + (level() - 1) // Config.Level.spotsEvery)
 	local spots = { catPos }
 	for _ = 1, 120 do
@@ -2830,7 +2835,7 @@ hideInBushes = function(catPos: Vector3)
 						fleeUntil = 0,
 						fleeFrom = spot,
 						deadUntil = 0,
-						speed = Config.RatSpeed.Easy,
+						speed = Config.RatSpeed.Practice,
 					})
 				elseif surprise == "confetti" then
 					giveFish(player, 2)
@@ -2897,7 +2902,7 @@ loseHeart = function(player: Player, all: boolean?)
 		return
 	end
 	player:SetAttribute("Out", true)
-	if umulig then
+	if hard then
 		returnKittens(player)
 	end
 	for _, other in Players:GetPlayers() do
@@ -2915,7 +2920,7 @@ local lastCaught: { [Player]: number } = {}
 local function caughtBy(player: Player, from: Vector3, by: string)
 	local stack = stacks[player]
 	if workspace:GetAttribute("Escape") and stack and #stack > 0 then
-		failUmulig(player)
+		failHard(player)
 		return
 	end
 	if os.clock() - (lastCaught[player] or -10) < 2.5 then
@@ -3013,7 +3018,8 @@ do
 	callEvent.OnServerEvent:Connect(function(player)
 		local now = os.clock()
 		local root = getRoot(player)
-		if not root or player:GetAttribute("Out") or now - (lastCallAt[player] or -100) < Config.CallCooldown then
+		local hardOnly = workspace:GetAttribute("Mode") ~= "Hard"
+		if hardOnly or not root or player:GetAttribute("Out") or now - (lastCallAt[player] or -100) < Config.CallCooldown then
 			return
 		end
 		lastCallAt[player] = now
@@ -3335,7 +3341,7 @@ Players.PlayerRemoving:Connect(function(player)
 	end
 	local stack = stacks[player]
 	if stack and #stack > 0 then
-		failUmulig(player)
+		failHard(player)
 	end
 	local anyone = false
 	local everyoneOut = true
@@ -3412,7 +3418,7 @@ modeEvent.OnServerEvent:Connect(function(player, mode, hero)
 			applyHero(player)
 		end
 	end
-	local valid = mode == "Easy" or mode == "Normal" or mode == "Umulig"
+	local valid = mode == "Practice" or mode == "Normal" or mode == "Hard"
 	if valid and mode ~= workspace:GetAttribute("Mode") then
 		local alone = #Players:GetPlayers() <= 1
 		local tooSoon = not alone and now - (lastChangeBy[player] or -math.huge) < 60
@@ -3817,8 +3823,8 @@ do
 	end
 
 	local function hunterSettings(): DogBrain.Settings
-		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
-		return DogBrain.with(dogSettings(), Config.Hunters[mode] or Config.Hunters.Easy)
+		local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
+		return DogBrain.with(dogSettings(), Config.Hunters[mode] or Config.Hunters.Practice)
 	end
 
 	local function neighborSay(n: Neighbor, line: { string }, seconds: number)
@@ -3915,7 +3921,7 @@ do
 		catEvent:FireAllClients("held", player, n.head)
 		local stack = stacks[player]
 		if workspace:GetAttribute("Escape") and stack and #stack > 0 then
-			failUmulig(player)
+			failHard(player)
 		end
 	end
 
@@ -3937,7 +3943,7 @@ do
 
 	RunService.Heartbeat:Connect(function(dt: number)
 		local now = os.clock()
-		local mode = (workspace:GetAttribute("Mode") :: string?) or "Easy"
+		local mode = (workspace:GetAttribute("Mode") :: string?) or "Practice"
 		local dayStart = (workspace:GetAttribute("DayStart") :: number?) or 0
 		local clock, daylight = Sky.at(workspace:GetServerTimeNow() - dayStart, Config.DayMinutes, Config.NightShare)
 		local want = Config.HuntByDay[mode] == true or daylight < 0.5

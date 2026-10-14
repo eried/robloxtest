@@ -667,6 +667,11 @@ CLASS_METHODS.PVInstance = {
 	end,
 }
 
+CLASS_METHODS.ParticleEmitter = {
+	Emit = function(self: any) end,
+	Clear = function(self: any) end,
+}
+
 CLASS_METHODS.Humanoid = {
 	TakeDamage = function(self: any, amount: number)
 		self.Health = self._props.Health - amount

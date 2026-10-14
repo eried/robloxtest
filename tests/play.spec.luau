@@ -25,6 +25,9 @@ Engine.onFire = function(remote: any, player: any, args: any)
 	if remote.Name == "PiankaEvent" then
 		local kind = args[1]
 		counts[kind] = (counts[kind] or 0) + 1
+		if kind == "call" and Engine.workspace:GetAttribute("Mode") ~= "Hard" then
+			counts.badCall = (counts.badCall or 0) + 1
+		end
 		if kind ~= "fish" and (process.args[2] == "log" or (kind ~= "spotted" and kind ~= "lunge" and kind ~= "bitten" and kind ~= "hunted")) then
 			table.insert(timeline, string.format("%6.1f %s %s", Engine.now, tostring(kind), if player then player.Name else ""))
 		end
@@ -49,7 +52,7 @@ DogBrain.step = function(dog: any, dt: number, now: number, runners: any, world:
 	local before = dog.state
 	local event, id = realStep(dog, dt, now, runners, world, s, gap)
 	if event == "caught" then
-		local who = if dog.kind == "pack" then "pack" elseif s.chaseFactor == Config.Hunters[workspace:GetAttribute("Mode") or "Easy"].chaseFactor then "neighbor" else "patrol"
+		local who = if dog.kind == "pack" then "pack" elseif s.chaseFactor == Config.Hunters[workspace:GetAttribute("Mode") or "Practice"].chaseFactor then "neighbor" else "patrol"
 		local key = who .. (if workspace:GetAttribute("Escape") then " during escape" else "")
 		catches[key] = (catches[key] or 0) + 1
 		if process.args[2] == "log" then
@@ -150,7 +153,7 @@ end
 
 -- Bots
 local bots: { any } = {}
-local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false }
+local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false }
 
 local function addBot(name: string, kind: string, hero: string): any
 	local player, ctx = Engine.addPlayer(name)
@@ -239,7 +242,7 @@ local function botStep(bot: any, dt: number)
 	if player:GetAttribute("Held") then
 		return
 	end
-	local mode = workspace:GetAttribute("Mode") or "Easy"
+	local mode = workspace:GetAttribute("Mode") or "Practice"
 	local maxHearts = Config.Hearts[mode] or 3
 	local hearts = player:GetAttribute("Hearts") or maxHearts
 
@@ -434,7 +437,7 @@ local longestRound = 0
 local roundBegan = Engine.now
 
 local function invariants()
-	local mode = workspace:GetAttribute("Mode") or "Easy"
+	local mode = workspace:GetAttribute("Mode") or "Practice"
 	local _, daylight = Sky.at(workspace:GetServerTimeNow() - workspace:GetAttribute("DayStart"), Config.DayMinutes, Config.NightShare)
 	local hunting = 0
 	for _, n in workspace:FindFirstChild("Neighbors"):GetChildren() do
@@ -456,6 +459,16 @@ local function invariants()
 		end
 	end
 	for _, bot in bots do
+		if mode == "Practice" and not stats.practiceMenu then
+			local play = findButton(bot, function(b)
+				return b.Text == "▶ Play"
+			end)
+			local normal = findButton(bot, function(b)
+				return b.Text == "Normal"
+			end)
+			local stroke = normal and normal:FindFirstChildOfClass("UIStroke")
+			stats.practiceMenu = play ~= nil and play.Parent.Parent.Visible and stroke ~= nil and stroke.Enabled
+		end
 		local character = bot.player.Character
 		if character then
 			local tower, pianka = 0, false
@@ -573,11 +586,11 @@ end
 local t0 = os.clock()
 local secs = MINUTES * 60
 
-scenario("Easy solo careful", "Easy", function()
+scenario("Practice solo careful", "Practice", function()
 	addBot("Ana", "careful", "Patrick")
 end, secs)
 
-scenario("Easy solo kid", "Easy", function()
+scenario("Practice solo kid", "Practice", function()
 	bots[1].kind = "kid"
 end, secs)
 
@@ -585,21 +598,21 @@ scenario("Normal solo careful", "Normal", function()
 	bots[1].kind = "careful"
 end, secs)
 
-scenario("Umulig solo careful", "Umulig", function() end, secs)
+scenario("Hard solo careful", "Hard", function() end, secs)
 
 scenario("Normal team", "Normal", function()
 	addBot("Bo", "kid", "Aurelia")
 	addBot("Cy", "naive", "Milenkitka")
 end, secs)
 
-scenario("Umulig team", "Umulig", function() end, secs)
+scenario("Hard team", "Hard", function() end, secs)
 
-scenario("Umulig, one leaves, one joins", "Umulig", function()
+scenario("Hard, one leaves, one joins", "Hard", function()
 	removeBot(bots[3])
 	addBot("Di", "careful", "Aurelia")
 end, secs)
 
-scenario("Easy after Umulig", "Easy", function()
+scenario("Practice after Hard", "Practice", function()
 	removeBot(bots[3])
 	removeBot(bots[2])
 end, secs / 2)
@@ -610,7 +623,7 @@ do
 	wantMode = "Normal"
 	run(12)
 	check(workspace:GetAttribute("Mode") == "Normal" and workspace:GetAttribute("Level") == 1, "mode change did not reset the level")
-	wantMode = "Easy"
+	wantMode = "Practice"
 	run(12)
 end
 
@@ -713,6 +726,8 @@ check((counts.call or 0) > 0 and (counts.meowBack or 0) > 0, "calling Pianka nev
 check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked up or thrown")
 check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
 check(stats.tower >= 2, "tower: kittens never stacked on a head")
+check((counts.badCall or 0) == 0, "call worked outside Hard")
+check(stats.practiceMenu, "practice: menu with Normal did not open after the round")
 check(stats.towerPianka, "tower: Pianka not under the kittens in Normal")
 print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d, play again %d, calls %d, meows back %d, heard %d",
 	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0, stats.again or 0, counts.call or 0, counts.meowBack or 0, counts.heard or 0))

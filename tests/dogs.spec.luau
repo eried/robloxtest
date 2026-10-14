@@ -634,7 +634,7 @@ local function makeHunters(world, hs)
 	return hunters
 end
 
--- One full round. Easy: carry Pianka home. Normal: find 7 kittens in time. Umulig: kittens, then run home.
+-- One full round. Practice: carry Pianka home. Normal: find 7 kittens in time. Hard: kittens, then run home.
 local function play(mode: string, kind: string, hero: string, level: number?)
 	local lv = level or 1
 	local careful = kind == "careful"
@@ -691,7 +691,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 	local dayOffset = Sky.offset(Config.DuskClock, Config.DayMinutes, Config.NightShare)
 	local hunting = false
 	local phase = "find"
-	local flees = (if mode == "Easy" then 0 else Config.HardFlees) + (lv - 1) // Config.Level.fleesEvery
+	local flees = (if mode == "Practice" then 0 else Config.HardFlees) + (lv - 1) // Config.Level.fleesEvery
 	if hero == "Aurelia" then
 		flees = math.max(flees - 1, 0)
 	end
@@ -923,7 +923,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 					if spot == spots[1] then
 						hidden = false
 					elseif rand(0, 1) < Config.RatSurprise then
-						table.insert(rats, { nest = spot, pos = spot, wander = spot, cooldown = now + 1, windup = 0, speed = Config.RatSpeed.Easy })
+						table.insert(rats, { nest = spot, pos = spot, wander = spot, cooldown = now + 1, windup = 0, speed = Config.RatSpeed.Practice })
 					end
 				end
 			end
@@ -942,7 +942,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 						flees -= 1
 					end
 				elseif d < 6 then
-					if mode == "Easy" then
+					if mode == "Practice" then
 						phase = "carry"
 						carryStart = now
 					else
@@ -964,7 +964,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 					end
 				end
 				if #kittens == 0 then
-					if mode ~= "Umulig" then
+					if mode ~= "Hard" then
 						return finish("won")
 					end
 					phase = "escape"
@@ -1017,8 +1017,8 @@ do
 	local blocked = { trees = { Vector3.new(0, 0, -6) }, cabins = {}, half = HALF }
 	check(not DogBrain.sees(dog, Vector3.new(0, 0, -12), 18, 30, blocked), "trees block sight")
 	check(#DogBrain.formation(6) == 6, "formation size")
-	local hs = DogBrain.with(Config.Dogs.Easy, Config.Hunters.Easy)
-	check(hs.coneRange == Config.Hunters.Easy.coneRange and hs.packCount == Config.Dogs.Easy.packCount, "settings merge")
+	local hs = DogBrain.with(Config.Dogs.Practice, Config.Hunters.Practice)
+	check(hs.coneRange == Config.Hunters.Practice.coneRange and hs.packCount == Config.Dogs.Practice.packCount, "settings merge")
 	local day = Config.DayMinutes * 60
 	local _, afternoon = Sky.at(0, Config.DayMinutes, Config.NightShare)
 	local _, midnight = Sky.at(day * (1 - Config.NightShare) * 5 / 12 + day * Config.NightShare / 2, Config.DayMinutes, Config.NightShare)
@@ -1026,18 +1026,18 @@ do
 	local dusk = select(1, Sky.at(Sky.offset(Config.DuskClock, Config.DayMinutes, Config.NightShare), Config.DayMinutes, Config.NightShare))
 	check(math.abs(dusk - Config.DuskClock) < 0.01, "rounds start at dusk")
 
-	-- Standing in a dog's path in Easy costs every heart
+	-- Standing in a dog's path in Practice costs every heart
 	local guard = DogBrain.newPatrol(Vector3.new(0, 0, 0), Vector3.new(0, 0, -40))
 	local runner = { id = 1, pos = Vector3.new(0, 0, -20), heading = Vector3.new(0, 0, 1), speed = 16, safe = false }
-	local hearts, last, t = Config.Hearts.Easy, -10, 0
+	local hearts, last, t = Config.Hearts.Practice, -10, 0
 	while t < 60 and hearts > 0 do
 		t += DT
-		if DogBrain.step(guard, DT, t, { runner }, world, Config.Dogs.Easy, 0) == "caught" and t - last >= 2.5 then
+		if DogBrain.step(guard, DT, t, { runner }, world, Config.Dogs.Practice, 0) == "caught" and t - last >= 2.5 then
 			last = t
 			hearts -= 1
 		end
 	end
-	check(hearts == 0, "Easy: hearts can run out")
+	check(hearts == 0, "Practice: hearts can run out")
 
 	-- Levels add dogs and wider cones, level 1 is the base
 	local base = Config.Dogs.Normal
@@ -1051,7 +1051,7 @@ do
 	t = 0
 	while t < 5 and chaser.state ~= "chase" do
 		t += DT
-		DogBrain.step(chaser, DT, t, { prey }, world, Config.Dogs.Easy, 0)
+		DogBrain.step(chaser, DT, t, { prey }, world, Config.Dogs.Practice, 0)
 	end
 	check(chaser.state == "chase", "dog chases a runner in front")
 	DogBrain.distract(chaser, Vector3.new(20, 0, 0), t, Config.BoneEat)
@@ -1059,7 +1059,7 @@ do
 	local stop = t + Config.BoneEat + 5
 	while t < stop and not ate do
 		t += DT
-		local event = DogBrain.step(chaser, DT, t, { prey }, world, Config.Dogs.Easy, 0)
+		local event = DogBrain.step(chaser, DT, t, { prey }, world, Config.Dogs.Practice, 0)
 		bit = bit or event == "caught"
 		ate = event == "ate"
 	end
@@ -1072,7 +1072,7 @@ do
 	local closest = math.huge
 	while t < 8 do
 		t += DT
-		DogBrain.step(ear, DT, t, {}, world, Config.Dogs.Easy, 0)
+		DogBrain.step(ear, DT, t, {}, world, Config.Dogs.Practice, 0)
 		closest = math.min(closest, (ear.pos - Vector3.new(30, 0, 0)).Magnitude)
 	end
 	check(closest < 4 and ear.state ~= "listen", "dog follows a noise and goes back")
@@ -1087,22 +1087,18 @@ print("Full rounds with patrol dogs, night hunters, rats, mud, hearts and birds"
 print("")
 print("Mode    Lv Bot      Hero      Won  Hearts  Grabbed  Lost  Time up  Caught  Stall  Bites  Rats   Birds  Bones  Search Hidden  Night  Avg time")
 local rows: { { any } } = {
-	{ "Easy", "careful", "default" },
-	{ "Easy", "careful", "Patrick" },
-	{ "Easy", "naive", "default" },
-	{ "Easy", "kid", "default" },
+	{ "Practice", "careful", "default" },
+	{ "Practice", "careful", "Patrick" },
+	{ "Practice", "naive", "default" },
+	{ "Practice", "kid", "default" },
 	{ "Normal", "careful", "default" },
 	{ "Normal", "careful", "Aurelia" },
 	{ "Normal", "naive", "default" },
 	{ "Normal", "kid", "default" },
-	{ "Umulig", "careful", "default" },
-	{ "Umulig", "careful", "Patrick" },
-	{ "Umulig", "naive", "default" },
-	{ "Umulig", "kid", "default" },
-	{ "Easy", "careful", "default", 5 },
-	{ "Easy", "careful", "default", 10 },
-	{ "Easy", "kid", "default", 5 },
-	{ "Easy", "kid", "default", 10 },
+	{ "Hard", "careful", "default" },
+	{ "Hard", "careful", "Patrick" },
+	{ "Hard", "naive", "default" },
+	{ "Hard", "kid", "default" },
 	{ "Normal", "careful", "default", 5 },
 	{ "Normal", "careful", "default", 10 },
 	{ "Normal", "kid", "default", 3 },
@@ -1148,20 +1144,18 @@ for _, row in rows do
 	check(n("stall") / ROUNDS <= 0.05, mode .. " " .. bot .. " " .. hero .. ": rounds must not stall")
 	check(placed / math.max(wanted, 1) >= 0.9, mode .. ": patrol paths must fit")
 	check(searched > 0, mode .. ": Pianka must hide")
-	if mode == "Easy" and careful and lv >= Config.Level.Max then
-		check(n("won") / ROUNDS >= 0.6, "Easy top level must stay doable")
-	elseif mode == "Normal" and careful and lv >= Config.Level.Max then
+	if mode == "Normal" and careful and lv >= Config.Level.Max then
 		check(n("won") / ROUNDS >= 0.3, "Normal top level must stay doable")
-	elseif mode == "Easy" and careful then
-		check(n("won") / ROUNDS >= 0.85, "Easy must be doable for careful players")
+	elseif mode == "Practice" and careful then
+		check(n("won") / ROUNDS >= 0.85, "Practice must be doable for careful players")
 	elseif mode == "Normal" and careful then
 		check(n("won") / ROUNDS >= 0.5, "Normal must be doable for careful players")
-	elseif mode == "Umulig" then
-		check(n("won") / ROUNDS <= (if careful then 0.3 else 0.15), "Umulig must stay almost impossible")
+	elseif mode == "Hard" then
+		check(n("won") / ROUNDS <= (if careful then 0.3 else 0.15), "Hard must stay almost impossible")
 	end
 end
 for mode, total in totals do
-	if mode ~= "Easy" or total.rounds >= 600 then
+	if mode ~= "Practice" or total.rounds >= 600 then
 		check(total.failed > 0, mode .. ": there must be a way to fail")
 	end
 end

@@ -97,7 +97,7 @@ spots()
 local setMode = Engine.game:GetService("ReplicatedStorage"):FindFirstChild("SetMode")
 for i = 1, 12 do
 	Engine.asClient(ctx, function()
-		setMode:FireServer(if i % 2 == 0 then "Normal" else "Easy")
+		setMode:FireServer(if i % 2 == 0 then "Normal" else "Practice")
 	end)
 	for _ = 1, 20 * 7 do
 		Engine.step(1 / 20)
@@ -157,6 +157,9 @@ for _, m in workspace:GetChildren() do
 	if m.Name == Config.CatName and m.ClassName == "Model" then
 		press(m:FindFirstChildWhichIsA("ProximityPrompt", true))
 	end
+end
+for _ = 1, 20 * 5 do
+	Engine.step(1 / 20)
 end
 for _, kitten in workspace:FindFirstChild("Kittens"):GetChildren() do
 	press(kitten:FindFirstChildWhichIsA("ProximityPrompt", true))

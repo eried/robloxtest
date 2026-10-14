@@ -11,8 +11,8 @@ return {
 	RockCount = 115,
 	SpawnClearRadius = 30,
 	MinCatDistance = 150,
-	CatDistance = { Easy = 200, Normal = 330, Umulig = 370 },
-	Hedges = { Easy = 3, Normal = 12, Umulig = 16 },
+	CatDistance = { Practice = 200, Normal = 330, Hard = 370 },
+	Hedges = { Practice = 3, Normal = 12, Hard = 16 },
 	HomePosition = Vector3.new(10, 0, 0),
 	HomeRadius = 8,
 	CarryTime = 75,
@@ -24,9 +24,10 @@ return {
 	KittenCount = 7,
 	KittenTime = 150,
 	KittenHomeMin = 120,
+	KittenBurst = { 0.9, 3 },
 
 	Dogs = {
-		Easy = {
+		Practice = {
 			patrolCount = 4, patrolSpeed = 6, coneAngle = 30, coneRange = 16, alertDelay = 0.8, lines = 0,
 			chaseFactor = 1.1, chaseTime = 2.5, catch = 3,
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
@@ -38,7 +39,7 @@ return {
 			packCount = 0, packConeRange = 10, packSpeedFactor = 1, packGap = 18, packGapMin = 6,
 			packClose = 0.5, lungeFactor = 1.5, lungeTime = 1.2, restTime = 1.5, hiddenFactor = 0.6,
 		},
-		Umulig = {
+		Hard = {
 			patrolCount = 10, patrolSpeed = 7, coneAngle = 36, coneRange = 22, alertDelay = 0.5, lines = 4,
 			chaseFactor = 1.25, chaseTime = 4, catch = 3,
 			packCount = 6, packConeRange = 10, packSpeedFactor = 1.04, packGap = 15, packGapMin = 6,
@@ -47,45 +48,45 @@ return {
 	},
 
 	Hunters = {
-		Easy = { patrolSpeed = 5, coneAngle = 28, coneRange = 18, alertDelay = 1, chaseFactor = 1.05, chaseTime = 2.5, catch = 3, hiddenFactor = 0.3 },
+		Practice = { patrolSpeed = 5, coneAngle = 28, coneRange = 18, alertDelay = 1, chaseFactor = 1.05, chaseTime = 2.5, catch = 3, hiddenFactor = 0.3 },
 		Normal = { patrolSpeed = 5, coneAngle = 30, coneRange = 22, alertDelay = 0.8, chaseFactor = 1.1, chaseTime = 3, catch = 3, hiddenFactor = 0.3 },
-		Umulig = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3, hiddenFactor = 0.3 },
+		Hard = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3, hiddenFactor = 0.3 },
 	},
-	HuntByDay = { Umulig = true },
-	Seekers = { Easy = 1, Normal = 0, Umulig = 1 },
+	HuntByDay = { Hard = true },
+	Seekers = { Practice = 1, Normal = 0, Hard = 1 },
 	SeekEvery = 20,
-	Hearts = { Easy = 3, Normal = 2, Umulig = 3 },
+	Hearts = { Practice = 3, Normal = 2, Hard = 3 },
 	-- Each rescue raises the level up to Max
 	Level = {
 		Max = 10, dogsEvery = 2, maxDogs = 4, cone = 0.6, maxCone = 5, chase = 0.012,
 		rats = 1, fleesEvery = 3, spotsEvery = 2, kittenTime = 6, carryTime = 3,
 	},
-	HideSpots = { Easy = 5, Normal = 7, Umulig = 8 },
+	HideSpots = { Practice = 5, Normal = 7, Hard = 8 },
 	HideSpotsMax = 12,
 	RatSurprise = 0.125,
-	BoneCount = { Easy = 4, Normal = 3, Umulig = 3 },
+	BoneCount = { Practice = 4, Normal = 3, Hard = 3 },
 	BoneMax = 3,
 	BoneReach = 30,
 	BoneEat = 6,
-	BirdCount = { Easy = 2, Normal = 1, Umulig = 0 },
+	BirdCount = { Practice = 2, Normal = 1, Hard = 0 },
 
 	DayMinutes = 10,
 	-- Every round starts in the late afternoon and gets dark soon
 	DuskClock = 16.75,
 	NightShare = 0.55,
 
-	RatCount = { Easy = 4, Normal = 6, Umulig = 8 },
-	RatSpeed = { Easy = 11, Normal = 13, Umulig = 14 },
+	RatCount = { Practice = 4, Normal = 6, Hard = 8 },
+	RatSpeed = { Practice = 11, Normal = 13, Hard = 14 },
 	RatAggro = 26,
 	RatLeash = 50,
 	RatSafeRadius = 40,
 
 	FishCount = 45,
-	MushroomCount = { Easy = 8, Normal = 6, Umulig = 4 },
-	MudCount = { Easy = 8, Normal = 14, Umulig = 20 },
+	MushroomCount = { Practice = 8, Normal = 6, Hard = 4 },
+	MudCount = { Practice = 8, Normal = 14, Hard = 20 },
 	TeamBonus = 3,
 	FishRespawn = 45,
-	Reward = { Deliver = 5, Kitten = 1, Umulig = 25, Rat = 2 },
+	Reward = { Deliver = 5, Kitten = 1, Hard = 25, Rat = 2 },
 	Shop = {
 		{ id = "LanternPink", name = "Pink lantern", price = 25, kind = "lantern", color = Color3.fromRGB(255, 120, 200) },
 		{ id = "LanternGreen", name = "Green lantern", price = 25, kind = "lantern", color = Color3.fromRGB(120, 255, 140) },
@@ -119,16 +120,17 @@ return {
 
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
 	ChaseMusicId = 100600567252458,
-	CallId = 75168345863555,
+	CallId = 0,
 	-- Player and neighbor voices: start and length in seconds
-	VoicesId = 81035861568663,
+	VoicesId = 0,
 	Voices = {
-		Call = { 0.3, 2.79 },
-		Back = { 3.59, 2.201 },
-		Ouch = { 6.291, 1.474 },
-		Got = { 8.265, 2.208 },
-		HeyYou = { 10.973, 1.487 },
+		Call = { 0.3, 2.371 },
+		Back = { 3.171, 2.201 },
+		Ouch = { 5.871, 1.474 },
+		Got = { 7.845, 2.208 },
+		HeyYou = { 10.553, 1.487 },
 	},
+	Scream = { 12.541, 3.332 },
 	-- Calling Pianka: she meows back, but dogs and neighbors this close hear it
 	CallCooldown = 6,
 	CallHeard = 45,

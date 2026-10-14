@@ -14,25 +14,25 @@ When you join, a short clip shows Pianka running out of the house at sunset. Eve
 
 ## Modes (same for everyone on a server)
 
-- **Easy**: find Pianka with the GPS and bring her home.
-- **Normal**: Pianka is far away behind thorn hedges, guard dogs walk lines across the way, thick fog, she runs away 3 times. And there is a surprise when you catch her!
-- **Umulig** (almost impossible): even farther, more hedges and guard lines, the GPS only tells the distance, then run home with the kittens while a pack of dogs follows you.
+- **Practice**: one round to learn. Find Pianka with the GPS and bring her home, then the menu opens with Normal ready.
+- **Normal**: Pianka is far away behind thorn hedges, guard dogs walk lines across the way, thick fog, she runs away 3 times. When you catch her she screams and pops into confetti, and her 7 kittens run off. Find them all.
+- **Hard**: like Normal, but the GPS only tells the distance, with a faint glitchy hint now and then. Press **📣 Call** (C) to shout "Piaaaanka!": she or a kitten meows back and the GPS shows the way for a few seconds, but dogs and neighbors nearby hear you and come to look. Then run home with the kittens while a pack of dogs follows you.
 
-Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS only shows the area. Press **📣 Call** (C) and she meows back from her hiding place, but dogs and neighbors nearby hear you too and come to look. Up close her hiding place rustles. Wrong spots can hide a frog, a rat or a fish gift. Any bush in the forest can be searched once per round for a fish.
+Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS only shows the area. Up close her hiding place rustles. Wrong spots can hide a frog, a rat or a fish gift. Any bush in the forest can be searched once per round for a fish.
 
-In Normal and Umulig, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her.
+In Normal and Hard, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her.
 
 Open the **🗺 Map** (M) to plan your way: hedges, guard dog lines, neighbors with lanterns, cabins, home and the area where Pianka is.
 
-Every rescue is one level up (up to 10): more dogs, wider lights, more rats, less time, more hiding spots and Pianka runs more. Picking a mode starts again at level 1.
+In Normal and Hard every rescue is one level up (up to 10): more dogs, wider lights, more rats, less time, more hiding spots and Pianka runs more. Picking a mode starts again at level 1.
 
-Pick up bones 🦴 (up to 3). Tap the bone button or press G: it flies to the closest dog, and every guard dog near it stops to eat. Save one for a friend in trouble. The Umulig pack does not care about bones.
+Pick up bones 🦴 (up to 3). Tap the bone button or press G: it flies to the closest dog, and every guard dog near it stops to eat. Save one for a friend in trouble. The Hard pack does not care about bones.
 
 You have 3 hearts (2 in Normal). A dog bite or a neighbor grab costs one. Out of hearts? You are a ghost 👻 until the next round. If everyone is out, it is game over: press **▶ Play again** or wait for the next round. Pianka leaves a trail of birds 🐦 that leads to her, like a cat gift. Each one gives a heart back.
 
-The GPS shows Pianka (in Umulig only how far). Enemies show up only when you can see them, and the GPS fades and gets fuzzy when they are close. You hear what happens: you shout when she runs off, neighbors yell "Hey you!" when they spot you. Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
+The GPS shows Pianka (in Hard only how far). Enemies show up only when you can see them, and the GPS fades and gets fuzzy when they are close. You hear what happens: you shout when she runs off, neighbors yell "Hey you!" when they spot you. Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
 
-In Umulig a pack of dogs follows behind you in a V. They only attack if you get into their light, so keep running and avoid mud.
+In Hard a pack of dogs follows behind you in a V. They only attack if you get into their light, so keep running and avoid mud.
 
 Watch out for rats! A bite costs a heart. Jump on them to squash them, or click your lantern to scare them away.
 
