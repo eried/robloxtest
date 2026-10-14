@@ -16,7 +16,7 @@ When you join, a short clip shows Pianka running out of the house at sunset. Eve
 
 - **Practice**: one round to learn. Find Pianka with the GPS and bring her home, then the menu opens with Normal ready.
 - **Normal**: Pianka is far away behind thorn hedges, guard dogs walk lines across the way, thick fog, she runs away 3 times. When you catch her she screams and pops into confetti, and her 7 kittens run off. Find them all.
-- **Hard**: like Normal, but the GPS only tells the distance, with a faint glitchy hint now and then. Press **📣 Call** (C) to shout "Piaaaanka!": she or a kitten meows back and the GPS shows the way for a few seconds, but dogs and neighbors nearby hear you and come to look. Then run home with the kittens while a pack of dogs follows you.
+- **Hard**: like Normal, but the GPS only tells the distance, with a faint glitchy hint now and then. Press **📣 Call** (C) to shout "Piaaaanka!": she or a kitten meows back and the GPS shows the way for a few seconds, but dogs and neighbors nearby hear you and come to look. Then run home with the kittens while a pack of dogs follows you. It starts with a short clip: a love tune for the full tower, then a kennel gate bursts open, the pack runs out barking and the escape music kicks in.
 
 Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS only shows the area. Up close her hiding place rustles. Wrong spots can hide a frog, a rat or a fish gift. Any bush in the forest can be searched once per round for a fish.
 

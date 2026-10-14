@@ -153,7 +153,7 @@ end
 
 -- Bots
 local bots: { any } = {}
-local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false }
+local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false, clipSince = nil :: number? }
 
 local function addBot(name: string, kind: string, hero: string): any
 	local player, ctx = Engine.addPlayer(name)
@@ -458,6 +458,18 @@ local function invariants()
 			check(false, string.format("neighbors still hunting in daylight (t=%.0f)", Engine.now))
 		end
 	end
+	if workspace:GetAttribute("Clip") then
+		stats.clipSince = stats.clipSince or Engine.now
+		check(Engine.now - stats.clipSince < 12, "escape clip stuck")
+	else
+		stats.clipSince = nil
+		for _, bot in bots do
+			local root = bot.player.Character and bot.player.Character:FindFirstChild("HumanoidRootPart")
+			if root and root.Anchored and not bot.player:GetAttribute("Held") then
+				check(false, bot.name .. " still frozen after the escape clip")
+			end
+		end
+	end
 	for _, bot in bots do
 		if mode == "Practice" and not stats.practiceMenu then
 			local play = findButton(bot, function(b)
@@ -727,6 +739,7 @@ check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked 
 check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
 check(stats.tower >= 2, "tower: kittens never stacked on a head")
 check((counts.badCall or 0) == 0, "call worked outside Hard")
+check((counts.escaped or 0) == 0 or (counts.escapeClip or 0) > 0, "escape won without the clip")
 check(stats.practiceMenu, "practice: menu with Normal did not open after the round")
 check(stats.towerPianka, "tower: Pianka not under the kittens in Normal")
 print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d, play again %d, calls %d, meows back %d, heard %d",

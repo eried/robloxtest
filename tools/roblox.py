@@ -25,6 +25,8 @@ AUDIO = [
     ("ChaseMusicId", "music/PiankaChase.mp3", "Find Pianka chase music"),
     ("CallId", "sounds/PiankaCall.mp3", "Find Pianka call"),
     ("VoicesId", "sounds/PiankaVoices.mp3", "Find Pianka voices"),
+    ("EscapeMusicId", "music/PiankaEscape.mp3", "Find Pianka escape music"),
+    ("EscapeSfxId", "sounds/PiankaEscapeSfx.mp3", "Find Pianka escape sounds"),
 ]
 
 

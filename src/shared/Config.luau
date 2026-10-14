@@ -131,6 +131,11 @@ return {
 		Hey = { { 16.899, 1.725 }, { 19.123, 2.038 }, { 21.662, 2.178 } },
 	},
 	Scream = { 24.34, 3.305 },
+	-- Hard escape clip: love tune, then the kennel gate bursts open
+	EscapeMusicId = 0,
+	EscapeSfxId = 0,
+	Escape = { Love = { 0.3, 3.4 }, Release = { 4.2, 4.2 } },
+	EscapeClip = { open = 3.6, total = 7.6 },
 	-- Calling Pianka: she meows back, but dogs and neighbors this close hear it
 	CallCooldown = 6,
 	CallHeard = 45,

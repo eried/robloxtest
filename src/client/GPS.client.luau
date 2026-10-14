@@ -675,6 +675,21 @@ local chaseMusic = new("Sound", {
 	Volume = 0,
 	Parent = SoundService,
 })
+-- Hard escape: a fast track for the run home, and the clip sounds
+local escapeSounds = {
+	music = new("Sound", {
+		SoundId = if Config.EscapeMusicId ~= 0 then "rbxassetid://" .. Config.EscapeMusicId else "",
+		Looped = true,
+		Volume = 0,
+		Parent = SoundService,
+	}) :: Sound,
+	sfx = if Config.EscapeSfxId ~= 0 then new("Sound", { SoundId = "rbxassetid://" .. Config.EscapeSfxId, Parent = SoundService }) :: Sound else nil,
+}
+if escapeSounds.sfx then
+	task.spawn(function()
+		ContentProvider:PreloadAsync({ escapeSounds.sfx, escapeSounds.music })
+	end)
+end
 local rush = 0
 local lastSpot: Vector3? = nil
 local function runEffects(dt: number)
@@ -716,17 +731,32 @@ local function runEffects(dt: number)
 	if musicOn and not music.Playing then
 		music:Play()
 	end
+	-- Clip: all music fades out. Escape: the fast track takes over
+	local clip = workspace:GetAttribute("Clip") ~= nil
+	local quiet = if clip then 0 else 1
+	local rate = math.min(1, dt * (if clip then 6 else 2))
+	local escapeMusic = escapeSounds.music
+	local run = musicOn and not clip and workspace:GetAttribute("Escape") ~= nil and Config.EscapeMusicId ~= 0
+	if run and not escapeMusic.Playing then
+		escapeMusic.TimePosition = 0
+		escapeMusic:Play()
+	elseif not run and escapeMusic.Playing and escapeMusic.Volume < 0.02 then
+		escapeMusic:Stop()
+	end
+	local away = if run and escapeMusic.IsLoaded then 0 else 1
+	escapeMusic.Volume += (0.75 * (1 - away) - escapeMusic.Volume) * math.min(1, dt * 4)
 	if Config.ChaseMusicId ~= 0 then
 		chaseMusic.PlaybackSpeed = 1 + 0.2 * urgency
 		local mix = if chase and chaseMusic.IsLoaded then 1 else 0
-		chaseMusic.Volume += (0.6 * mix - chaseMusic.Volume) * math.min(1, dt * 2)
-		music.Volume += (0.5 * (1 - mix) - music.Volume) * math.min(1, dt * 2)
+		chaseMusic.Volume += (0.6 * mix * away * quiet - chaseMusic.Volume) * rate
+		music.Volume += (0.5 * (1 - mix) * away * quiet - music.Volume) * rate
 		if music.Playing and not chaseMusic.Playing then
 			chaseMusic:Play()
 		elseif not music.Playing and chaseMusic.Playing then
 			chaseMusic:Stop()
 		end
 	else
+		music.Volume += (0.5 * quiet - music.Volume) * rate
 		music.PlaybackSpeed += ((if chase then 1.3 + 0.25 * urgency else 1) - music.PlaybackSpeed) * math.min(1, dt * 2)
 	end
 end
@@ -2025,6 +2055,118 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		chime()
 		task.delay(8, function()
 			showBanner(cat .. " ran away again! Use your GPS.", 3)
+		end)
+	elseif kind == "escapeClip" and type(value) == "table" and typeof(value.gate) == "Vector3" and typeof(value.face) == "Vector3" then
+		-- All kittens: a love tune on the tower, then the kennel bursts open
+		local gate: Vector3, face: Vector3 = value.gate, value.face
+		task.spawn(function()
+			local head = who and who.Character and who.Character:FindFirstChild("Head") :: BasePart?
+			local twist = workspace:FindFirstChild("Twist")
+			local kennel = twist and twist:WaitForChild("Kennel", 2)
+			local gatePart = kennel and kennel:FindFirstChild("Gate") :: BasePart?
+			local hinge = if gatePart then gatePart.CFrame * CFrame.new(-gatePart.Size.X / 2, 0, 0) else nil
+			local dogs = workspace:FindFirstChild("Dogs")
+			local template = dogs and dogs:FindFirstChildWhichIsA("Model")
+			local sfx = escapeSounds.sfx
+			showControls(false)
+			camera.CameraType = Enum.CameraType.Scriptable
+			local cover: { Instance } = {}
+			for _, y in { 0, 1 } do
+				table.insert(cover, new("Frame", {
+					AnchorPoint = Vector2.new(0, y),
+					Position = UDim2.fromScale(0, y),
+					Size = UDim2.fromScale(1, 0.12),
+					BackgroundColor3 = Color3.new(0, 0, 0),
+					BorderSizePixel = 0,
+					ZIndex = 30,
+					Parent = frontLayer,
+				}))
+			end
+			if sfx then
+				playClip(SoundService, Config.Escape.Love, 1.4, 1, 1000, sfx)
+			end
+			for _ = 1, 10 do
+				local x = 0.15 + math.random() * 0.7
+				local heart = new("TextLabel", {
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromScale(x, 0.85),
+					Size = UDim2.fromOffset(70, 70),
+					BackgroundTransparency = 1,
+					TextScaled = true,
+					Text = "💕",
+					ZIndex = 31,
+					Parent = frontLayer,
+				})
+				table.insert(cover, heart)
+				TweenService:Create(heart, TweenInfo.new(2 + math.random(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Position = UDim2.fromScale(x + (math.random() - 0.5) * 0.15, 0.2),
+					TextTransparency = 1,
+				}):Play()
+			end
+			local pack: { { model: Model, dir: Vector3, speed: number, wait: number, y: number } } = {}
+			local opened = false
+			local start = os.clock()
+			local open, total = Config.EscapeClip.open, Config.EscapeClip.total
+			local conn: RBXScriptConnection? = nil
+			conn = RunService.RenderStepped:Connect(function()
+				local t = os.clock() - start
+				local runner = if head and head.Parent then head.Position else gate + face * 34 + Vector3.new(0, 2, 0)
+				if t < open then
+					local a = t * 0.5
+					local at = runner + Vector3.new(0, 2.5, 0)
+					camera.CFrame = CFrame.lookAt(at + Vector3.new(math.cos(a) * 11, 1.5 + t * 0.5, math.sin(a) * 11), at)
+				elseif t < total - 1.4 then
+					local k = t - open
+					if not opened then
+						opened = true
+						if sfx then
+							playClip(SoundService, Config.Escape.Release, 1.6, 1, 1000, sfx)
+						end
+						if template then
+							local y = template:GetPivot().Position.Y
+							for i = 1, 14 do
+								local dog = template:Clone()
+								for _, d in dog:GetDescendants() do
+									if d.Name == "Cone" or d:IsA("Light") or d:IsA("BillboardGui") then
+										d:Destroy()
+									end
+								end
+								dog:PivotTo(CFrame.lookAt(Vector3.new(gate.X, y, gate.Z), Vector3.new(gate.X, y, gate.Z) + face))
+								dog.Parent = workspace
+								local turn = math.rad(math.random(-55, 55))
+								local dir = Vector3.new(face.X * math.cos(turn) - face.Z * math.sin(turn), 0, face.X * math.sin(turn) + face.Z * math.cos(turn))
+								table.insert(pack, { model = dog, dir = dir, speed = math.random(22, 32), wait = i * 0.08, y = y })
+								table.insert(cover, dog)
+							end
+						end
+					end
+					if gatePart and hinge then
+						gatePart.CFrame = hinge * CFrame.Angles(0, math.rad(105) * math.min(k / 0.25, 1), 0) * CFrame.new(gatePart.Size.X / 2, 0, 0)
+					end
+					for i, d in pack do
+						local run = math.max(0, k - d.wait)
+						local p = gate + d.dir * (1 + run * d.speed)
+						local at = Vector3.new(p.X, d.y + math.abs(math.sin(run * 14 + i)) * 0.5, p.Z)
+						d.model:PivotTo(CFrame.lookAt(at, at + d.dir))
+					end
+					local jolt = math.max(0, 0.5 - k) * 1.6
+					local eye = gate + face * 16 + Vector3.new(0, 4, 0) + Vector3.new(math.random() - 0.5, math.random() - 0.5, 0) * jolt
+					camera.CFrame = CFrame.lookAt(eye, gate + Vector3.new(0, 1.5, 0))
+				else
+					local back = (total - t) / 1.4
+					camera.CFrame = CFrame.lookAt(runner - face * (8 + 6 * back) + Vector3.new(0, 3 + 2 * back, 0), runner + face * 20)
+				end
+				if t >= total and conn then
+					conn:Disconnect()
+					for _, item in cover do
+						item:Destroy()
+					end
+					camera.CameraType = Enum.CameraType.Custom
+					showControls(true)
+				end
+			end)
+			task.wait(total - 1.4)
+			popText("🏃💨  🏠", Color3.fromRGB(255, 220, 120))
 		end)
 	elseif kind == "dogs" then
 		local runner = ((player:GetAttribute("Kittens") :: number?) or 0) > 0

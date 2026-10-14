@@ -1086,6 +1086,7 @@ local function clearHard()
 		player:SetAttribute("Kittens", nil)
 	end
 	table.clear(stacks)
+	workspace:SetAttribute("Clip", nil)
 	removeCat(ride.cat)
 	ride.player, ride.cat = nil, nil
 end
@@ -2300,7 +2301,6 @@ local function startEscape()
 	clearRats()
 	workspace:SetAttribute("KittenDeadline", nil)
 	workspace:SetAttribute("Escape", true)
-	catEvent:FireAllClients("dogs")
 
 	local runners: { Player } = {}
 	for player, stack in stacks do
@@ -2313,27 +2313,89 @@ local function startEscape()
 		return
 	end
 
+	-- Clip: everyone stops, a kennel behind the first runner bursts open and the pack runs out
+	local firstRoot = getRoot(runners[1])
+	local center = if firstRoot then Vector3.new(firstRoot.Position.X, 0, firstRoot.Position.Z) else Vector3.new(home.X, 0, home.Z)
+	local toHome = Vector3.new(home.X, 0, home.Z) - center
+	local heading = if toHome.Magnitude > 1 then toHome.Unit else Vector3.new(0, 0, -1)
+	local gate = center - heading * 34
+	gate = Vector3.new(math.clamp(gate.X, -half + 8, half - 8), 0, math.clamp(gate.Z, -half + 8, half - 8))
+	local kennel = Instance.new("Model")
+	kennel.Name = "Kennel"
+	local face = CFrame.lookAt(gate, gate + heading)
+	for _, wall in { { Vector3.new(8, 3, 0.4), Vector3.new(0, 1.5, 4) }, { Vector3.new(0.4, 3, 8), Vector3.new(-4, 1.5, 0) }, { Vector3.new(0.4, 3, 8), Vector3.new(4, 1.5, 0) } } do
+		makePart("Part", {
+			Name = "Wall",
+			Size = wall[1],
+			CFrame = face * CFrame.new(wall[2]),
+			Color = Color3.fromRGB(110, 75, 45),
+			Material = Enum.Material.WoodPlanks,
+			CanCollide = false,
+			Parent = kennel,
+		})
+	end
+	makePart("Part", {
+		Name = "Roof",
+		Size = Vector3.new(9, 0.4, 9),
+		CFrame = face * CFrame.new(0, 3.4, 0),
+		Color = Color3.fromRGB(150, 45, 40),
+		Material = Enum.Material.Wood,
+		CanCollide = false,
+		Parent = kennel,
+	})
+	makePart("Part", {
+		Name = "Gate",
+		Size = Vector3.new(7.6, 2.8, 0.3),
+		CFrame = face * CFrame.new(0, 1.4, -4),
+		Color = Color3.fromRGB(70, 70, 75),
+		Material = Enum.Material.DiamondPlate,
+		CanCollide = false,
+		Parent = kennel,
+	})
+	kennel.Parent = twistFolder
+	workspace:SetAttribute("Clip", true)
+	local frozen: { BasePart } = {}
+	for _, player in Players:GetPlayers() do
+		local root = getRoot(player)
+		if root and not root.Anchored then
+			root.Anchored = true
+			table.insert(frozen, root)
+		end
+	end
+	local function unfreeze()
+		workspace:SetAttribute("Clip", nil)
+		for _, root in frozen do
+			root.Anchored = false
+		end
+	end
+	catEvent:FireAllClients("escapeClip", runners[1], { gate = gate, face = heading })
+	task.wait(Config.EscapeClip.open)
+	if round ~= myRound or roundOver == round then
+		unfreeze()
+		return
+	end
 	local s = dogSettings()
-	local slots = DogBrain.formation(s.packCount)
-	for i, slot in slots do
+	local clipEnd = os.clock() + Config.EscapeClip.total - Config.EscapeClip.open
+	packStart = clipEnd
+	escapeCalm = clipEnd + 3
+	for i, slot in DogBrain.formation(s.packCount) do
 		local runner = runners[(i - 1) % #runners + 1]
-		local root = getRoot(runner)
-		local center = if root then Vector3.new(root.Position.X, 0, root.Position.Z) else Vector3.new(home.X, 0, home.Z)
-		local toHome = Vector3.new(home.X, 0, home.Z) - center
-		local heading = if toHome.Magnitude > 1 then toHome.Unit else Vector3.new(0, 0, -1)
 		local right = Vector3.new(-heading.Z, 0, heading.X)
-		local pos = center - heading * (s.packGap + 6 + slot.back) + right * slot.side
-		pos = Vector3.new(math.clamp(pos.X, -half + 5, half - 5), 0, math.clamp(pos.Z, -half + 5, half - 5))
+		local pos = gate + heading * 3 + right * (slot.side * 0.5)
 		addDog(DogBrain.newPack(pos, slot.side, slot.back, runner.UserId), s.packConeRange, s.coneAngle)
 	end
-	packStart = os.clock()
-	escapeCalm = packStart + 3
 	for _, dog in liveDogs do
 		if dog.brain.kind == "patrol" and (dog.brain.state == "alert" or dog.brain.state == "chase") then
 			dog.brain.state = "return"
-			dog.brain.untilTime = packStart + 3
+			dog.brain.untilTime = escapeCalm
 		end
 	end
+	task.wait(Config.EscapeClip.total - Config.EscapeClip.open)
+	unfreeze()
+	if round ~= myRound or roundOver == round then
+		return
+	end
+	catEvent:FireAllClients("dogs")
 
 	local delivered = 0
 	local finished = false
@@ -3760,7 +3822,7 @@ do
 					pos = pos,
 					heading = heading,
 					speed = humanoid.WalkSpeed * calm,
-					safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7 or player:GetAttribute("Held") == true,
+					safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7 or player:GetAttribute("Held") == true or workspace:GetAttribute("Clip") == true,
 					hidden = night and player:GetAttribute("LightOff") == true,
 				})
 				byId[player.UserId] = player
