@@ -122,7 +122,7 @@ return {
 	ChaseMusicId = 100600567252458,
 	CallId = 112612503374928,
 	-- Player and neighbor voices: start and length in seconds
-	VoicesId = 0,
+	VoicesId = 97571276201632,
 	Voices = {
 		Call = { { 0.3, 2.729 }, { 3.529, 2.985 }, { 7.014, 2.112 } },
 		Back = { 9.626, 2.549 },
