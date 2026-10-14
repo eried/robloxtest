@@ -1475,7 +1475,7 @@ local function playIntro()
 		end
 		if t > 1.1 and not spoke then
 			spoke = true
-			caption.Text = "\"Piaaaanka! Where are you going?!\""
+			caption.Text = "\"Pianka! Piankaaaa! Piaaaaanka!\""
 			if Config.CallId ~= 0 then
 				callSound:Play()
 			end
@@ -1903,7 +1903,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		end
 	elseif kind == "call" then
 		if typeof(value) == "Instance" and value:IsA("BasePart") then
-			playClip(value, Config.Voices.Call, 1, 1, 120, voiceSound)
+			local calls = Config.Voices.Call
+			playClip(value, calls[math.random(1, #calls)], 1, 1, 120, voiceSound)
 		end
 	elseif kind == "meowBack" and typeof(value) == "Vector3" then
 		local at = Instance.new("Attachment")

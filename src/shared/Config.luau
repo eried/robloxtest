@@ -120,17 +120,17 @@ return {
 
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
 	ChaseMusicId = 100600567252458,
-	CallId = 71219545870553,
+	CallId = 0,
 	-- Player and neighbor voices: start and length in seconds
-	VoicesId = 94827244071069,
+	VoicesId = 0,
 	Voices = {
-		Call = { 0.3, 2.371 },
-		Back = { 3.171, 2.201 },
-		Ouch = { 5.871, 1.474 },
-		Got = { 7.845, 2.208 },
-		HeyYou = { 10.553, 1.487 },
+		Call = { { 0.3, 2.729 }, { 3.529, 2.985 }, { 7.014, 2.112 } },
+		Back = { 9.626, 2.549 },
+		Ouch = { 12.675, 1.38 },
+		Got = { 14.555, 1.843 },
+		HeyYou = { 16.899, 1.427 },
 	},
-	Scream = { 12.541, 3.332 },
+	Scream = { 18.826, 3.305 },
 	-- Calling Pianka: she meows back, but dogs and neighbors this close hear it
 	CallCooldown = 6,
 	CallHeard = 45,
