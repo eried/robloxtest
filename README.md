@@ -30,7 +30,7 @@ Pick up bones 🦴 (up to 3). Tap the bone button or press G: it flies to the cl
 
 You have 3 hearts (2 in Normal). A dog bite or a neighbor grab costs one. Out of hearts? You are a ghost 👻 until the next round. If everyone is out, it is game over: press **▶ Play again** or wait for the next round. Pianka leaves a trail of birds 🐦 that leads to her, like a cat gift. Each one gives a heart back.
 
-The GPS shows Pianka (in Hard only how far). Enemies show up only when you can see them, and the GPS fades and gets fuzzy when they are close. You hear what happens: you shout when she runs off, neighbors yell "Hey you!" when they spot you. Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
+The GPS shows Pianka (in Hard only how far). Enemies show up only when you can see them, and the GPS fades and gets fuzzy when they are close. You hear what happens: you shout when she runs off, neighbors yell a robotic "Hey! Hey!" when they spot you. Guard dogs walk back and forth with a light in front of them. Stay out of the light, or hide behind trees! If a dog sees you it barks and chases you.
 
 In Hard a pack of dogs follows behind you in a V. They only attack if you get into their light, so keep running and avoid mud.
 

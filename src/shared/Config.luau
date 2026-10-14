@@ -122,15 +122,15 @@ return {
 	ChaseMusicId = 100600567252458,
 	CallId = 112612503374928,
 	-- Player and neighbor voices: start and length in seconds
-	VoicesId = 121681359890638,
+	VoicesId = 0,
 	Voices = {
 		Call = { { 0.3, 2.729 }, { 3.529, 2.985 }, { 7.014, 2.112 } },
 		Back = { 9.626, 2.549 },
 		Ouch = { 12.675, 1.38 },
 		Got = { 14.555, 1.843 },
-		HeyYou = { 16.899, 1.427 },
+		Hey = { { 16.899, 1.725 }, { 19.123, 2.038 }, { 21.662, 2.178 } },
 	},
-	Scream = { 18.826, 3.305 },
+	Scream = { 24.34, 3.305 },
 	-- Calling Pianka: she meows back, but dogs and neighbors this close hear it
 	CallCooldown = 6,
 	CallHeard = 45,

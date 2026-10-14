@@ -1941,7 +1941,8 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		popText("Shh! Something heard you 👂", Color3.fromRGB(255, 170, 80))
 	elseif kind == "heyYou" then
 		if typeof(value) == "Instance" and value:IsA("BasePart") then
-			playClip(value, Config.Voices.HeyYou, 1.3, 1, 110, voiceSound)
+			local hey = Config.Voices.Hey
+			playClip(value, hey[math.random(1, #hey)], 1.3, 1, 110, voiceSound)
 		end
 	elseif kind == "kittens" then
 		-- She screams, pops into confetti and her kittens run off
