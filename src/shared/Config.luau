@@ -132,8 +132,8 @@ return {
 	},
 	Scream = { 24.34, 3.305 },
 	-- Hard escape clip: love tune, then the kennel gate bursts open
-	EscapeMusicId = 0,
-	EscapeSfxId = 0,
+	EscapeMusicId = 125147046958456,
+	EscapeSfxId = 119398113740050,
 	Escape = { Love = { 0.3, 3.4 }, Release = { 4.2, 4.2 } },
 	EscapeClip = { open = 3.6, total = 7.6 },
 	-- Calling Pianka: she meows back, but dogs and neighbors this close hear it
