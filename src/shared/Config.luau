@@ -120,9 +120,9 @@ return {
 
 	-- Upload music/PiankaChase.mp3 to Roblox and paste its id here
 	ChaseMusicId = 100600567252458,
-	CallId = 0,
+	CallId = 112612503374928,
 	-- Player and neighbor voices: start and length in seconds
-	VoicesId = 0,
+	VoicesId = 121681359890638,
 	Voices = {
 		Call = { { 0.3, 2.729 }, { 3.529, 2.985 }, { 7.014, 2.112 } },
 		Back = { 9.626, 2.549 },
