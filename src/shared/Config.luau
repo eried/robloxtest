@@ -100,12 +100,22 @@ return {
 	NeighborSpeed = 3,
 
 	PatrickSpeed = 20,
-	HeroOrder = { "Patrick", "Aurelia", "Milenkitka" },
+	HeroOrder = { "Patrick", "Aurelia", "Milenkitka", "Oskar" },
 	Heroes = {
 		Patrick = { Emoji = "🏃", Skill = "Super fast" },
 		Aurelia = { Emoji = "🐱", Skill = "Cat friend, more birds" },
 		Milenkitka = { Emoji = "💡", Skill = "Big lantern, calm dogs" },
+		Oskar = { Emoji = "👫", Skill = "With sister Nicola: 2 lives" },
 	},
+
+	-- Seasons: "auto" is a hero's birthday, Halloween in October, Christmas in December.
+	-- Or "Halloween", "Christmas", "Birthday:Patrick", "None"
+	Season = "auto",
+	Birthdays = { Patrick = { 8, 18 }, Aurelia = { 9, 21 } },
+	HalloweenMusicId = 0,
+	ChristmasMusicId = 0,
+	SeasonSfxId = 0,
+	SeasonSfx = { NiceEn = { 0.3, 2.69 }, NiceNo = { 3.49, 2.588 }, Howl = { 6.577, 5 }, Birthday = { 12.077, 10.96 } },
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
 	MusicId = 139972511482001,

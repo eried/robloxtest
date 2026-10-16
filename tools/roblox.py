@@ -27,6 +27,9 @@ AUDIO = [
     ("VoicesId", "sounds/PiankaVoices.mp3", "Find Pianka voices"),
     ("EscapeMusicId", "music/PiankaEscape.mp3", "Find Pianka escape music"),
     ("EscapeSfxId", "sounds/PiankaEscapeSfx.mp3", "Find Pianka escape sounds"),
+    ("HalloweenMusicId", "music/PiankaHalloween.mp3", "Find Pianka Halloween music"),
+    ("ChristmasMusicId", "music/PiankaChristmas.mp3", "Find Pianka Christmas music"),
+    ("SeasonSfxId", "sounds/PiankaSeason.mp3", "Find Pianka season sounds"),
 ]
 
 

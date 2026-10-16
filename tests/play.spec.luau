@@ -16,6 +16,8 @@ Engine.patch = function(name: string, module: any)
 		for i, pass in module.Passes do
 			pass.id = 9000 + i
 		end
+		-- No season here, tests/season.spec.luau covers Halloween and Christmas
+		module.Season = "None"
 	end
 end
 
@@ -153,7 +155,7 @@ end
 
 -- Bots
 local bots: { any } = {}
-local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false, clipSince = nil :: number? }
+local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false, clipSince = nil :: number?, nicola = false, nicolaMissing = 0 }
 
 local function addBot(name: string, kind: string, hero: string): any
 	local player, ctx = Engine.addPlayer(name)
@@ -471,6 +473,16 @@ local function invariants()
 		end
 	end
 	for _, bot in bots do
+		if bot.hero == "Oskar" then
+			local character = bot.player.Character
+			stats.nicola = stats.nicola or (character ~= nil and character:FindFirstChild("Nicola") ~= nil)
+			if bot.player:GetAttribute("Out") and not bot.player:GetAttribute("Sibling") then
+				check(false, "Oskar went out before Nicola left")
+			end
+			if bot.player:GetAttribute("Pair") and character and not character:FindFirstChild("Nicola") and bot.player:GetAttribute("Hearts") then
+				stats.nicolaMissing += 1
+			end
+		end
 		if mode == "Practice" and not stats.practiceMenu then
 			local play = findButton(bot, function(b)
 				return b.Text == "▶ Play"
@@ -565,6 +577,11 @@ local function scenario(title: string, mode: string, setup: () -> (), seconds: n
 	local roundsBefore = stats.rounds
 	longestRound = 0
 	roundBegan = Engine.now
+	-- Switch while alone, before others join, like a player starting a session
+	if bots[1] and #bots == 1 then
+		wantMode = mode
+		pickMode(bots[1], mode)
+	end
 	setup()
 	wantMode = mode
 	if bots[1] then
@@ -613,7 +630,7 @@ end, secs)
 scenario("Hard solo careful", "Hard", function() end, secs)
 
 scenario("Normal team", "Normal", function()
-	addBot("Bo", "kid", "Aurelia")
+	addBot("Bo", "kid", "Oskar")
 	addBot("Cy", "naive", "Milenkitka")
 end, secs)
 
@@ -739,6 +756,8 @@ check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked 
 check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
 check(stats.tower >= 2, "tower: kittens never stacked on a head")
 check((counts.badCall or 0) == 0, "call worked outside Hard")
+check(stats.nicola, "Oskar never walked with Nicola")
+check(stats.nicolaMissing < 5, "Nicola missing while the pair is together")
 check((counts.escaped or 0) == 0 or (counts.escapeClip or 0) > 0, "escape won without the clip")
 check(stats.practiceMenu, "practice: menu with Normal did not open after the round")
 check(stats.towerPianka, "tower: Pianka not under the kittens in Normal")

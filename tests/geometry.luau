@@ -6,6 +6,13 @@ local Engine = require("./engine")
 local V3 = roblox.Vector3
 
 Engine.build()
+-- Optional season: lune run tests/geometry.luau out.json Halloween
+local SEASON = process.args[2] or "None"
+Engine.patch = function(name: string, module: any)
+	if name == "Config" then
+		module.Season = SEASON
+	end
+end
 Engine.startServer()
 local workspace = Engine.workspace
 local Config = Engine.server.modules[Engine.game:GetService("ReplicatedStorage"):FindFirstChild("Shared"):FindFirstChild("Config")]
@@ -70,6 +77,17 @@ local function first(folderName: string, kind: string, count: number)
 end
 first("Dogs", "dog", 3)
 first("Rats", "rat", 2)
+do
+	local n = 0
+	for _, bush in workspace:FindFirstChild("Forest"):GetChildren() do
+		if bush.Name == "Bush" and (n < 2 or (n < 3 and bush:FindFirstChild("Mouth"))) then
+			if n < 2 or bush:FindFirstChild("Mouth") then
+				dump(bush, "bush")
+				n += 1
+			end
+		end
+	end
+end
 first("Birds", "bird", 1)
 first("Neighbors", "neighbor", 1)
 for _, m in workspace:GetChildren() do
@@ -168,6 +186,19 @@ character = player.Character
 if character then
 	print("tower kittens", player:GetAttribute("Kittens"))
 	dump(character, "tower")
+end
+
+-- Oskar walking hand in hand with Nicola
+Engine.asClient(ctx, function()
+	setMode:FireServer(nil, "Oskar")
+end)
+for _ = 1, 20 * 3 do
+	Engine.step(1 / 20)
+end
+character = player.Character
+if character then
+	print("oskar pair", player:GetAttribute("Pair"), character:FindFirstChild("Nicola") ~= nil)
+	dump(character, "oskar")
 end
 fs.writeFile(process.args[1] or "geometry.json", require("@lune/serde").encode("json", out))
 for _, e in Engine.errors do

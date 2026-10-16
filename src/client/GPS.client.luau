@@ -9,6 +9,15 @@ local SoundService = game:GetService("SoundService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Sky = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Sky"))
+-- Halloween or Christmas: the server picks it from the date
+local seasonal = {
+	name = workspace:GetAttribute("Season") :: string?,
+	lib = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Season")),
+	rat = if workspace:GetAttribute("Season") == "Christmas" then "🎅" else "🐀",
+	ratName = if workspace:GetAttribute("Season") == "Christmas" then "Nisse" else "Rat",
+	birthday = workspace:GetAttribute("BirthdayHero") :: string?,
+	sfx = nil :: Sound?,
+}
 local catEvent = ReplicatedStorage:WaitForChild("PiankaEvent") :: RemoteEvent
 local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
 local shopEvent = ReplicatedStorage:WaitForChild("Shop") :: RemoteEvent
@@ -186,7 +195,10 @@ local function chime()
 end
 
 local music = new("Sound", {
-	SoundId = if Config.MusicId ~= 0 then "rbxassetid://" .. Config.MusicId else "",
+	SoundId = if seasonal.name == "Halloween" and Config.HalloweenMusicId ~= 0 then "rbxassetid://" .. Config.HalloweenMusicId
+		elseif seasonal.name == "Christmas" and Config.ChristmasMusicId ~= 0 then "rbxassetid://" .. Config.ChristmasMusicId
+		elseif Config.MusicId ~= 0 then "rbxassetid://" .. Config.MusicId
+		else "",
 	Looped = true,
 	Volume = 0.5,
 	Parent = SoundService,
@@ -283,7 +295,8 @@ local function showHearts()
 	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
 	local tag = "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
-	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "👻 Ghost" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
+	local pair = if player:GetAttribute("Pair") then "  👫" else ""
+	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "👻 Ghost" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts) .. pair
 end
 -- Lantern button
 task.spawn(function()
@@ -787,6 +800,7 @@ end
 
 player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
 player:GetAttributeChangedSignal("Out"):Connect(showHearts)
+player:GetAttributeChangedSignal("Pair"):Connect(showHearts)
 player:GetAttributeChangedSignal("MaxHearts"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
@@ -949,8 +963,8 @@ for i, name in Config.HeroOrder do
 	local hero = Config.Heroes[name]
 	local button = new("TextButton", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, (i - 2) * 168, 0, 142),
-		Size = UDim2.fromOffset(156, 66),
+		Position = UDim2.new(0.5, (i - 2.5) * 128, 0, 142),
+		Size = UDim2.fromOffset(122, 66),
 		BackgroundColor3 = Color3.fromRGB(55, 62, 55),
 		Text = "",
 		ZIndex = 12,
@@ -968,18 +982,18 @@ for i, name in Config.HeroOrder do
 		Size = UDim2.new(1, 0, 0, 34),
 		BackgroundTransparency = 1,
 		Font = FONT,
-		TextSize = if #name > 8 then 20 else 26,
+		TextSize = if #name > 8 then 16 else 22,
 		TextColor3 = WHITE,
 		Text = hero.Emoji .. " " .. name,
 		ZIndex = 13,
 		Parent = button,
 	})
 	new("TextLabel", {
-		Position = UDim2.fromOffset(6, 36),
-		Size = UDim2.new(1, -12, 0, 26),
+		Position = UDim2.fromOffset(4, 34),
+		Size = UDim2.new(1, -8, 0, 30),
 		BackgroundTransparency = 1,
 		Font = FONT,
-		TextSize = 14,
+		TextSize = 13,
 		TextWrapped = true,
 		TextColor3 = GRAY,
 		Text = hero.Skill,
@@ -1052,7 +1066,11 @@ playButton = new("TextButton", {
 round(playButton, UDim.new(0, 18))
 new("UIStroke", { Color = WHITE, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = playButton })
 levelLabel = cardText("", 390, 22, 17, Color3.fromRGB(255, 225, 120))
-cardText("The mode is the same for everyone here.", 414, 20, 14, GRAY)
+if seasonal.birthday then
+	cardText("🎂 Happy birthday " .. seasonal.birthday .. "! 🎉", 414, 20, 16, Color3.fromRGB(255, 200, 90))
+else
+	cardText("The mode is the same for everyone here.", 414, 20, 14, GRAY)
+end
 
 playButton.Activated:Connect(function()
 	playing = true
@@ -1412,9 +1430,59 @@ local function playIntro()
 	local eyeStart = outside(foot + out * 15 + side * 4 + Vector3.new(0, 4.5, 0))
 	camera.CameraType = Enum.CameraType.Scriptable
 	cat.Parent = workspace
+	-- Season props: glowing pumpkins and bats, or Christmas lights and a little tree
+	local props: { Instance } = {}
+	local bats: { Model } = {}
+	local up = Vector3.new(0, 1, 0)
+	local porch = Vector3.new(foot.X, 0, foot.Z)
+	local dice = Random.new()
+	if seasonal.name == "Halloween" then
+		for _, at in { porch + out * 1.2 + side * 2.6, porch + out * 1.2 - side * 2.6, porch + out * 2.6 + side * 3.6 } do
+			table.insert(props, seasonal.lib.pumpkin(at, 1.7, true, dice, workspace))
+		end
+		for _ = 1, 6 do
+			local bat = seasonal.lib.bat(workspace)
+			table.insert(bats, bat)
+			table.insert(props, bat)
+		end
+	elseif seasonal.name == "Christmas" then
+		local colors = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(60, 220, 90), Color3.fromRGB(255, 210, 60), Color3.fromRGB(80, 140, 255) }
+		for i = 0, 16 do
+			table.insert(props, new("Part", {
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * 0.35,
+				Position = porch - out * 0.6 + side * (-6 + i * 0.75) + up * 7.7,
+				Color = colors[i % #colors + 1],
+				Material = Enum.Material.Neon,
+				Anchored = true,
+				CanCollide = false,
+				Parent = workspace,
+			}))
+		end
+		local treeAt = porch + out * 1.5 + side * 4.5
+		for i, size in { 3, 2.2, 1.4 } do
+			table.insert(props, new("Part", {
+				Size = Vector3.new(size, 1.1, size),
+				CFrame = CFrame.new(treeAt + up * (0.6 + i * 0.95)) * CFrame.Angles(0, math.rad(i * 30), 0),
+				Color = Color3.fromRGB(35, 110, 55),
+				Anchored = true,
+				CanCollide = false,
+				Parent = workspace,
+			}))
+		end
+		table.insert(props, new("Part", {
+			Size = Vector3.one * 0.5,
+			Position = treeAt + up * 4.2,
+			Color = Color3.fromRGB(255, 220, 80),
+			Material = Enum.Material.Neon,
+			Anchored = true,
+			CanCollide = false,
+			Parent = workspace,
+		}))
+	end
 
 	local start = os.clock()
-	local finished, spoke, said = false, false, false
+	local finished, spoke, said, cheered = false, false, false, false
 	local conn: RBXScriptConnection? = nil
 	local function finish()
 		if finished then
@@ -1430,6 +1498,9 @@ local function playIntro()
 		for _, part in parts do
 			part:Destroy()
 		end
+		for _, prop in props do
+			prop:Destroy()
+		end
 		camera.CameraType = Enum.CameraType.Custom
 		showControls(true)
 		if not playing then
@@ -1443,7 +1514,6 @@ local function playIntro()
 		tween:Play()
 	end
 	skip.Activated:Connect(finish)
-	local up = Vector3.new(0, 1, 0)
 	local runStart = foot + out * 6
 	local edge = runStart + away * 50
 	local function turned(from: Vector3, alpha: number): Vector3
@@ -1497,6 +1567,11 @@ local function playIntro()
 			focus = at:Lerp(edge + away * 70, math.clamp((t - 11) / 4, 0, 1))
 		end
 		camera.CFrame = CFrame.lookAt(outside(eye), focus)
+		for i, bat in bats do
+			local x = -45 + (t - i * 0.9) * (11 + i)
+			local p = porch + out * (14 + i * 4) + side * x + up * (11 + (i % 3) * 3 + math.sin(t * 3 + i))
+			bat:PivotTo(CFrame.lookAt(p, p + side) * CFrame.Angles(0, 0, math.sin(t * 18 + i) * 0.5))
+		end
 		-- Phone controls can appear late, keep them hidden while the clip plays
 		local playerGui = player:FindFirstChildOfClass("PlayerGui")
 		local touchGui = playerGui and playerGui:FindFirstChild("TouchGui")
@@ -1516,9 +1591,32 @@ local function playIntro()
 		if t > 10.5 and not said then
 			said = true
 			caption.Text = "It's getting dark..."
+			local sfx = seasonal.sfx
+			if seasonal.name == "Christmas" then
+				local norsk = math.random() < 0.5
+				caption.Text = if norsk then "🎅 \"Har du vært snill?\"" else "🎅 \"Have you been nice?\""
+				if sfx then
+					playClip(SoundService, if norsk then Config.SeasonSfx.NiceNo else Config.SeasonSfx.NiceEn, 1.6, 1, 1000, sfx)
+				end
+			elseif seasonal.name == "Halloween" then
+				caption.Text = "It's getting dark... 🎃"
+				if sfx then
+					playClip(SoundService, Config.SeasonSfx.Howl, 1.2, 1, 1000, sfx)
+				end
+			end
 		end
 		if t > 13 then
-			caption.Text = "It's getting dark...\nSomeone has to find her! 🔦"
+			caption.Text = "It's getting dark...\nSomeone has to find her! " .. (if seasonal.name == "Halloween" then "🎃" elseif seasonal.name == "Christmas" then "🎄" else "🔦")
+			if seasonal.birthday then
+				caption.Text = "🎂 Happy birthday " .. seasonal.birthday .. "! 🎉\nSomeone has to find Pianka! 🔦"
+				if not cheered then
+					cheered = true
+					confetti()
+					if seasonal.sfx then
+						playClip(SoundService, Config.SeasonSfx.Birthday, 1.2, 1, 1000, seasonal.sfx)
+					end
+				end
+			end
 		end
 		fade.BackgroundTransparency = 1 - math.clamp((t - 16.6) / 0.5, 0, 1)
 		if t > 17.3 then
@@ -1527,6 +1625,89 @@ local function playIntro()
 	end)
 end
 task.spawn(playIntro)
+
+-- Season around you: falling snow, or bats circling overhead
+do
+	if Config.SeasonSfxId ~= 0 then
+		seasonal.sfx = new("Sound", { SoundId = "rbxassetid://" .. Config.SeasonSfxId, Parent = SoundService })
+	end
+	if seasonal.name == "Christmas" then
+		local snowSky = new("Part", {
+			Name = "SnowSky",
+			Anchored = true,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Transparency = 1,
+			Size = Vector3.new(140, 1, 140),
+			Parent = workspace,
+		})
+		new("ParticleEmitter", {
+			Color = ColorSequence.new(Color3.new(1, 1, 1)),
+			LightEmission = 0.3,
+			Size = NumberSequence.new(0.22),
+			Speed = NumberRange.new(7, 11),
+			EmissionDirection = Enum.NormalId.Bottom,
+			SpreadAngle = Vector2.new(15, 15),
+			Lifetime = NumberRange.new(5, 7),
+			Acceleration = Vector3.new(1.5, 0, 0.8),
+			RotSpeed = NumberRange.new(-60, 60),
+			Rate = 350,
+			Parent = snowSky,
+		})
+		RunService.RenderStepped:Connect(function()
+			snowSky.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 40, 0))
+		end)
+	elseif seasonal.name == "Halloween" then
+		local flock: { { model: Model, r: number, h: number, w: number, a: number } } = {}
+		for i = 1, 7 do
+			table.insert(flock, {
+				model = seasonal.lib.bat(workspace),
+				r = math.random(16, 34),
+				h = math.random(16, 26),
+				w = (math.random() * 0.4 + 0.3) * (if i % 2 == 0 then 1 else -1),
+				a = math.random() * math.pi * 2,
+			})
+		end
+		RunService.RenderStepped:Connect(function(dt: number)
+			local center = camera.CFrame.Position
+			for _, b in flock do
+				b.a += b.w * dt
+				local p = center + Vector3.new(math.cos(b.a) * b.r, b.h + math.sin(b.a * 3) * 2, math.sin(b.a) * b.r)
+				local ahead = Vector3.new(-math.sin(b.a), 0, math.cos(b.a)) * (if b.w > 0 then 1 else -1)
+				b.model:PivotTo(CFrame.lookAt(p, p + ahead) * CFrame.Angles(0, 0, math.sin(os.clock() * 16 + b.a) * 0.5))
+			end
+		end)
+	end
+end
+
+-- Nicola's legs and free arm swing while she walks with her brother
+do
+	local bases: { [Weld]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+	local stride = 0
+	RunService.RenderStepped:Connect(function(dt: number)
+		stride += dt * 9
+		for _, other in Players:GetPlayers() do
+			local character = other.Character
+			local sister = character and character:FindFirstChild("Nicola")
+			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if sister and root then
+				local v = root.AssemblyLinearVelocity
+				local moving = math.clamp(Vector3.new(v.X, 0, v.Z).Magnitude / 12, 0, 1)
+				for _, part in sister:GetChildren() do
+					local swing = part:GetAttribute("Swing")
+					local weld = part:FindFirstChildOfClass("Weld")
+					if type(swing) == "number" and weld and part:IsA("BasePart") then
+						local base = bases[weld] or weld.C0
+						bases[weld] = base
+						local top = part.Size.Y / 2
+						weld.C0 = base * CFrame.new(0, top, 0) * CFrame.Angles(math.sin(stride) * 0.6 * moving * swing, 0, 0) * CFrame.new(0, -top, 0)
+					end
+				end
+			end
+		end
+	end)
+end
 
 -- Shop
 local shop = new("Frame", {
@@ -1812,7 +1993,7 @@ end
 local TWISTS = {
 	tree = "Twist: Pianka is up a tree! 🌳\nClimb the steps.",
 	zoomies = "Twist: Pianka has the zoomies! 💨",
-	ratparty = "Twist: Rat party! 🐀🐀🐀",
+	ratparty = "Twist: " .. seasonal.ratName .. " party! " .. string.rep(seasonal.rat, 3),
 	fullmoon = "Twist: Full moon tonight! 🌕",
 	golden = "Twist: Golden Pianka! ✨\nDouble rewards!",
 }
@@ -1969,6 +2150,14 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		end)
 	elseif kind == "heard" then
 		popText("Shh! Something heard you 👂", Color3.fromRGB(255, 170, 80))
+	elseif kind == "pairSplit" then
+		local stays = tostring(value)
+		local gone = if stays == "Nicola" then "Oskar" else "Nicola"
+		if who == player then
+			showBanner(gone .. " ran home! 🏠\n" .. stays .. " goes on ❤️❤️❤️", 4)
+		else
+			popText(nameOf(who) .. ": " .. gone .. " ran home 🏠", Color3.fromRGB(255, 200, 150))
+		end
 	elseif kind == "heyYou" then
 		if typeof(value) == "Instance" and value:IsA("BasePart") then
 			local hey = Config.Voices.Hey
@@ -2194,7 +2383,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 	elseif kind == "bitten" then
 		flash.BackgroundTransparency = 0.6
 		TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
-		popText("Rat bite! -1 ❤️ 🐀", Color3.fromRGB(255, 120, 120))
+		popText(seasonal.ratName .. " bite! -1 ❤️ " .. seasonal.rat, Color3.fromRGB(255, 120, 120))
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if root and clipSound then
@@ -2216,7 +2405,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		elseif value == "frog" then
 			popText("Ribbit! 🐸", Color3.fromRGB(140, 255, 140))
 		elseif value == "rat" then
-			popText("A rat! 🐀 Run!", Color3.fromRGB(255, 150, 150))
+			popText("A " .. string.lower(seasonal.ratName) .. "! " .. seasonal.rat .. " Run!", Color3.fromRGB(255, 150, 150))
 		elseif value == "empty" then
 			popText("Empty... 🍂", Color3.fromRGB(200, 200, 200))
 		elseif value == "fish" then
@@ -2243,7 +2432,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 			root.AssemblyLinearVelocity = value * 45 + Vector3.new(0, 25, 0)
 		end
 	elseif kind == "squash" then
-		popText("Squash! 🐀", Color3.fromRGB(150, 255, 150))
+		popText((if seasonal.name == "Christmas" then "Bonk! " else "Squash! ") .. seasonal.rat, Color3.fromRGB(150, 255, 150))
 		note(0.6)
 	elseif kind == "twist" then
 		local text = TWISTS[tostring(value)]
@@ -2371,8 +2560,16 @@ local function updateSky(): number
 	if atmosphere then
 		local base = if mode == "Hard" then 0.64 elseif mode == "Normal" then 0.56 else 0.4
 		atmosphere.Density = base + 0.08 * dark
-		atmosphere.Color = Color3.fromRGB(60, 70, 96):Lerp(Color3.fromRGB(190, 215, 190), daylight)
-		atmosphere.Decay = Color3.fromRGB(30, 35, 54):Lerp(Color3.fromRGB(90, 120, 90), daylight)
+		if seasonal.name == "Halloween" then
+			atmosphere.Color = Color3.fromRGB(80, 50, 100):Lerp(Color3.fromRGB(215, 175, 140), daylight)
+			atmosphere.Decay = Color3.fromRGB(45, 20, 50):Lerp(Color3.fromRGB(140, 90, 60), daylight)
+		elseif seasonal.name == "Christmas" then
+			atmosphere.Color = Color3.fromRGB(75, 85, 125):Lerp(Color3.fromRGB(225, 235, 250), daylight)
+			atmosphere.Decay = Color3.fromRGB(35, 45, 80):Lerp(Color3.fromRGB(160, 175, 200), daylight)
+		else
+			atmosphere.Color = Color3.fromRGB(60, 70, 96):Lerp(Color3.fromRGB(190, 215, 190), daylight)
+			atmosphere.Decay = Color3.fromRGB(30, 35, 54):Lerp(Color3.fromRGB(90, 120, 90), daylight)
+		end
 	end
 	tint.TintColor = Color3.fromRGB(208, 216, 255):Lerp(Color3.new(1, 1, 1), daylight)
 	tint.Saturation = -0.18 * dark
@@ -2436,7 +2633,7 @@ local function enemies(from: Vector3): { { model: Model, pos: Vector3, icon: str
 	end
 	scan(workspace:FindFirstChild("Dogs"), "🐕", 90, false)
 	scan(workspace:FindFirstChild("Neighbors"), "🔦", 90, true)
-	scan(workspace:FindFirstChild("Rats"), "🐀", 45, false)
+	scan(workspace:FindFirstChild("Rats"), seasonal.rat, 45, false)
 	return list
 end
 
@@ -2631,8 +2828,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if root and player:GetAttribute("Hero") ~= "Aurelia" then
 		for _, e in enemies(root.Position) do
 			local near = (e.pos - root.Position).Magnitude
-			local reach = if e.icon == "🐀" then 18 else 35
-			local weight = if e.icon == "🐀" then 0.6 else 1
+			local reach = if e.icon == seasonal.rat then 18 else 35
+			local weight = if e.icon == seasonal.rat then 0.6 else 1
 			fuzz = math.max(fuzz, math.clamp(1 - (near - 6) / (reach - 6), 0, 1) * weight)
 		end
 	end

@@ -47,6 +47,9 @@ jobs:
           unzip -o "$RUNNER_TEMP/lune.zip" -d "$RUNNER_TEMP"
           "$RUNNER_TEMP/lune" run tests/dogs.spec.luau 40 | tee -a "$GITHUB_STEP_SUMMARY"
           "$RUNNER_TEMP/lune" run tests/play.spec.luau 1.5 | tee -a "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/lune" run tests/season.spec.luau Halloween | tee -a "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/lune" run tests/season.spec.luau Christmas | tee -a "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/lune" run tests/season.spec.luau Birthday:Patrick | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Get Rojo
         if: steps.check.outputs.ready == 'true'

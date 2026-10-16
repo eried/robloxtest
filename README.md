@@ -11,6 +11,17 @@ When you join, a short clip shows Pianka running out of the house at sunset. Eve
 - **Patrick** 🏃 super fast
 - **Aurelia** 🐱 cat friend: her GPS never gets fuzzy, Pianka runs from her only once and leaves her more birds
 - **Milenkitka** 💡 big lantern, and dogs rest longer when chasing her
+- **Oskar** 👫 a bit bigger, walks hand in hand with his little sister **Nicola**. Two lives: when the hearts run out, one of them runs home and the other goes on with full hearts
+
+## Seasons and birthdays
+
+The game changes with the date:
+
+- **October, Halloween** 🎃: every bush is a pumpkin, some glowing, and Pianka hides inside one of them. Autumn trees, bats in the sky, a purple night, Pianka in a witch hat, a wolf howls in the clip and the music is a spooky waltz.
+- **December, Christmas** 🎄: snow everywhere and snowing, Pianka hides in presents and snow piles, tiny evil nisser replace the rats, Pianka wears a Santa hat. In the clip a voice asks "Have you been nice?", sometimes in Norwegian ("Har du vært snill?"), and the music is a carol with sleigh bells.
+- **Birthdays** 🎂: on August 18 for Patrick and September 21 for Aurelia there are balloons at camp, party hats, confetti and Happy Birthday in the clip.
+
+For testing set `Season` in `src/shared/Config.luau` to "Halloween", "Christmas", "Birthday:Patrick" or "None".
 
 ## Modes (same for everyone on a server)
 

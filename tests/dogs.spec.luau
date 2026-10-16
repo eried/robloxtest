@@ -688,6 +688,8 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 		lastThrow = -10,
 	}
 	local hearts = Config.Hearts[mode]
+	-- Oskar and Nicola: when the hearts run out the first time, one goes home and the other goes on
+	local pair = hero == "Oskar"
 	local dayOffset = Sky.offset(Config.DuskClock, Config.DayMinutes, Config.NightShare)
 	local hunting = false
 	local phase = "find"
@@ -879,7 +881,9 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 					phase = "find"
 					cat = dropSpot(world, bot.pos)
 				end
-				if hearts <= 0 then
+				if hearts <= 0 and pair then
+					pair, hearts = false, Config.Hearts[mode]
+				elseif hearts <= 0 then
 					return finish("hearts")
 				end
 				break
@@ -892,7 +896,9 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 					r.ratBites += 1
 					hearts -= 1
 					bot.slowUntil = bot.time + 1.5
-					if hearts <= 0 then
+					if hearts <= 0 and pair then
+						pair, hearts = false, Config.Hearts[mode]
+					elseif hearts <= 0 then
 						return finish("hearts")
 					end
 				end
@@ -1095,6 +1101,7 @@ local rows: { { any } } = {
 	{ "Normal", "careful", "Aurelia" },
 	{ "Normal", "naive", "default" },
 	{ "Normal", "kid", "default" },
+	{ "Normal", "kid", "Oskar" },
 	{ "Hard", "careful", "default" },
 	{ "Hard", "careful", "Patrick" },
 	{ "Hard", "naive", "default" },
