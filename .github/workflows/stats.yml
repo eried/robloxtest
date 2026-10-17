@@ -1,0 +1,20 @@
+name: Game stats
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/roblox-forest-cat-game-qr4nzd]
+    paths: [tools/stats.py, .github/workflows/stats.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    env:
+      UNIVERSE_ID: ${{ vars.UNIVERSE_ID || '10770167426' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stats
+        run: python3 tools/stats.py
