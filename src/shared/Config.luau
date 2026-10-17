@@ -112,9 +112,9 @@ return {
 	-- Or "Halloween", "Christmas", "Birthday:Patrick", "None"
 	Season = "auto",
 	Birthdays = { Patrick = { 8, 18 }, Aurelia = { 9, 21 } },
-	HalloweenMusicId = 0,
-	ChristmasMusicId = 0,
-	SeasonSfxId = 0,
+	HalloweenMusicId = 94126609707368,
+	ChristmasMusicId = 107040817150467,
+	SeasonSfxId = 81307958921304,
 	SeasonSfx = { NiceEn = { 0.3, 2.69 }, NiceNo = { 3.49, 2.588 }, Howl = { 6.577, 5 }, Birthday = { 12.077, 10.96 } },
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here

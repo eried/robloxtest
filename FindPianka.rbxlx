@@ -120,12 +120,22 @@
 	NeighborSpeed = 3,
 
 	PatrickSpeed = 20,
-	HeroOrder = { "Patrick", "Aurelia", "Milenkitka" },
+	HeroOrder = { "Patrick", "Aurelia", "Milenkitka", "Oskar" },
 	Heroes = {
 		Patrick = { Emoji = "🏃", Skill = "Super fast" },
 		Aurelia = { Emoji = "🐱", Skill = "Cat friend, more birds" },
 		Milenkitka = { Emoji = "💡", Skill = "Big lantern, calm dogs" },
+		Oskar = { Emoji = "👫", Skill = "With sister Nicola: 2 lives" },
 	},
+
+	-- Seasons: "auto" is a hero's birthday, Halloween in October, Christmas in December.
+	-- Or "Halloween", "Christmas", "Birthday:Patrick", "None"
+	Season = "auto",
+	Birthdays = { Patrick = { 8, 18 }, Aurelia = { 9, 21 } },
+	HalloweenMusicId = 94126609707368,
+	ChristmasMusicId = 107040817150467,
+	SeasonSfxId = 81307958921304,
+	SeasonSfx = { NiceEn = { 0.3, 2.69 }, NiceNo = { 3.49, 2.588 }, Howl = { 6.577, 5 }, Birthday = { 12.077, 10.96 } },
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
 	MusicId = 139972511482001,
@@ -876,6 +886,265 @@ return DogBrain
       </Item>
       <Item class="ModuleScript" referent="5">
         <Properties>
+          <string name="Name">Season</string>
+          <string name="Source"><![CDATA[-- Seasons: Halloween in October, Christmas in December, and the props they bring
+local Season = {}
+
+local ORANGE = Color3.fromRGB(235, 125, 30)
+local DEEP_ORANGE = Color3.fromRGB(205, 95, 20)
+local GLOW = Color3.fromRGB(255, 190, 70)
+local SNOW = Color3.fromRGB(240, 245, 250)
+
+-- "auto" picks by date: a hero's birthday, Halloween in October, Christmas in December.
+-- Or the season named in Config ("None", "Halloween", "Christmas", "Birthday:Patrick").
+-- Returns the season and, on a birthday, whose it is
+function Season.pick(setting: string, month: number, day: number, birthdays: { [string]: { number } }): (string?, string?)
+	if setting == "auto" then
+		for hero, date in birthdays do
+			if date[1] == month and date[2] == day then
+				return "Birthday", hero
+			end
+		end
+		return if month == 10 then "Halloween" elseif month == 12 then "Christmas" else nil, nil
+	end
+	local hero = string.match(setting, "^Birthday:(%w+)$")
+	if hero then
+		return "Birthday", hero
+	end
+	return if setting == "None" then nil else setting, nil
+end
+
+local function part(props: { [string]: any }): BasePart
+	local p = Instance.new(props.Class or "Part") :: BasePart
+	p.Anchored = true
+	p.CanCollide = false
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Material = Enum.Material.SmoothPlastic
+	for k, v in props do
+		if k ~= "Class" and k ~= "Parent" then
+			(p :: any)[k] = v
+		end
+	end
+	p.Parent = props.Parent
+	return p
+end
+
+-- A pumpkin: a ball with ribs and a stem. Lit ones are jack-o'-lanterns with a glowing face
+function Season.pumpkin(pos: Vector3, size: number, lit: boolean, rand: Random, parent: Instance?): BasePart
+	local main = part({
+		Name = "Bush",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one * size,
+		Position = pos + Vector3.new(0, size * 0.4, 0),
+		Color = ORANGE,
+		Parent = parent,
+	})
+	main:SetAttribute("Look", "Pumpkin")
+	for i = 1, 4 do
+		local a = i * math.pi / 2 + rand:NextNumber(0, 0.4)
+		part({
+			Name = "Rib",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * size * 0.8,
+			Position = main.Position + Vector3.new(math.cos(a), -0.08, math.sin(a)) * size * 0.2,
+			Color = DEEP_ORANGE,
+			CanQuery = false,
+			Parent = main,
+		})
+	end
+	part({
+		Name = "Stem",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(size * 0.28, size * 0.13, size * 0.13),
+		CFrame = CFrame.new(main.Position + Vector3.new(0, size * 0.5, 0)) * CFrame.Angles(0, 0, math.rad(80)),
+		Color = Color3.fromRGB(80, 95, 40),
+		CanQuery = false,
+		Parent = main,
+	})
+	if lit then
+		local face = CFrame.new(main.Position) * CFrame.Angles(0, rand:NextNumber(0, math.pi * 2), 0)
+		for _, x in { -0.2, 0.2 } do
+			part({
+				Name = "Eye",
+				Class = "WedgePart",
+				Size = Vector3.new(size * 0.18, size * 0.16, 0.12),
+				CFrame = face * CFrame.new(x * size, size * 0.1, -size * 0.49) * CFrame.Angles(0, math.rad(180), 0),
+				Color = GLOW,
+				Material = Enum.Material.Neon,
+				CanQuery = false,
+				Parent = main,
+			})
+		end
+		part({
+			Name = "Mouth",
+			Size = Vector3.new(size * 0.46, size * 0.1, 0.12),
+			CFrame = face * CFrame.new(0, -size * 0.13, -size * 0.48),
+			Color = GLOW,
+			Material = Enum.Material.Neon,
+			CanQuery = false,
+			Parent = main,
+		})
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 150, 60)
+		light.Range = 10
+		light.Brightness = 1.4
+		light.Shadows = false
+		light.Parent = main
+	end
+	return main
+end
+
+-- A wrapped present with a ribbon
+function Season.present(pos: Vector3, rand: Random, parent: Instance?): BasePart
+	local colors = { Color3.fromRGB(200, 40, 45), Color3.fromRGB(40, 140, 70), Color3.fromRGB(50, 90, 200) }
+	local size = Vector3.new(rand:NextNumber(2.6, 3.4), rand:NextNumber(2.2, 3), rand:NextNumber(2.6, 3.4))
+	local yaw = CFrame.Angles(0, rand:NextNumber(0, math.pi * 2), 0)
+	local main = part({
+		Name = "HidingSpot",
+		Size = size,
+		CFrame = CFrame.new(pos + Vector3.new(0, size.Y / 2, 0)) * yaw,
+		Color = colors[rand:NextInteger(1, #colors)],
+		Parent = parent,
+	})
+	local gold = Color3.fromRGB(255, 205, 60)
+	part({ Name = "Ribbon", Size = Vector3.new(size.X + 0.06, size.Y + 0.06, 0.35), CFrame = main.CFrame, Color = gold, CanQuery = false, Parent = main })
+	part({ Name = "Ribbon", Size = Vector3.new(0.35, size.Y + 0.06, size.Z + 0.06), CFrame = main.CFrame, Color = gold, CanQuery = false, Parent = main })
+	for _, a in { 45, -45 } do
+		part({
+			Name = "Bow",
+			Size = Vector3.new(0.9, 0.5, 0.25),
+			CFrame = main.CFrame * CFrame.new(0, size.Y / 2 + 0.2, 0) * CFrame.Angles(0, math.rad(a), 0),
+			Color = gold,
+			CanQuery = false,
+			Parent = main,
+		})
+	end
+	return main
+end
+
+-- A mound of snow, half in the ground
+function Season.snowPile(pos: Vector3, size: number, parent: Instance?): BasePart
+	local main = part({
+		Name = "Bush",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one * size,
+		Position = pos + Vector3.new(0, size * 0.18, 0),
+		Color = SNOW,
+		Material = Enum.Material.Snow,
+		Parent = parent,
+	})
+	main:SetAttribute("Look", "Snow")
+	return main
+end
+
+-- A small bat with two wings that can flap
+function Season.bat(parent: Instance?): Model
+	local model = Instance.new("Model")
+	model.Name = "Bat"
+	local dark = Color3.fromRGB(25, 20, 30)
+	local body = part({ Name = "Body", Shape = Enum.PartType.Ball, Size = Vector3.one * 0.7, Color = dark, CanQuery = false, CastShadow = false, Parent = model })
+	model.PrimaryPart = body
+	for _, side in { -1, 1 } do
+		part({
+			Name = "Wing",
+			Class = "WedgePart",
+			Size = Vector3.new(0.08, 0.6, 1.3),
+			CFrame = body.CFrame * CFrame.new(side * 0.75, 0, 0) * CFrame.Angles(0, math.rad(90 * side), 0),
+			Color = dark,
+			CanQuery = false,
+			CastShadow = false,
+			Parent = model,
+		})
+	end
+	for _, x in { -0.14, 0.14 } do
+		part({
+			Name = "Eye",
+			Size = Vector3.one * 0.1,
+			CFrame = body.CFrame * CFrame.new(x, 0.08, -0.33),
+			Color = Color3.fromRGB(255, 60, 60),
+			Material = Enum.Material.Neon,
+			CanQuery = false,
+			CastShadow = false,
+			Parent = model,
+		})
+	end
+	model.Parent = parent
+	return model
+end
+
+-- Hat parts for a cat head: witch hat for Halloween, Santa hat for Christmas.
+-- Returns size, offset and color for each part, the caller builds them its own way.
+function Season.hat(season: string?): { { size: Vector3, offset: Vector3, color: Color3, ball: boolean? } }
+	if season == "Halloween" then
+		local black = Color3.fromRGB(30, 25, 35)
+		return {
+			{ size = Vector3.new(1.4, 0.12, 1.4), offset = Vector3.new(0, 3.0, -1.5), color = black },
+			{ size = Vector3.new(0.85, 0.5, 0.85), offset = Vector3.new(0, 3.3, -1.5), color = black },
+			{ size = Vector3.new(0.88, 0.12, 0.88), offset = Vector3.new(0, 3.15, -1.5), color = Color3.fromRGB(140, 60, 170) },
+			{ size = Vector3.new(0.55, 0.45, 0.55), offset = Vector3.new(0, 3.75, -1.4), color = black },
+			{ size = Vector3.new(0.25, 0.4, 0.25), offset = Vector3.new(0, 4.15, -1.25), color = black },
+		}
+	elseif season == "Birthday" then
+		return {
+			{ size = Vector3.new(0.85, 0.4, 0.85), offset = Vector3.new(0, 3.1, -1.5), color = Color3.fromRGB(80, 160, 255) },
+			{ size = Vector3.new(0.6, 0.4, 0.6), offset = Vector3.new(0, 3.5, -1.5), color = Color3.fromRGB(255, 210, 60) },
+			{ size = Vector3.new(0.38, 0.4, 0.38), offset = Vector3.new(0, 3.9, -1.5), color = Color3.fromRGB(255, 90, 160) },
+			{ size = Vector3.one * 0.32, offset = Vector3.new(0, 4.2, -1.5), color = Color3.fromRGB(255, 255, 255), ball = true },
+		}
+	elseif season == "Christmas" then
+		local red = Color3.fromRGB(200, 30, 40)
+		return {
+			{ size = Vector3.new(1.3, 0.25, 1.3), offset = Vector3.new(0, 3.0, -1.5), color = SNOW },
+			{ size = Vector3.new(0.95, 0.45, 0.95), offset = Vector3.new(0, 3.3, -1.45), color = red },
+			{ size = Vector3.new(0.6, 0.4, 0.6), offset = Vector3.new(0, 3.7, -1.3), color = red },
+			{ size = Vector3.new(0.3, 0.35, 0.3), offset = Vector3.new(0, 4.0, -1.1), color = red },
+			{ size = Vector3.one * 0.35, offset = Vector3.new(0, 4.2, -0.95), color = SNOW, ball = true },
+		}
+	end
+	return {}
+end
+
+-- A bunch of balloons on strings, for a birthday
+function Season.balloons(at: Vector3, count: number, rand: Random, parent: Instance?): Model
+	local model = Instance.new("Model")
+	model.Name = "Balloons"
+	local colors = { Color3.fromRGB(255, 80, 90), Color3.fromRGB(80, 160, 255), Color3.fromRGB(255, 210, 60), Color3.fromRGB(120, 220, 120), Color3.fromRGB(230, 120, 255) }
+	for i = 1, count do
+		local top = at + Vector3.new(rand:NextNumber(-1.6, 1.6), rand:NextNumber(5.5, 8), rand:NextNumber(-1.6, 1.6))
+		part({
+			Name = "Balloon",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(1.4, 1.4, 1.4),
+			Position = top,
+			Color = colors[(i - 1) % #colors + 1],
+			Material = Enum.Material.Glass,
+			Reflectance = 0.1,
+			CanQuery = false,
+			Parent = model,
+		})
+		local mid = (top + at) / 2
+		part({
+			Name = "String",
+			Size = Vector3.new(0.05, (top - at).Magnitude, 0.05),
+			CFrame = CFrame.lookAt(mid, top) * CFrame.Angles(math.rad(90), 0, 0),
+			Color = Color3.fromRGB(240, 240, 240),
+			CanQuery = false,
+			Parent = model,
+		})
+	end
+	model.Parent = parent
+	return model
+end
+
+Season.SNOW = SNOW
+
+return Season
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
           <string name="Name">Sky</string>
           <string name="Source"><![CDATA[-- Day and night clock, shared by server and client
 local Sky = {}
@@ -908,15 +1177,15 @@ return Sky
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="6">
+  <Item class="ServerScriptService" referent="7">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="7">
+    <Item class="Folder" referent="8">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="Script" referent="8">
+      <Item class="Script" referent="9">
         <Properties>
           <string name="Name">ForestGame</string>
           <token name="RunContext">0</token>
@@ -929,11 +1198,16 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local DogBrain = require(ReplicatedStorage.Shared.DogBrain)
 local Sky = require(ReplicatedStorage.Shared.Sky)
+local Season = require(ReplicatedStorage.Shared.Season)
 
 -- The forest is the same for everyone each day
 local rng = Random.new()
 local half = Config.ForestSize / 2
 local treeSpots: { Vector3 } = {}
+local today = os.date("!*t") :: any
+local season, birthdayHero = Season.pick(Config.Season, today.month, today.day, Config.Birthdays)
+workspace:SetAttribute("Season", season)
+workspace:SetAttribute("BirthdayHero", birthdayHero)
 
 local catEvent = Instance.new("RemoteEvent")
 catEvent.Name = "PiankaEvent"
@@ -1043,8 +1317,8 @@ makePart("Part", {
 	Name = "Ground",
 	Size = Vector3.new(Config.ForestSize + 40, 4, Config.ForestSize + 40),
 	Position = Vector3.new(0, -2, 0),
-	Color = Color3.fromRGB(80, 130, 55),
-	Material = Enum.Material.Grass,
+	Color = if season == "Christmas" then Season.SNOW else Color3.fromRGB(80, 130, 55),
+	Material = if season == "Christmas" then Enum.Material.Snow else Enum.Material.Grass,
 	TopSurface = Enum.SurfaceType.Smooth,
 	Parent = workspace,
 })
@@ -1175,6 +1449,11 @@ do
 	glow.Brightness = 1.5
 	glow.Parent = house:FindFirstChild("Floor")
 	house.Parent = camp
+	if season == "Birthday" then
+		for _, spot in { at + Vector3.new(-6, 0, -6.6), at + Vector3.new(-6, 0, 6.6), Vector3.new(6, 0, -10), Vector3.new(6, 0, 10) } do
+			Season.balloons(spot, 5, rng, camp)
+		end
+	end
 	for x = -5, 5, 2.5 do
 		for z = -6, 6, 3 do
 			table.insert(treeSpots, at + Vector3.new(x, 0, z))
@@ -1188,11 +1467,10 @@ forest.Name = "Forest"
 forest.Parent = workspace
 
 do
-	local leafColors = {
-		Color3.fromRGB(60, 120, 50),
-		Color3.fromRGB(75, 140, 60),
-		Color3.fromRGB(50, 105, 45),
-	}
+	local leafColors = if season == "Halloween"
+		then { Color3.fromRGB(210, 110, 40), Color3.fromRGB(170, 60, 35), Color3.fromRGB(190, 140, 50) }
+		elseif season == "Christmas" then { Season.SNOW, Color3.fromRGB(225, 235, 240), Color3.fromRGB(235, 240, 245) }
+		else { Color3.fromRGB(60, 120, 50), Color3.fromRGB(75, 140, 60), Color3.fromRGB(50, 105, 45) }
 
 	local function makeTree(pos: Vector3)
 		local tree = Instance.new("Model")
@@ -1219,7 +1497,7 @@ do
 					Size = Vector3.one * size,
 					Position = pos + offset,
 					Color = color,
-					Material = Enum.Material.Grass,
+					Material = if season == "Christmas" then Enum.Material.Snow else Enum.Material.Grass,
 					CanCollide = false,
 					Parent = tree,
 				})
@@ -1237,6 +1515,17 @@ do
 					CanCollide = false,
 					Parent = tree,
 				})
+				if season == "Christmas" then
+					makePart("Part", {
+						Name = "Snow",
+						Size = Vector3.new(size * 0.8, 0.5, size * 0.8),
+						CFrame = CFrame.new(pos + Vector3.new(0, y + 1.6, 0)) * CFrame.Angles(0, math.rad(45 * i), 0),
+						Color = Season.SNOW,
+						Material = Enum.Material.Snow,
+						CanCollide = false,
+						Parent = tree,
+					})
+				end
 				size *= 0.72
 				y += 2.8
 			end
@@ -1261,16 +1550,22 @@ do
 		local pos = randomSpot(5)
 		if pos.Magnitude > Config.SpawnClearRadius and isFree(pos, 0) then
 			local size = rng:NextNumber(3, 6)
-			makePart("Part", {
-				Name = "Bush",
-				Shape = Enum.PartType.Ball,
-				Size = Vector3.one * size,
-				Position = pos + Vector3.new(0, size * 0.3, 0),
-				Color = leafColors[rng:NextInteger(1, #leafColors)],
-				Material = Enum.Material.Grass,
-				CanCollide = false,
-				Parent = forest,
-			})
+			if season == "Halloween" then
+				Season.pumpkin(pos, size * 0.8, rng:NextNumber() < 0.12, rng, forest)
+			elseif season == "Christmas" then
+				Season.snowPile(pos, size, forest)
+			else
+				makePart("Part", {
+					Name = "Bush",
+					Shape = Enum.PartType.Ball,
+					Size = Vector3.one * size,
+					Position = pos + Vector3.new(0, size * 0.3, 0),
+					Color = leafColors[rng:NextInteger(1, #leafColors)],
+					Material = Enum.Material.Grass,
+					CanCollide = false,
+					Parent = forest,
+				})
+			end
 		end
 	end
 end
@@ -1627,7 +1922,10 @@ local function applyHero(player: Player)
 	local rescued = stats and stats:FindFirstChild("Rescued") :: IntValue?
 	local saved = if rescued then rescued.Value else 0
 	local title = if saved >= 100 then " 👑" elseif saved >= 25 then " 🏅" elseif saved >= 5 then " ⭐" else ""
-	humanoid.DisplayName = (if type(hero) == "string" then hero else player.DisplayName) .. title
+	local name = if hero == "Oskar" then (if player:GetAttribute("Pair") then "Oskar & Nicola" else (player:GetAttribute("Sibling") :: string?) or "Oskar")
+		elseif type(hero) == "string" then hero
+		else player.DisplayName
+	humanoid.DisplayName = name .. title
 	local backpack = player:FindFirstChild("Backpack")
 	local tool = character:FindFirstChild("Lantern") or (backpack and backpack:FindFirstChild("Lantern"))
 	local handle = tool and tool:FindFirstChild("Handle")
@@ -1665,12 +1963,83 @@ local LOOKS: { [string]: Look } = {
 	Patrick = { skin = Color3.fromRGB(255, 205, 160), shirt = Color3.fromRGB(205, 45, 45), pants = Color3.fromRGB(45, 75, 150) },
 	Aurelia = { skin = Color3.fromRGB(245, 210, 180), shirt = Color3.fromRGB(240, 120, 185), pants = Color3.fromRGB(125, 65, 150) },
 	Milenkitka = { skin = Color3.fromRGB(235, 195, 165), shirt = Color3.fromRGB(40, 95, 75), pants = Color3.fromRGB(55, 50, 65) },
+	Oskar = { skin = Color3.fromRGB(250, 210, 170), shirt = Color3.fromRGB(40, 120, 200), pants = Color3.fromRGB(60, 60, 70) },
+	Nicola = { skin = Color3.fromRGB(252, 222, 198), shirt = Color3.fromRGB(245, 140, 185), pants = Color3.fromRGB(245, 175, 205) },
 }
+local BLONDE = Color3.fromRGB(245, 215, 110)
+
+-- Nicola walks next to Oskar holding his hand. Parts with a Swing attribute swing on each client
+local function attachSister(character: Model)
+	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid or character:FindFirstChild("Nicola") then
+		return
+	end
+	local look = LOOKS.Nicola
+	local model = Instance.new("Model")
+	model.Name = "Nicola"
+	local base = root.CFrame * CFrame.new(2.4, -(humanoid.HipHeight + root.Size.Y / 2), 0)
+	local function add(name: string, size: Vector3, offset: CFrame, color: Color3, swing: number?)
+		local part = makePart("Part", {
+			Name = name,
+			Size = size,
+			CFrame = base * offset,
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+			Anchored = false,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Massless = true,
+			Parent = model,
+		})
+		if swing then
+			local weld = Instance.new("Weld")
+			weld.Part0 = root
+			weld.Part1 = part
+			weld.C0 = root.CFrame:ToObjectSpace(part.CFrame)
+			weld.Parent = part
+			part:SetAttribute("Swing", swing)
+		else
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = root
+			weld.Part1 = part
+			weld.Parent = part
+		end
+	end
+	add("Leg", Vector3.new(0.45, 1.3, 0.45), CFrame.new(-0.25, 0.65, 0), look.pants, 1)
+	add("Leg", Vector3.new(0.45, 1.3, 0.45), CFrame.new(0.25, 0.65, 0), look.pants, -1)
+	add("Dress", Vector3.new(1.3, 0.9, 0.85), CFrame.new(0, 1.6, 0), look.shirt)
+	add("Torso", Vector3.new(1, 0.9, 0.55), CFrame.new(0, 2.45, 0), look.shirt)
+	add("Arm", Vector3.new(0.32, 1.1, 0.32), CFrame.new(0.68, 2.35, 0), look.skin, -1)
+	add("Hand", Vector3.new(0.32, 1.15, 0.32), CFrame.new(-0.78, 2.35, 0) * CFrame.Angles(0, 0, math.rad(-27)), look.skin)
+	add("Head", Vector3.one, CFrame.new(0, 3.4, 0), look.skin)
+	add("Hair", Vector3.new(1.1, 0.35, 1.1), CFrame.new(0, 3.95, 0.05), BLONDE)
+	add("Hair", Vector3.new(1.05, 0.9, 0.3), CFrame.new(0, 3.45, 0.5), BLONDE)
+	for _, x in { -0.62, 0.62 } do
+		add("Pigtail", Vector3.new(0.35, 0.6, 0.35), CFrame.new(x, 3.25, 0.25), BLONDE)
+		add("Eye", Vector3.new(0.14, 0.14, 0.05), CFrame.new(x * 0.35, 3.5, -0.51), Color3.fromRGB(40, 60, 110))
+	end
+	add("Smile", Vector3.new(0.35, 0.08, 0.05), CFrame.new(0, 3.17, -0.51), Color3.fromRGB(200, 90, 100))
+	model.Parent = character
+end
 
 local function dressHero(player: Player)
 	local character = player.Character
 	local hero = player:GetAttribute("Hero")
-	local look = if type(hero) == "string" then LOOKS[hero] else nil
+	if hero ~= "Oskar" then
+		player:SetAttribute("Pair", nil)
+		player:SetAttribute("Sibling", nil)
+	elseif player:GetAttribute("Pair") == nil and player:GetAttribute("Sibling") == nil then
+		player:SetAttribute("Pair", true)
+	end
+	local pair = player:GetAttribute("Pair") == true
+	local who = if hero == "Oskar" and player:GetAttribute("Sibling") == "Nicola" then "Nicola" else hero
+	local look = if type(who) == "string" then LOOKS[who] else nil
+	local sister = character and character:FindFirstChild("Nicola")
+	if sister and not pair then
+		sister:Destroy()
+	end
 	if not character or not look then
 		return
 	end
@@ -1684,6 +2053,13 @@ local function dressHero(player: Player)
 			child:Destroy()
 		end
 	end
+	-- Oskar is a bit bigger, Nicola a bit smaller
+	local scale = if who == "Oskar" then 1.12 elseif who == "Nicola" then 0.8 else 1
+	pcall(function()
+		if math.abs(character:GetScale() - scale) > 0.01 then
+			character:ScaleTo(scale)
+		end
+	end)
 	local colors = character:FindFirstChildOfClass("BodyColors") or Instance.new("BodyColors")
 	colors.HeadColor3 = look.skin
 	colors.LeftArmColor3 = look.skin
@@ -1737,8 +2113,29 @@ local function dressHero(player: Player)
 		add(head, Vector3.one * 0.7, CFrame.new(0, top, 0.45), Color3.fromRGB(95, 60, 35), Enum.PartType.Ball)
 		add(head, Vector3.new(1.3, 0.35, 1.3), CFrame.new(0, top - 0.05, 0.1), Color3.fromRGB(95, 60, 35))
 		add(torso, Vector3.new(torso.Size.X + 0.2, 0.35, torso.Size.Z + 0.25), CFrame.new(0, torso.Size.Y / 2 - 0.1, 0), Color3.fromRGB(240, 190, 50))
+	elseif who == "Oskar" then
+		add(head, Vector3.new(1.25, 0.45, 1.25), CFrame.new(0, top + 0.1, 0), Color3.fromRGB(40, 150, 80))
+		add(head, Vector3.new(1.2, 0.12, 0.7), CFrame.new(0, top - 0.05, -0.85), Color3.fromRGB(40, 150, 80))
+	end
+	if who == birthdayHero then
+		-- Party hat for the birthday hero
+		for i, color in { Color3.fromRGB(80, 160, 255), Color3.fromRGB(255, 210, 60), Color3.fromRGB(255, 90, 160) } do
+			local w = 0.95 - i * 0.25
+			add(head, Vector3.new(w, 0.45, w), CFrame.new(0, top + 0.35 + (i - 1) * 0.42, 0), color)
+		end
+		add(head, Vector3.one * 0.35, CFrame.new(0, top + 1.55, 0), Color3.new(1, 1, 1), Enum.PartType.Ball)
+	end
+	if who == "Nicola" then
+		add(head, Vector3.new(1.3, 0.4, 1.3), CFrame.new(0, top, 0.05), BLONDE)
+		add(head, Vector3.new(1.25, 1, 0.3), CFrame.new(0, -0.1, 0.6), BLONDE)
+		for _, x in { -0.75, 0.75 } do
+			add(head, Vector3.new(0.4, 0.7, 0.4), CFrame.new(x, -0.15, 0.3), BLONDE)
+		end
 	end
 	folder.Parent = character
+	if pair then
+		attachSister(character)
+	end
 end
 
 local function giveLantern(player: Player, character: Model)
@@ -1803,6 +2200,12 @@ local function makeCat(base: CFrame, scale: number): Cat
 		end
 	end
 	local tail = add("Tail", "Part", Vector3.new(0.3, 0.3, 1.8), Vector3.new(0, 2, 1.7), nil, CFrame.Angles(math.rad(-50), 0, 0))
+	for _, piece in Season.hat(season) do
+		local hat = add("Hat", "Part", piece.size, piece.offset, piece.color) :: Part
+		if piece.ball then
+			hat.Shape = Enum.PartType.Ball
+		end
+	end
 	model.PrimaryPart = body
 
 	local tag = Instance.new("BillboardGui")
@@ -1950,6 +2353,8 @@ local kittensLeft = 0
 local hard = false
 local stacks: { [Player]: { Cat } } = {}
 local ride: { player: Player?, cat: Cat? } = {}
+-- Players held still by the escape clip
+local frozen: { BasePart } = {}
 
 local dogFolder = Instance.new("Folder")
 dogFolder.Name = "Dogs"
@@ -2009,6 +2414,10 @@ local function clearHard()
 	end
 	table.clear(stacks)
 	workspace:SetAttribute("Clip", nil)
+	for _, root in frozen do
+		root.Anchored = false
+	end
+	table.clear(frozen)
 	removeCat(ride.cat)
 	ride.player, ride.cat = nil, nil
 end
@@ -2114,6 +2523,14 @@ end
 local function resetHearts(player: Player)
 	player:SetAttribute("MaxHearts", maxHearts(player))
 	player:SetAttribute("Hearts", maxHearts(player))
+	if player:GetAttribute("Hero") == "Oskar" then
+		local split = player:GetAttribute("Sibling") ~= nil
+		player:SetAttribute("Pair", true)
+		player:SetAttribute("Sibling", nil)
+		if split then
+			dressHero(player)
+		end
+	end
 	if player:GetAttribute("Out") then
 		player:SetAttribute("Out", nil)
 		task.spawn(function()
@@ -2122,6 +2539,17 @@ local function resetHearts(player: Player)
 			end)
 		end)
 	end
+end
+
+-- Oskar and Nicola: when the hearts run out, one goes home and the other goes on with full hearts
+local function splitPair(player: Player)
+	local stays = if rng:NextNumber() < 0.5 then "Oskar" else "Nicola"
+	player:SetAttribute("Pair", false)
+	player:SetAttribute("Sibling", stays)
+	player:SetAttribute("Hearts", maxHearts(player))
+	dressHero(player)
+	applyHero(player)
+	catEvent:FireAllClients("pairSplit", player, stays)
 end
 
 -- Birds Pianka leaves for you, each gives a heart back
@@ -2425,13 +2853,14 @@ end
 local function makeRat(pos: Vector3): (Model, BasePart, BillboardGui)
 	local model = Instance.new("Model")
 	model.Name = "Rat"
+	local nisse = season == "Christmas"
 	local grey = Color3.fromRGB(125, 118, 125)
 	local pink = Color3.fromRGB(240, 150, 170)
 	local body = makePart("Part", {
 		Name = "Body",
-		Size = Vector3.new(0.9, 0.6, 1.6),
+		Size = if nisse then Vector3.new(0.9, 0.9, 0.8) else Vector3.new(0.9, 0.6, 1.6),
 		CFrame = CFrame.new(pos + Vector3.new(0, 0.45, 0)),
-		Color = grey,
+		Color = if nisse then Color3.fromRGB(190, 30, 40) else grey,
 		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 		CanQuery = false,
@@ -2459,13 +2888,32 @@ local function makeRat(pos: Vector3): (Model, BasePart, BillboardGui)
 		weld.Part1 = part
 		weld.Parent = part
 	end
-	add("Head", Vector3.new(0.6, 0.5, 0.6), Vector3.new(0, 0.05, -1), grey)
-	add("Nose", Vector3.new(0.15, 0.15, 0.15), Vector3.new(0, 0, -1.35), pink)
-	for _, x in { -0.22, 0.22 } do
-		add("Ear", Vector3.new(0.25, 0.3, 0.08), Vector3.new(x, 0.4, -0.9), pink)
-		add("Eye", Vector3.new(0.12, 0.12, 0.05), Vector3.new(x * 0.8, 0.15, -1.31), Color3.fromRGB(255, 70, 70), Enum.Material.Neon)
+	if nisse then
+		-- A tiny evil nisse: red coat, white beard, pointy hat, glowing eyes
+		local red = Color3.fromRGB(190, 30, 40)
+		local white = Color3.fromRGB(245, 245, 245)
+		add("Belt", Vector3.new(0.92, 0.15, 0.82), Vector3.new(0, -0.1, 0), Color3.fromRGB(30, 25, 25))
+		add("Head", Vector3.new(0.7, 0.7, 0.7), Vector3.new(0, 0.8, 0), Color3.fromRGB(240, 195, 165))
+		add("Beard", Vector3.new(0.66, 0.55, 0.25), Vector3.new(0, 0.55, -0.4), white)
+		add("Nose", Vector3.new(0.16, 0.16, 0.12), Vector3.new(0, 0.8, -0.4), Color3.fromRGB(230, 120, 120))
+		for _, x in { -0.16, 0.16 } do
+			add("Eye", Vector3.new(0.12, 0.08, 0.05), Vector3.new(x, 0.97, -0.36), Color3.fromRGB(255, 50, 50), Enum.Material.Neon)
+			add("Arm", Vector3.new(0.25, 0.6, 0.25), Vector3.new(x * 3.5, 0.05, -0.05), red)
+		end
+		add("Brim", Vector3.new(0.82, 0.16, 0.82), Vector3.new(0, 1.2, 0), white)
+		add("Hat", Vector3.new(0.66, 0.36, 0.66), Vector3.new(0, 1.42, 0.02), red)
+		add("Hat", Vector3.new(0.46, 0.34, 0.46), Vector3.new(0, 1.75, 0.08), red)
+		add("Hat", Vector3.new(0.26, 0.34, 0.26), Vector3.new(0, 2.05, 0.16), red)
+		add("Pom", Vector3.new(0.24, 0.24, 0.24), Vector3.new(0, 2.28, 0.22), white)
+	else
+		add("Head", Vector3.new(0.6, 0.5, 0.6), Vector3.new(0, 0.05, -1), grey)
+		add("Nose", Vector3.new(0.15, 0.15, 0.15), Vector3.new(0, 0, -1.35), pink)
+		for _, x in { -0.22, 0.22 } do
+			add("Ear", Vector3.new(0.25, 0.3, 0.08), Vector3.new(x, 0.4, -0.9), pink)
+			add("Eye", Vector3.new(0.12, 0.12, 0.05), Vector3.new(x * 0.8, 0.15, -1.31), Color3.fromRGB(255, 70, 70), Enum.Material.Neon)
+		end
+		add("Tail", Vector3.new(0.1, 0.1, 1.4), Vector3.new(0, 0.05, 1.45), pink)
 	end
-	add("Tail", Vector3.new(0.1, 0.1, 1.4), Vector3.new(0, 0.05, 1.45), pink)
 	model.PrimaryPart = body
 
 	local bubble = Instance.new("BillboardGui")
@@ -2482,7 +2930,7 @@ local function makeRat(pos: Vector3): (Model, BasePart, BillboardGui)
 	text.TextScaled = true
 	text.TextColor3 = Color3.fromRGB(255, 200, 220)
 	text.TextStrokeTransparency = 0.2
-	text.Text = "Nibble!"
+	text.Text = if nisse then "Hehehe!" else "Nibble!"
 	text.Parent = bubble
 
 	model.Parent = ratFolder
@@ -3276,7 +3724,6 @@ local function startEscape()
 	})
 	kennel.Parent = twistFolder
 	workspace:SetAttribute("Clip", true)
-	local frozen: { BasePart } = {}
 	for _, player in Players:GetPlayers() do
 		local root = getRoot(player)
 		if root and not root.Anchored then
@@ -3289,6 +3736,7 @@ local function startEscape()
 		for _, root in frozen do
 			root.Anchored = false
 		end
+		table.clear(frozen)
 	end
 	catEvent:FireAllClients("escapeClip", runners[1], { gate = gate, face = heading })
 	task.wait(Config.EscapeClip.open)
@@ -3634,7 +4082,15 @@ end
 local function hidingSpot(kind: string, spot: Vector3): BasePart
 	local yaw = CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
 	local main: BasePart
-	if kind == "barrel" then
+	if kind == "pumpkin" then
+		main = Season.pumpkin(spot, rng:NextNumber(4.5, 6), rng:NextNumber() < 0.5, rng, twistFolder)
+		main.Name = "HidingSpot"
+	elseif kind == "present" then
+		main = Season.present(spot, rng, twistFolder)
+	elseif kind == "snowpile" then
+		main = Season.snowPile(spot, 6, twistFolder)
+		main.Name = "HidingSpot"
+	elseif kind == "barrel" then
 		main = makePart("Part", {
 			Name = "HidingSpot",
 			Shape = Enum.PartType.Cylinder,
@@ -3773,7 +4229,9 @@ hideInBushes = function(catPos: Vector3)
 	center = center / #spots + Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
 	workspace:SetAttribute("CatPosition", center)
 	workspace:SetAttribute("CatHidden", true)
-	local kinds = { "bush", "barrel", "log", "crate", "leaves", "basket" }
+	local kinds = if season == "Halloween" then { "pumpkin" }
+		elseif season == "Christmas" then { "present", "snowpile" }
+		else { "bush", "barrel", "log", "crate", "leaves", "basket" }
 	local surprises = { "frog", "confetti", "empty" }
 	for i, spot in spots do
 		local kind = kinds[rng:NextInteger(1, #kinds)]
@@ -3784,7 +4242,7 @@ hideInBushes = function(catPos: Vector3)
 		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = "Search"
-		prompt.ObjectText = ({ bush = "Bush", barrel = "Barrel", log = "Log", crate = "Crate", leaves = "Leaves", basket = "Basket" })[kind]
+		prompt.ObjectText = ({ bush = "Bush", barrel = "Barrel", log = "Log", crate = "Crate", leaves = "Leaves", basket = "Basket", pumpkin = "Pumpkin", present = "Present", snowpile = "Snow" })[kind]
 		prompt.HoldDuration = 0.3
 		prompt.MaxActivationDistance = 9
 		prompt.RequiresLineOfSight = false
@@ -3834,7 +4292,7 @@ for _, bush in forest:GetChildren() do
 	if bush.Name == "Bush" and bush:IsA("BasePart") then
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = "Search"
-		prompt.ObjectText = "Bush"
+		prompt.ObjectText = (bush:GetAttribute("Look") :: string?) or "Bush"
 		prompt.HoldDuration = 0.3
 		prompt.MaxActivationDistance = 7
 		prompt.RequiresLineOfSight = false
@@ -3883,6 +4341,10 @@ loseHeart = function(player: Player, all: boolean?)
 	player:SetAttribute("Hearts", hearts)
 	catEvent:FireClient(player, "heart", nil, hearts)
 	if hearts > 0 then
+		return
+	end
+	if player:GetAttribute("Pair") then
+		splitPair(player)
 		return
 	end
 	player:SetAttribute("Out", true)
@@ -5031,19 +5493,19 @@ newRound()
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="9">
+  <Item class="StarterPlayer" referent="10">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="10">
+    <Item class="StarterPlayerScripts" referent="11">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="11">
+      <Item class="Folder" referent="12">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="12">
+        <Item class="LocalScript" referent="13">
           <Properties>
             <string name="Name">GPS</string>
             <string name="Source"><![CDATA[local Players = game:GetService("Players")
@@ -5057,6 +5519,15 @@ local SoundService = game:GetService("SoundService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Sky = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Sky"))
+-- Halloween or Christmas: the server picks it from the date
+local seasonal = {
+	name = workspace:GetAttribute("Season") :: string?,
+	lib = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Season")),
+	rat = if workspace:GetAttribute("Season") == "Christmas" then "🎅" else "🐀",
+	ratName = if workspace:GetAttribute("Season") == "Christmas" then "Nisse" else "Rat",
+	birthday = workspace:GetAttribute("BirthdayHero") :: string?,
+	sfx = nil :: Sound?,
+}
 local catEvent = ReplicatedStorage:WaitForChild("PiankaEvent") :: RemoteEvent
 local modeEvent = ReplicatedStorage:WaitForChild("SetMode") :: RemoteEvent
 local shopEvent = ReplicatedStorage:WaitForChild("Shop") :: RemoteEvent
@@ -5234,7 +5705,10 @@ local function chime()
 end
 
 local music = new("Sound", {
-	SoundId = if Config.MusicId ~= 0 then "rbxassetid://" .. Config.MusicId else "",
+	SoundId = if seasonal.name == "Halloween" and Config.HalloweenMusicId ~= 0 then "rbxassetid://" .. Config.HalloweenMusicId
+		elseif seasonal.name == "Christmas" and Config.ChristmasMusicId ~= 0 then "rbxassetid://" .. Config.ChristmasMusicId
+		elseif Config.MusicId ~= 0 then "rbxassetid://" .. Config.MusicId
+		else "",
 	Looped = true,
 	Volume = 0.5,
 	Parent = SoundService,
@@ -5331,7 +5805,8 @@ local function showHearts()
 	local max = (player:GetAttribute("MaxHearts") :: number?) or Config.Hearts[mode] or 3
 	local hearts = math.clamp((player:GetAttribute("Hearts") :: number?) or max, 0, max)
 	local tag = "Lv " .. tostring(workspace:GetAttribute("Level") or 1) .. "  "
-	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "👻 Ghost" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts)
+	local pair = if player:GetAttribute("Pair") then "  👫" else ""
+	heartsLabel.Text = tag .. if player:GetAttribute("Out") then "👻 Ghost" else string.rep("❤️", hearts) .. string.rep("🖤", max - hearts) .. pair
 end
 -- Lantern button
 task.spawn(function()
@@ -5835,6 +6310,7 @@ end
 
 player:GetAttributeChangedSignal("Hearts"):Connect(showHearts)
 player:GetAttributeChangedSignal("Out"):Connect(showHearts)
+player:GetAttributeChangedSignal("Pair"):Connect(showHearts)
 player:GetAttributeChangedSignal("MaxHearts"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
@@ -5997,8 +6473,8 @@ for i, name in Config.HeroOrder do
 	local hero = Config.Heroes[name]
 	local button = new("TextButton", {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, (i - 2) * 168, 0, 142),
-		Size = UDim2.fromOffset(156, 66),
+		Position = UDim2.new(0.5, (i - 2.5) * 128, 0, 142),
+		Size = UDim2.fromOffset(122, 66),
 		BackgroundColor3 = Color3.fromRGB(55, 62, 55),
 		Text = "",
 		ZIndex = 12,
@@ -6016,18 +6492,18 @@ for i, name in Config.HeroOrder do
 		Size = UDim2.new(1, 0, 0, 34),
 		BackgroundTransparency = 1,
 		Font = FONT,
-		TextSize = if #name > 8 then 20 else 26,
+		TextSize = if #name > 8 then 16 else 22,
 		TextColor3 = WHITE,
 		Text = hero.Emoji .. " " .. name,
 		ZIndex = 13,
 		Parent = button,
 	})
 	new("TextLabel", {
-		Position = UDim2.fromOffset(6, 36),
-		Size = UDim2.new(1, -12, 0, 26),
+		Position = UDim2.fromOffset(4, 34),
+		Size = UDim2.new(1, -8, 0, 30),
 		BackgroundTransparency = 1,
 		Font = FONT,
-		TextSize = 14,
+		TextSize = 13,
 		TextWrapped = true,
 		TextColor3 = GRAY,
 		Text = hero.Skill,
@@ -6100,7 +6576,11 @@ playButton = new("TextButton", {
 round(playButton, UDim.new(0, 18))
 new("UIStroke", { Color = WHITE, Thickness = 3, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = playButton })
 levelLabel = cardText("", 390, 22, 17, Color3.fromRGB(255, 225, 120))
-cardText("The mode is the same for everyone here.", 414, 20, 14, GRAY)
+if seasonal.birthday then
+	cardText("🎂 Happy birthday " .. seasonal.birthday .. "! 🎉", 414, 20, 16, Color3.fromRGB(255, 200, 90))
+else
+	cardText("The mode is the same for everyone here.", 414, 20, 14, GRAY)
+end
 
 playButton.Activated:Connect(function()
 	playing = true
@@ -6460,9 +6940,59 @@ local function playIntro()
 	local eyeStart = outside(foot + out * 15 + side * 4 + Vector3.new(0, 4.5, 0))
 	camera.CameraType = Enum.CameraType.Scriptable
 	cat.Parent = workspace
+	-- Season props: glowing pumpkins and bats, or Christmas lights and a little tree
+	local props: { Instance } = {}
+	local bats: { Model } = {}
+	local up = Vector3.new(0, 1, 0)
+	local porch = Vector3.new(foot.X, 0, foot.Z)
+	local dice = Random.new()
+	if seasonal.name == "Halloween" then
+		for _, at in { porch + out * 1.2 + side * 2.6, porch + out * 1.2 - side * 2.6, porch + out * 2.6 + side * 3.6 } do
+			table.insert(props, seasonal.lib.pumpkin(at, 1.7, true, dice, workspace))
+		end
+		for _ = 1, 6 do
+			local bat = seasonal.lib.bat(workspace)
+			table.insert(bats, bat)
+			table.insert(props, bat)
+		end
+	elseif seasonal.name == "Christmas" then
+		local colors = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(60, 220, 90), Color3.fromRGB(255, 210, 60), Color3.fromRGB(80, 140, 255) }
+		for i = 0, 16 do
+			table.insert(props, new("Part", {
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * 0.35,
+				Position = porch - out * 0.6 + side * (-6 + i * 0.75) + up * 7.7,
+				Color = colors[i % #colors + 1],
+				Material = Enum.Material.Neon,
+				Anchored = true,
+				CanCollide = false,
+				Parent = workspace,
+			}))
+		end
+		local treeAt = porch + out * 1.5 + side * 4.5
+		for i, size in { 3, 2.2, 1.4 } do
+			table.insert(props, new("Part", {
+				Size = Vector3.new(size, 1.1, size),
+				CFrame = CFrame.new(treeAt + up * (0.6 + i * 0.95)) * CFrame.Angles(0, math.rad(i * 30), 0),
+				Color = Color3.fromRGB(35, 110, 55),
+				Anchored = true,
+				CanCollide = false,
+				Parent = workspace,
+			}))
+		end
+		table.insert(props, new("Part", {
+			Size = Vector3.one * 0.5,
+			Position = treeAt + up * 4.2,
+			Color = Color3.fromRGB(255, 220, 80),
+			Material = Enum.Material.Neon,
+			Anchored = true,
+			CanCollide = false,
+			Parent = workspace,
+		}))
+	end
 
 	local start = os.clock()
-	local finished, spoke, said = false, false, false
+	local finished, spoke, said, cheered = false, false, false, false
 	local conn: RBXScriptConnection? = nil
 	local function finish()
 		if finished then
@@ -6478,6 +7008,9 @@ local function playIntro()
 		for _, part in parts do
 			part:Destroy()
 		end
+		for _, prop in props do
+			prop:Destroy()
+		end
 		camera.CameraType = Enum.CameraType.Custom
 		showControls(true)
 		if not playing then
@@ -6491,7 +7024,6 @@ local function playIntro()
 		tween:Play()
 	end
 	skip.Activated:Connect(finish)
-	local up = Vector3.new(0, 1, 0)
 	local runStart = foot + out * 6
 	local edge = runStart + away * 50
 	local function turned(from: Vector3, alpha: number): Vector3
@@ -6545,6 +7077,11 @@ local function playIntro()
 			focus = at:Lerp(edge + away * 70, math.clamp((t - 11) / 4, 0, 1))
 		end
 		camera.CFrame = CFrame.lookAt(outside(eye), focus)
+		for i, bat in bats do
+			local x = -45 + (t - i * 0.9) * (11 + i)
+			local p = porch + out * (14 + i * 4) + side * x + up * (11 + (i % 3) * 3 + math.sin(t * 3 + i))
+			bat:PivotTo(CFrame.lookAt(p, p + side) * CFrame.Angles(0, 0, math.sin(t * 18 + i) * 0.5))
+		end
 		-- Phone controls can appear late, keep them hidden while the clip plays
 		local playerGui = player:FindFirstChildOfClass("PlayerGui")
 		local touchGui = playerGui and playerGui:FindFirstChild("TouchGui")
@@ -6564,9 +7101,32 @@ local function playIntro()
 		if t > 10.5 and not said then
 			said = true
 			caption.Text = "It's getting dark..."
+			local sfx = seasonal.sfx
+			if seasonal.name == "Christmas" then
+				local norsk = math.random() < 0.5
+				caption.Text = if norsk then "🎅 \"Har du vært snill?\"" else "🎅 \"Have you been nice?\""
+				if sfx then
+					playClip(SoundService, if norsk then Config.SeasonSfx.NiceNo else Config.SeasonSfx.NiceEn, 1.6, 1, 1000, sfx)
+				end
+			elseif seasonal.name == "Halloween" then
+				caption.Text = "It's getting dark... 🎃"
+				if sfx then
+					playClip(SoundService, Config.SeasonSfx.Howl, 1.2, 1, 1000, sfx)
+				end
+			end
 		end
 		if t > 13 then
-			caption.Text = "It's getting dark...\nSomeone has to find her! 🔦"
+			caption.Text = "It's getting dark...\nSomeone has to find her! " .. (if seasonal.name == "Halloween" then "🎃" elseif seasonal.name == "Christmas" then "🎄" else "🔦")
+			if seasonal.birthday then
+				caption.Text = "🎂 Happy birthday " .. seasonal.birthday .. "! 🎉\nSomeone has to find Pianka! 🔦"
+				if not cheered then
+					cheered = true
+					confetti()
+					if seasonal.sfx then
+						playClip(SoundService, Config.SeasonSfx.Birthday, 1.2, 1, 1000, seasonal.sfx)
+					end
+				end
+			end
 		end
 		fade.BackgroundTransparency = 1 - math.clamp((t - 16.6) / 0.5, 0, 1)
 		if t > 17.3 then
@@ -6575,6 +7135,89 @@ local function playIntro()
 	end)
 end
 task.spawn(playIntro)
+
+-- Season around you: falling snow, or bats circling overhead
+do
+	if Config.SeasonSfxId ~= 0 then
+		seasonal.sfx = new("Sound", { SoundId = "rbxassetid://" .. Config.SeasonSfxId, Parent = SoundService })
+	end
+	if seasonal.name == "Christmas" then
+		local snowSky = new("Part", {
+			Name = "SnowSky",
+			Anchored = true,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Transparency = 1,
+			Size = Vector3.new(140, 1, 140),
+			Parent = workspace,
+		})
+		new("ParticleEmitter", {
+			Color = ColorSequence.new(Color3.new(1, 1, 1)),
+			LightEmission = 0.3,
+			Size = NumberSequence.new(0.22),
+			Speed = NumberRange.new(7, 11),
+			EmissionDirection = Enum.NormalId.Bottom,
+			SpreadAngle = Vector2.new(15, 15),
+			Lifetime = NumberRange.new(5, 7),
+			Acceleration = Vector3.new(1.5, 0, 0.8),
+			RotSpeed = NumberRange.new(-60, 60),
+			Rate = 350,
+			Parent = snowSky,
+		})
+		RunService.RenderStepped:Connect(function()
+			snowSky.CFrame = CFrame.new(camera.CFrame.Position + Vector3.new(0, 40, 0))
+		end)
+	elseif seasonal.name == "Halloween" then
+		local flock: { { model: Model, r: number, h: number, w: number, a: number } } = {}
+		for i = 1, 7 do
+			table.insert(flock, {
+				model = seasonal.lib.bat(workspace),
+				r = math.random(16, 34),
+				h = math.random(16, 26),
+				w = (math.random() * 0.4 + 0.3) * (if i % 2 == 0 then 1 else -1),
+				a = math.random() * math.pi * 2,
+			})
+		end
+		RunService.RenderStepped:Connect(function(dt: number)
+			local center = camera.CFrame.Position
+			for _, b in flock do
+				b.a += b.w * dt
+				local p = center + Vector3.new(math.cos(b.a) * b.r, b.h + math.sin(b.a * 3) * 2, math.sin(b.a) * b.r)
+				local ahead = Vector3.new(-math.sin(b.a), 0, math.cos(b.a)) * (if b.w > 0 then 1 else -1)
+				b.model:PivotTo(CFrame.lookAt(p, p + ahead) * CFrame.Angles(0, 0, math.sin(os.clock() * 16 + b.a) * 0.5))
+			end
+		end)
+	end
+end
+
+-- Nicola's legs and free arm swing while she walks with her brother
+do
+	local bases: { [Weld]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+	local stride = 0
+	RunService.RenderStepped:Connect(function(dt: number)
+		stride += dt * 9
+		for _, other in Players:GetPlayers() do
+			local character = other.Character
+			local sister = character and character:FindFirstChild("Nicola")
+			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if sister and root then
+				local v = root.AssemblyLinearVelocity
+				local moving = math.clamp(Vector3.new(v.X, 0, v.Z).Magnitude / 12, 0, 1)
+				for _, part in sister:GetChildren() do
+					local swing = part:GetAttribute("Swing")
+					local weld = part:FindFirstChildOfClass("Weld")
+					if type(swing) == "number" and weld and part:IsA("BasePart") then
+						local base = bases[weld] or weld.C0
+						bases[weld] = base
+						local top = part.Size.Y / 2
+						weld.C0 = base * CFrame.new(0, top, 0) * CFrame.Angles(math.sin(stride) * 0.6 * moving * swing, 0, 0) * CFrame.new(0, -top, 0)
+					end
+				end
+			end
+		end
+	end)
+end
 
 -- Shop
 local shop = new("Frame", {
@@ -6860,7 +7503,7 @@ end
 local TWISTS = {
 	tree = "Twist: Pianka is up a tree! 🌳\nClimb the steps.",
 	zoomies = "Twist: Pianka has the zoomies! 💨",
-	ratparty = "Twist: Rat party! 🐀🐀🐀",
+	ratparty = "Twist: " .. seasonal.ratName .. " party! " .. string.rep(seasonal.rat, 3),
 	fullmoon = "Twist: Full moon tonight! 🌕",
 	golden = "Twist: Golden Pianka! ✨\nDouble rewards!",
 }
@@ -7017,6 +7660,14 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		end)
 	elseif kind == "heard" then
 		popText("Shh! Something heard you 👂", Color3.fromRGB(255, 170, 80))
+	elseif kind == "pairSplit" then
+		local stays = tostring(value)
+		local gone = if stays == "Nicola" then "Oskar" else "Nicola"
+		if who == player then
+			showBanner(gone .. " ran home! 🏠\n" .. stays .. " goes on ❤️❤️❤️", 4)
+		else
+			popText(nameOf(who) .. ": " .. gone .. " ran home 🏠", Color3.fromRGB(255, 200, 150))
+		end
 	elseif kind == "heyYou" then
 		if typeof(value) == "Instance" and value:IsA("BasePart") then
 			local hey = Config.Voices.Hey
@@ -7242,7 +7893,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 	elseif kind == "bitten" then
 		flash.BackgroundTransparency = 0.6
 		TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
-		popText("Rat bite! -1 ❤️ 🐀", Color3.fromRGB(255, 120, 120))
+		popText(seasonal.ratName .. " bite! -1 ❤️ " .. seasonal.rat, Color3.fromRGB(255, 120, 120))
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if root and clipSound then
@@ -7264,7 +7915,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		elseif value == "frog" then
 			popText("Ribbit! 🐸", Color3.fromRGB(140, 255, 140))
 		elseif value == "rat" then
-			popText("A rat! 🐀 Run!", Color3.fromRGB(255, 150, 150))
+			popText("A " .. string.lower(seasonal.ratName) .. "! " .. seasonal.rat .. " Run!", Color3.fromRGB(255, 150, 150))
 		elseif value == "empty" then
 			popText("Empty... 🍂", Color3.fromRGB(200, 200, 200))
 		elseif value == "fish" then
@@ -7291,7 +7942,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 			root.AssemblyLinearVelocity = value * 45 + Vector3.new(0, 25, 0)
 		end
 	elseif kind == "squash" then
-		popText("Squash! 🐀", Color3.fromRGB(150, 255, 150))
+		popText((if seasonal.name == "Christmas" then "Bonk! " else "Squash! ") .. seasonal.rat, Color3.fromRGB(150, 255, 150))
 		note(0.6)
 	elseif kind == "twist" then
 		local text = TWISTS[tostring(value)]
@@ -7419,8 +8070,16 @@ local function updateSky(): number
 	if atmosphere then
 		local base = if mode == "Hard" then 0.64 elseif mode == "Normal" then 0.56 else 0.4
 		atmosphere.Density = base + 0.08 * dark
-		atmosphere.Color = Color3.fromRGB(60, 70, 96):Lerp(Color3.fromRGB(190, 215, 190), daylight)
-		atmosphere.Decay = Color3.fromRGB(30, 35, 54):Lerp(Color3.fromRGB(90, 120, 90), daylight)
+		if seasonal.name == "Halloween" then
+			atmosphere.Color = Color3.fromRGB(80, 50, 100):Lerp(Color3.fromRGB(215, 175, 140), daylight)
+			atmosphere.Decay = Color3.fromRGB(45, 20, 50):Lerp(Color3.fromRGB(140, 90, 60), daylight)
+		elseif seasonal.name == "Christmas" then
+			atmosphere.Color = Color3.fromRGB(75, 85, 125):Lerp(Color3.fromRGB(225, 235, 250), daylight)
+			atmosphere.Decay = Color3.fromRGB(35, 45, 80):Lerp(Color3.fromRGB(160, 175, 200), daylight)
+		else
+			atmosphere.Color = Color3.fromRGB(60, 70, 96):Lerp(Color3.fromRGB(190, 215, 190), daylight)
+			atmosphere.Decay = Color3.fromRGB(30, 35, 54):Lerp(Color3.fromRGB(90, 120, 90), daylight)
+		end
 	end
 	tint.TintColor = Color3.fromRGB(208, 216, 255):Lerp(Color3.new(1, 1, 1), daylight)
 	tint.Saturation = -0.18 * dark
@@ -7484,7 +8143,7 @@ local function enemies(from: Vector3): { { model: Model, pos: Vector3, icon: str
 	end
 	scan(workspace:FindFirstChild("Dogs"), "🐕", 90, false)
 	scan(workspace:FindFirstChild("Neighbors"), "🔦", 90, true)
-	scan(workspace:FindFirstChild("Rats"), "🐀", 45, false)
+	scan(workspace:FindFirstChild("Rats"), seasonal.rat, 45, false)
 	return list
 end
 
@@ -7679,8 +8338,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if root and player:GetAttribute("Hero") ~= "Aurelia" then
 		for _, e in enemies(root.Position) do
 			local near = (e.pos - root.Position).Magnitude
-			local reach = if e.icon == "🐀" then 18 else 35
-			local weight = if e.icon == "🐀" then 0.6 else 1
+			local reach = if e.icon == seasonal.rat then 18 else 35
+			local weight = if e.icon == seasonal.rat then 0.6 else 1
 			fuzz = math.max(fuzz, math.clamp(1 - (near - 6) / (reach - 6), 0, 1) * weight)
 		end
 	end
@@ -7787,7 +8446,7 @@ end)
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="13">
+  <Item class="Workspace" referent="14">
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="NeedsPivotMigration">false</bool>
