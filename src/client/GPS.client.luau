@@ -103,7 +103,7 @@ new("TextLabel", {
 	Font = FONT,
 	TextSize = 22,
 	TextColor3 = GREEN,
-	Text = "GPS",
+	Text = "GPS 🗺",
 	Parent = device,
 })
 
@@ -805,15 +805,10 @@ workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
 showHearts()
 
-local menuButton = topButton("Menu", -120, 80)
-local musicButton = topButton("🎵", 100, 40)
-local shopButton = topButton("🐟 Shop", 175, 90)
-musicButton.Visible = Config.MusicId ~= 0
-musicButton.Activated:Connect(function()
-	musicOn = not musicOn
-	music.Playing = musicOn
-	musicButton.Text = if musicOn then "🎵" else "🔇"
-end)
+local menuButton = topButton("☰", -96, 44)
+local shopButton = topButton("🛒", 96, 44)
+menuButton.Name = "Menu"
+shopButton.Name = "Shop"
 if Config.MusicId ~= 0 then
 	music:Play()
 end
@@ -1105,8 +1100,15 @@ menuButton.Activated:Connect(function()
 	openMenu()
 end)
 
--- Map: the whole forest from above, to plan a way past the guards
-local mapButton = topButton("🗺 Map", 270, 80)
+-- Map: the whole forest from above, to plan a way past the guards. Tap the GPS to open it
+local mapButton = new("TextButton", {
+	Name = "MapTap",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Text = "",
+	ZIndex = 5,
+	Parent = device,
+})
 local MAP = 420
 local mapFrame = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),

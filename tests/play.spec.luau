@@ -143,7 +143,7 @@ end
 
 local function pickMode(bot: any, mode: string)
 	local menu = findButton(bot, function(b)
-		return b.Text == "Menu"
+		return b.Name == "Menu"
 	end)
 	click(bot, menu)
 	click(bot, findButton(bot, function(b)
@@ -752,6 +752,25 @@ do
 	end
 	check(shown and items > 5, "map did not open or is empty (" .. items .. " items)")
 	Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = Enum.KeyCode.M, UserInputType = Enum.UserInputType.Keyboard }, false)
+	run(1)
+	-- Tapping the GPS opens it too
+	local function mapOpen(): boolean
+		for _, d in gui(bot):GetDescendants() do
+			if d.ClassName == "TextLabel" and string.find(d.Text, "Map", 1, true) and d.Parent.Visible then
+				return true
+			end
+		end
+		return false
+	end
+	check(not mapOpen(), "map did not close with M")
+	click(bot, findButton(bot, function(b)
+		return b.Name == "MapTap"
+	end))
+	run(1)
+	check(mapOpen(), "tapping the GPS did not open the map")
+	click(bot, findButton(bot, function(b)
+		return b.Name == "MapTap"
+	end))
 	run(1)
 end
 

@@ -33,7 +33,7 @@ Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS on
 
 In Normal and Hard, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her. In Normal everyone close by watches her swell up, jiggle and struggle, then pop into 7 kittens in slow motion, safe while it plays.
 
-Open the **🗺 Map** (M) to plan your way: hedges, guard dog lines, neighbors with lanterns, cabins, home and the area where Pianka is.
+Tap the **GPS** (or press M) to open the map and plan your way: hedges, guard dog lines, neighbors with lanterns, cabins, home and the area where Pianka is.
 
 In Normal and Hard every rescue is one level up (up to 10): more dogs, wider lights, more rats, less time, more hiding spots and Pianka runs more. Picking a mode starts again at level 1.
 
@@ -47,7 +47,7 @@ In Hard a pack of dogs follows behind you in a V. They only attack if you get in
 
 Watch out for rats! A bite costs a heart. Jump on them to squash them, or click your lantern to scare them away.
 
-Collect glowing fish and spend them in the **Shop** (scroll for more): colored lanterns, hats, a sparkle trail, a crown, a kitten that rides on your shoulder and power ups.
+Collect glowing fish and spend them in the **🛒 Shop** (scroll for more): colored lanterns, hats, a sparkle trail, a crown, a kitten that rides on your shoulder and power ups.
 
 Every round can have a twist: Pianka up a tree, zoomies, a rat party, a full moon or a golden Pianka.
 
