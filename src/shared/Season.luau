@@ -18,9 +18,12 @@ function Season.pick(setting: string, month: number, day: number, birthdays: { [
 		end
 		return if month == 10 then "Halloween" elseif month == 12 then "Christmas" else nil, nil
 	end
+	-- Only heroes with a birthday date
 	local hero = string.match(setting, "^Birthday:(%w+)$")
-	if hero then
+	if hero and birthdays[hero] then
 		return "Birthday", hero
+	elseif hero then
+		return nil, nil
 	end
 	return if setting == "None" then nil else setting, nil
 end
