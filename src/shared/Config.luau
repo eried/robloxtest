@@ -130,7 +130,7 @@ return {
 	SeasonSfxId = 81307958921304,
 	SeasonSfx = { NiceEn = { 0.3, 2.69 }, NiceNo = { 3.49, 2.588 }, Howl = { 6.577, 5 }, Birthday = { 12.077, 10.96 } },
 	-- Pianka straining and popping, ghosts, sinister laughs, Santa, nisse giggles and a ghostly Happy Halloween
-	ExtraSfxId = 0,
+	ExtraSfxId = 105803119914850,
 	ExtraSfx = {
 		Strain = { 0.3, 4.427 },
 		Pop = { 5.027, 1.719 },

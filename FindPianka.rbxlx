@@ -149,8 +149,8 @@
 	ChristmasMusicId = 107040817150467,
 	SeasonSfxId = 81307958921304,
 	SeasonSfx = { NiceEn = { 0.3, 2.69 }, NiceNo = { 3.49, 2.588 }, Howl = { 6.577, 5 }, Birthday = { 12.077, 10.96 } },
-	-- Pianka straining and popping, ghosts, sinister laughs, Santa and nisse giggles
-	ExtraSfxId = 90837631116772,
+	-- Pianka straining and popping, ghosts, sinister laughs, Santa, nisse giggles and a ghostly Happy Halloween
+	ExtraSfxId = 105803119914850,
 	ExtraSfx = {
 		Strain = { 0.3, 4.427 },
 		Pop = { 5.027, 1.719 },
@@ -158,6 +158,7 @@
 		Laugh = { { 21.074, 3.665 }, { 25.039, 2.976 }, { 28.315, 1.961 } },
 		HoHo = { { 30.576, 1.912 }, { 32.788, 2.351 }, { 35.439, 2.104 } },
 		Giggle = { { 37.843, 1.18 }, { 39.323, 1.138 } },
+		Halloween = { 40.761, 3.306 },
 	},
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
@@ -6128,6 +6129,8 @@ local seasonal = {
 	birthday = workspace:GetAttribute("BirthdayHero") :: string?,
 	sfx = nil :: Sound?,
 	extra = nil :: Sound?,
+	pending = false,
+	greet = nil :: (() -> ())?,
 	footer = nil :: TextLabel?,
 	rebuild = nil :: (() -> ())?,
 }
@@ -6213,7 +6216,7 @@ new("TextLabel", {
 	Font = FONT,
 	TextSize = 22,
 	TextColor3 = GREEN,
-	Text = "GPS",
+	Text = "GPS 🗺",
 	Parent = device,
 })
 
@@ -6915,15 +6918,10 @@ workspace:GetAttributeChangedSignal("Mode"):Connect(showHearts)
 workspace:GetAttributeChangedSignal("Level"):Connect(showHearts)
 showHearts()
 
-local menuButton = topButton("Menu", -120, 80)
-local musicButton = topButton("🎵", 100, 40)
-local shopButton = topButton("🐟 Shop", 175, 90)
-musicButton.Visible = Config.MusicId ~= 0
-musicButton.Activated:Connect(function()
-	musicOn = not musicOn
-	music.Playing = musicOn
-	musicButton.Text = if musicOn then "🎵" else "🔇"
-end)
+local menuButton = topButton("☰", -96, 44)
+local shopButton = topButton("🛒", 96, 44)
+menuButton.Name = "Menu"
+shopButton.Name = "Shop"
 if Config.MusicId ~= 0 then
 	music:Play()
 end
@@ -7181,6 +7179,9 @@ playButton.Activated:Connect(function()
 	playing = true
 	modeEvent:FireServer(selectedMode, selectedHero)
 	intro.Visible = false
+	if seasonal.greet then
+		seasonal.greet()
+	end
 end)
 
 local closeButton = new("TextButton", {
@@ -7215,8 +7216,15 @@ menuButton.Activated:Connect(function()
 	openMenu()
 end)
 
--- Map: the whole forest from above, to plan a way past the guards
-local mapButton = topButton("🗺 Map", 270, 80)
+-- Map: the whole forest from above, to plan a way past the guards. Tap the GPS to open it
+local mapButton = new("TextButton", {
+	Name = "MapTap",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Text = "",
+	ZIndex = 5,
+	Parent = device,
+})
 local MAP = 420
 local mapFrame = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -7607,6 +7615,11 @@ local function playIntro()
 		if not playing then
 			intro.Visible = true
 		end
+		-- The season greets you once you are out in the forest
+		seasonal.pending = true
+		if playing and seasonal.greet then
+			seasonal.greet()
+		end
 		fade.BackgroundTransparency = 0
 		local tween = TweenService:Create(fade, TweenInfo.new(0.6), { BackgroundTransparency = 1 })
 		tween.Completed:Once(function()
@@ -7802,6 +7815,19 @@ do
 	end
 	build()
 	seasonal.rebuild = build
+	seasonal.greet = function()
+		local extra = seasonal.extra
+		if not seasonal.pending then
+			return
+		end
+		seasonal.pending = false
+		if seasonal.name == "Halloween" and extra then
+			task.delay(0.8, function()
+				playClip(SoundService, Config.ExtraSfx.Halloween, 2.8, 1, 1000, extra)
+				showBanner("👻 Happy Halloween! 🎃", 3)
+			end)
+		end
+	end
 	-- Ghost moans and sinister laughs at Halloween, Santa and giggling nisser at Christmas
 	task.spawn(function()
 		while seasonal.extra do
