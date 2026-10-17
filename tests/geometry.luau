@@ -204,7 +204,7 @@ if character then
 	dump(character, "tower")
 end
 
--- Oskar walking hand in hand with Nicola
+-- Oskar walking hand in hand with Nikola
 Engine.asClient(ctx, function()
 	setMode:FireServer(nil, "Oskar")
 end)
@@ -213,7 +213,7 @@ for _ = 1, 20 * 3 do
 end
 character = player.Character
 if character then
-	print("oskar pair", player:GetAttribute("Pair"), character:FindFirstChild("Nicola") ~= nil)
+	print("oskar pair", player:GetAttribute("Pair"), character:FindFirstChild("Nikola") ~= nil)
 	dump(character, "oskar")
 end
 fs.writeFile(process.args[1] or "geometry.json", require("@lune/serde").encode("json", out))

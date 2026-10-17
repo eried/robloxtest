@@ -118,7 +118,7 @@ return {
 		Patrick = { Emoji = "🏃", Skill = "Super fast" },
 		Aurelia = { Emoji = "🐱", Skill = "Cat friend, more birds" },
 		Milenkitka = { Emoji = "💡", Skill = "Big lantern, calm dogs" },
-		Oskar = { Emoji = "👫", Skill = "With sister Nicola: 2 lives" },
+		Oskar = { Emoji = "👫", Skill = "With sister Nikola: 2 lives" },
 	},
 
 	-- Seasons: "auto" is a hero's birthday, Halloween in October, Christmas in December.

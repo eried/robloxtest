@@ -688,7 +688,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 		lastThrow = -10,
 	}
 	local hearts = Config.Hearts[mode]
-	-- Oskar and Nicola: when the hearts run out the first time, one goes home and the other goes on
+	-- Oskar and Nikola: when the hearts run out the first time, one goes home and the other goes on
 	local pair = hero == "Oskar"
 	local dayOffset = Sky.offset(Config.DuskClock, Config.DayMinutes, Config.NightShare)
 	local hunting = false

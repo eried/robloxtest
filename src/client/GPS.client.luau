@@ -1766,7 +1766,7 @@ do
 	end)
 end
 
--- Nicola's legs and free arm swing while she walks with her brother
+-- Nikola's legs and free arm swing while she walks with her brother
 do
 	local bases: { [Weld]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
 	local stride = 0
@@ -1774,7 +1774,7 @@ do
 		stride += dt * 9
 		for _, other in Players:GetPlayers() do
 			local character = other.Character
-			local sister = character and character:FindFirstChild("Nicola")
+			local sister = character and character:FindFirstChild("Nikola")
 			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 			if sister and root then
 				local v = root.AssemblyLinearVelocity
@@ -1984,14 +1984,15 @@ end
 -- Admin: switch the season to test it, or watch the intro again
 local adminTitle = listOrder + 1
 listTitle("🔧 Season (admin)", Color3.fromRGB(255, 200, 90))
-local adminBox = listRow(10 + 44 * 4, Color3.fromRGB(50, 50, 60))
+local adminBox = listRow(10 + 44 * 3, Color3.fromRGB(50, 50, 60))
 new("UIGridLayout", { CellSize = UDim2.fromOffset(118, 36), CellPadding = UDim2.fromOffset(6, 8), Parent = adminBox })
 new("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), Parent = adminBox })
 local adminChoices = { { "Auto", "auto" }, { "None", "None" }, { "🎃 Halloween", "Halloween" }, { "🎄 Christmas", "Christmas" } }
 for _, hero in Config.HeroOrder do
-	table.insert(adminChoices, { "🎂 " .. hero, "Birthday:" .. hero })
+	if Config.Birthdays[hero] then
+		table.insert(adminChoices, { "🎂 " .. hero, "Birthday:" .. hero })
+	end
 end
-table.insert(adminChoices, { "🎂 Nicola", "Birthday:Nicola" })
 table.insert(adminChoices, { "▶ Intro", "intro" })
 for _, choice in adminChoices do
 	local button = new("TextButton", {
@@ -2298,7 +2299,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 		popText("Shh! Something heard you 👂", Color3.fromRGB(255, 170, 80))
 	elseif kind == "pairSplit" then
 		local stays = tostring(value)
-		local gone = if stays == "Nicola" then "Oskar" else "Nicola"
+		local gone = if stays == "Nikola" then "Oskar" else "Nikola"
 		if who == player then
 			showBanner(gone .. " ran home! 🏠\n" .. stays .. " goes on ❤️❤️❤️", 4)
 		else

@@ -155,7 +155,7 @@ end
 
 -- Bots
 local bots: { any } = {}
-local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false, clipSince = nil :: number?, nicola = false, nicolaMissing = 0, burstSeen = false }
+local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false, clipSince = nil :: number?, nikola = false, nikolaMissing = 0, burstSeen = false }
 
 local function addBot(name: string, kind: string, hero: string): any
 	local player, ctx = Engine.addPlayer(name)
@@ -485,12 +485,12 @@ local function invariants()
 	for _, bot in bots do
 		if bot.hero == "Oskar" then
 			local character = bot.player.Character
-			stats.nicola = stats.nicola or (character ~= nil and character:FindFirstChild("Nicola") ~= nil)
+			stats.nikola = stats.nikola or (character ~= nil and character:FindFirstChild("Nikola") ~= nil)
 			if bot.player:GetAttribute("Out") and not bot.player:GetAttribute("Sibling") then
-				check(false, "Oskar went out before Nicola left")
+				check(false, "Oskar went out before Nikola left")
 			end
-			if bot.player:GetAttribute("Pair") and character and not character:FindFirstChild("Nicola") and bot.player:GetAttribute("Hearts") then
-				stats.nicolaMissing += 1
+			if bot.player:GetAttribute("Pair") and character and not character:FindFirstChild("Nikola") and bot.player:GetAttribute("Hearts") then
+				stats.nikolaMissing += 1
 			end
 		end
 		if mode == "Practice" and not stats.practiceMenu then
@@ -786,8 +786,8 @@ check((counts.gotBone or 0) > 0 and (counts.bone or 0) > 0, "bones never picked 
 check(stats.maxLevel > 1 or MINUTES < 1, "level never went up")
 check(stats.tower >= 2, "tower: kittens never stacked on a head")
 check((counts.badCall or 0) == 0, "call worked outside Hard")
-check(stats.nicola, "Oskar never walked with Nicola")
-check(stats.nicolaMissing < 5, "Nicola missing while the pair is together")
+check(stats.nikola, "Oskar never walked with Nikola")
+check(stats.nikolaMissing < 5, "Nikola missing while the pair is together")
 check((counts.escaped or 0) == 0 or (counts.escapeClip or 0) > 0, "escape won without the clip")
 check(stats.practiceMenu, "practice: menu with Normal did not open after the round")
 check(stats.towerPianka, "tower: Pianka not under the kittens in Normal")

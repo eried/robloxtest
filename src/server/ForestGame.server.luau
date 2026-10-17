@@ -706,7 +706,7 @@ local function applyHero(player: Player)
 	local rescued = stats and stats:FindFirstChild("Rescued") :: IntValue?
 	local saved = if rescued then rescued.Value else 0
 	local title = if saved >= 100 then " 👑" elseif saved >= 25 then " 🏅" elseif saved >= 5 then " ⭐" else ""
-	local name = if hero == "Oskar" then (if player:GetAttribute("Pair") then "Oskar & Nicola" else (player:GetAttribute("Sibling") :: string?) or "Oskar")
+	local name = if hero == "Oskar" then (if player:GetAttribute("Pair") then "Oskar & Nikola" else (player:GetAttribute("Sibling") :: string?) or "Oskar")
 		elseif type(hero) == "string" then hero
 		else player.DisplayName
 	humanoid.DisplayName = name .. title
@@ -748,20 +748,20 @@ local LOOKS: { [string]: Look } = {
 	Aurelia = { skin = Color3.fromRGB(245, 210, 180), shirt = Color3.fromRGB(240, 120, 185), pants = Color3.fromRGB(125, 65, 150) },
 	Milenkitka = { skin = Color3.fromRGB(235, 195, 165), shirt = Color3.fromRGB(40, 95, 75), pants = Color3.fromRGB(55, 50, 65) },
 	Oskar = { skin = Color3.fromRGB(250, 210, 170), shirt = Color3.fromRGB(40, 120, 200), pants = Color3.fromRGB(60, 60, 70) },
-	Nicola = { skin = Color3.fromRGB(252, 222, 198), shirt = Color3.fromRGB(245, 140, 185), pants = Color3.fromRGB(245, 175, 205) },
+	Nikola = { skin = Color3.fromRGB(252, 222, 198), shirt = Color3.fromRGB(245, 140, 185), pants = Color3.fromRGB(245, 175, 205) },
 }
 local BLONDE = Color3.fromRGB(245, 215, 110)
 
--- Nicola walks next to Oskar holding his hand. Parts with a Swing attribute swing on each client
+-- Nikola walks next to Oskar holding his hand. Parts with a Swing attribute swing on each client
 local function attachSister(character: Model)
 	local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not root or not humanoid or character:FindFirstChild("Nicola") then
+	if not root or not humanoid or character:FindFirstChild("Nikola") then
 		return
 	end
-	local look = LOOKS.Nicola
+	local look = LOOKS.Nikola
 	local model = Instance.new("Model")
-	model.Name = "Nicola"
+	model.Name = "Nikola"
 	local base = root.CFrame * CFrame.new(2.4, -(humanoid.HipHeight + root.Size.Y / 2), 0)
 	local function add(name: string, size: Vector3, offset: CFrame, color: Color3, swing: number?)
 		local part = makePart("Part", {
@@ -818,9 +818,9 @@ local function dressHero(player: Player)
 		player:SetAttribute("Pair", true)
 	end
 	local pair = player:GetAttribute("Pair") == true
-	local who = if hero == "Oskar" and player:GetAttribute("Sibling") == "Nicola" then "Nicola" else hero
+	local who = if hero == "Oskar" and player:GetAttribute("Sibling") == "Nikola" then "Nikola" else hero
 	local look = if type(who) == "string" then LOOKS[who] else nil
-	local sister = character and character:FindFirstChild("Nicola")
+	local sister = character and character:FindFirstChild("Nikola")
 	if sister and not pair then
 		sister:Destroy()
 	end
@@ -837,8 +837,8 @@ local function dressHero(player: Player)
 			child:Destroy()
 		end
 	end
-	-- Oskar is a bit bigger, Nicola a bit smaller
-	local scale = if who == "Oskar" then 1.12 elseif who == "Nicola" then 0.8 else 1
+	-- Oskar is a bit bigger, Nikola a bit smaller
+	local scale = if who == "Oskar" then 1.12 elseif who == "Nikola" then 0.8 else 1
 	pcall(function()
 		if math.abs(character:GetScale() - scale) > 0.01 then
 			character:ScaleTo(scale)
@@ -909,7 +909,7 @@ local function dressHero(player: Player)
 		end
 		add(head, Vector3.one * 0.35, CFrame.new(0, top + 1.55, 0), Color3.new(1, 1, 1), Enum.PartType.Ball)
 	end
-	if who == "Nicola" then
+	if who == "Nikola" then
 		add(head, Vector3.new(1.3, 0.4, 1.3), CFrame.new(0, top, 0.05), BLONDE)
 		add(head, Vector3.new(1.25, 1, 0.3), CFrame.new(0, -0.1, 0.6), BLONDE)
 		for _, x in { -0.75, 0.75 } do
@@ -1334,9 +1334,9 @@ local function resetHearts(player: Player)
 	end
 end
 
--- Oskar and Nicola: when the hearts run out, one goes home and the other goes on with full hearts
+-- Oskar and Nikola: when the hearts run out, one goes home and the other goes on with full hearts
 local function splitPair(player: Player)
-	local stays = if rng:NextNumber() < 0.5 then "Oskar" else "Nicola"
+	local stays = if rng:NextNumber() < 0.5 then "Oskar" else "Nikola"
 	player:SetAttribute("Pair", false)
 	player:SetAttribute("Sibling", stays)
 	player:SetAttribute("Hearts", maxHearts(player))

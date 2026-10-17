@@ -11,7 +11,7 @@ When you join, a short clip shows Pianka running out of the house at sunset. Eve
 - **Patrick** 🏃 super fast
 - **Aurelia** 🐱 cat friend: her GPS never gets fuzzy, Pianka runs from her only once and leaves her more birds
 - **Milenkitka** 💡 big lantern, and dogs rest longer when chasing her
-- **Oskar** 👫 a bit bigger, walks hand in hand with his little sister **Nicola**. Two lives: when the hearts run out, one of them runs home and the other goes on with full hearts
+- **Oskar** 👫 a bit bigger, walks hand in hand with his little sister **Nikola**. Two lives: when the hearts run out, one of them runs home and the other goes on with full hearts
 
 ## Seasons and birthdays
 
