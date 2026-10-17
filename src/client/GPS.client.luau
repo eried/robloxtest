@@ -18,6 +18,8 @@ local seasonal = {
 	birthday = workspace:GetAttribute("BirthdayHero") :: string?,
 	sfx = nil :: Sound?,
 	extra = nil :: Sound?,
+	pending = false,
+	greet = nil :: (() -> ())?,
 	footer = nil :: TextLabel?,
 	rebuild = nil :: (() -> ())?,
 }
@@ -1066,6 +1068,9 @@ playButton.Activated:Connect(function()
 	playing = true
 	modeEvent:FireServer(selectedMode, selectedHero)
 	intro.Visible = false
+	if seasonal.greet then
+		seasonal.greet()
+	end
 end)
 
 local closeButton = new("TextButton", {
@@ -1499,6 +1504,11 @@ local function playIntro()
 		if not playing then
 			intro.Visible = true
 		end
+		-- The season greets you once you are out in the forest
+		seasonal.pending = true
+		if playing and seasonal.greet then
+			seasonal.greet()
+		end
 		fade.BackgroundTransparency = 0
 		local tween = TweenService:Create(fade, TweenInfo.new(0.6), { BackgroundTransparency = 1 })
 		tween.Completed:Once(function()
@@ -1694,6 +1704,19 @@ do
 	end
 	build()
 	seasonal.rebuild = build
+	seasonal.greet = function()
+		local extra = seasonal.extra
+		if not seasonal.pending then
+			return
+		end
+		seasonal.pending = false
+		if seasonal.name == "Halloween" and extra then
+			task.delay(0.8, function()
+				playClip(SoundService, Config.ExtraSfx.Halloween, 2.8, 1, 1000, extra)
+				showBanner("👻 Happy Halloween! 🎃", 3)
+			end)
+		end
+	end
 	-- Ghost moans and sinister laughs at Halloween, Santa and giggling nisser at Christmas
 	task.spawn(function()
 		while seasonal.extra do

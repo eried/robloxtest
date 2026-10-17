@@ -117,6 +117,29 @@ end
 inspect(SEASON)
 check(player:GetAttribute("Admin") == true, "admin flag missing")
 
+-- Pressing Play after the clip: a ghostly Happy Halloween, only at Halloween
+local function guiText(text: string): boolean
+	local pg = player:FindFirstChild("PlayerGui")
+	for _, d in (if pg then pg:GetDescendants() else {}) do
+		if d.ClassName == "TextLabel" and d.Visible and string.find(d.Text, text, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+do
+	local pg = player:FindFirstChild("PlayerGui")
+	for _, d in (if pg then pg:GetDescendants() else {}) do
+		if d.ClassName == "TextButton" and d.Text == "▶ Play" then
+			Engine.fireForClient(ctx, d.Activated)
+		end
+	end
+	run(1.5)
+	local greeted = guiText("Happy Halloween")
+	check(greeted == (SEASON == "Halloween"), "Happy Halloween greeting " .. (if greeted then "shown outside Halloween" else "missing"))
+	run(4)
+end
+
 -- The admin switches the season from the shop, a normal player can not
 local shopEvent = Engine.game:GetService("ReplicatedStorage"):FindFirstChild("Shop")
 local kid, otherCtx = Engine.addPlayer("Kid")

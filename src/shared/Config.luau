@@ -129,8 +129,8 @@ return {
 	ChristmasMusicId = 107040817150467,
 	SeasonSfxId = 81307958921304,
 	SeasonSfx = { NiceEn = { 0.3, 2.69 }, NiceNo = { 3.49, 2.588 }, Howl = { 6.577, 5 }, Birthday = { 12.077, 10.96 } },
-	-- Pianka straining and popping, ghosts, sinister laughs, Santa and nisse giggles
-	ExtraSfxId = 90837631116772,
+	-- Pianka straining and popping, ghosts, sinister laughs, Santa, nisse giggles and a ghostly Happy Halloween
+	ExtraSfxId = 0,
 	ExtraSfx = {
 		Strain = { 0.3, 4.427 },
 		Pop = { 5.027, 1.719 },
@@ -138,6 +138,7 @@ return {
 		Laugh = { { 21.074, 3.665 }, { 25.039, 2.976 }, { 28.315, 1.961 } },
 		HoHo = { { 30.576, 1.912 }, { 32.788, 2.351 }, { 35.439, 2.104 } },
 		Giggle = { { 37.843, 1.18 }, { 39.323, 1.138 } },
+		Halloween = { 40.761, 3.306 },
 	},
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
