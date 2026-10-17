@@ -2769,6 +2769,33 @@ spawnKitten = function(pos: Vector3)
 	kitten.model.Parent = kittenFolder
 end
 
+-- Admin replay of the kitten burst, only for that player
+local function previewBurst(player: Player)
+	local root = getRoot(player)
+	if not root or root.Anchored then
+		return
+	end
+	local ahead = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+	local center = root.Position + (if ahead.Magnitude > 0.1 then ahead.Unit else Vector3.new(0, 0, -1)) * 6
+	local spots: { Vector3 } = {}
+	for i = 1, Config.KittenCount do
+		local a = i / Config.KittenCount * math.pi * 2
+		table.insert(spots, Vector3.new(center.X + math.cos(a) * 30, 0, center.Z + math.sin(a) * 30))
+	end
+	player:SetAttribute("Clip", true)
+	root.Anchored = true
+	table.insert(frozen, root)
+	catEvent:FireClient(player, "kittens", player, { from = center, to = spots, viewers = { player.UserId }, preview = true })
+	task.delay(Config.KittenBurst.total, function()
+		player:SetAttribute("Clip", nil)
+		local i = table.find(frozen, root)
+		if i then
+			root.Anchored = false
+			table.remove(frozen, i)
+		end
+	end)
+end
+
 local function startKittens(cat: Cat, ultra: boolean, player: Player)
 	local myRound = round
 	hard = ultra
@@ -3839,6 +3866,11 @@ shopEvent.OnServerEvent:Connect(function(player, action, id)
 	if action == "season" then
 		if player:GetAttribute("Admin") then
 			seasonWorld.switch(id)
+		end
+		return
+	elseif action == "burst" then
+		if player:GetAttribute("Admin") then
+			previewBurst(player)
 		end
 		return
 	end

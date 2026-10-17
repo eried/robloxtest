@@ -30,6 +30,7 @@ AUDIO = [
     ("HalloweenMusicId", "music/PiankaHalloween.mp3", "Find Pianka Halloween music"),
     ("ChristmasMusicId", "music/PiankaChristmas.mp3", "Find Pianka Christmas music"),
     ("SeasonSfxId", "sounds/PiankaSeason.mp3", "Find Pianka season sounds"),
+    ("ExtraSfxId", "sounds/PiankaExtra.mp3", "Find Pianka extra sounds"),
 ]
 
 

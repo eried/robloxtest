@@ -18,6 +18,7 @@ Engine.patch = function(name: string, module: any)
 		end
 		-- No season here, tests/season.spec.luau covers Halloween and Christmas
 		module.Season = "None"
+		module.ExtraSfxId = 99
 	end
 end
 

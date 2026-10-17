@@ -25,7 +25,7 @@ return {
 	KittenTime = 150,
 	KittenHomeMin = 120,
 	-- Pianka pops into kittens: belly grows, pop, slow motion, then they run (seconds)
-	KittenBurst = { pop = 2.2, total = 6.4 },
+	KittenBurst = { pop = 4.4, slow = 2.6, total = 9.4 },
 
 	Dogs = {
 		Practice = {
@@ -129,6 +129,16 @@ return {
 	ChristmasMusicId = 107040817150467,
 	SeasonSfxId = 81307958921304,
 	SeasonSfx = { NiceEn = { 0.3, 2.69 }, NiceNo = { 3.49, 2.588 }, Howl = { 6.577, 5 }, Birthday = { 12.077, 10.96 } },
+	-- Pianka straining and popping, ghosts, sinister laughs, Santa and nisse giggles
+	ExtraSfxId = 0,
+	ExtraSfx = {
+		Strain = { 0.3, 4.427 },
+		Pop = { 5.027, 1.719 },
+		Ghost = { { 7.046, 4.414 }, { 11.76, 4.572 }, { 16.633, 4.141 } },
+		Laugh = { { 21.074, 3.665 }, { 25.039, 2.976 }, { 28.315, 1.961 } },
+		HoHo = { { 30.576, 1.912 }, { 32.788, 2.351 }, { 35.439, 2.104 } },
+		Giggle = { { 37.843, 1.18 }, { 39.323, 1.138 } },
+	},
 
 	-- Upload music/PiankaMystery.mp3 to Roblox and paste its id here
 	MusicId = 139972511482001,

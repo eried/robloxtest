@@ -17,11 +17,11 @@ When you join, a short clip shows Pianka running out of the house at sunset. Eve
 
 The game changes with the date:
 
-- **October, Halloween** 🎃: every bush is a round jack-o'-lantern, some glowing, and Pianka hides inside one of them. Autumn trees, graves, spider webs, a bubbling cauldron, ghosts and bats around you, a purple night, Pianka in a witch hat, a wolf howls in the clip and the music is a spooky waltz.
-- **December, Christmas** 🎄: snow everywhere and snowing, Pianka hides in presents and snow piles, tiny evil nisser replace the rats, Pianka wears a Santa hat. In the clip a voice asks "Have you been nice?", sometimes in Norwegian ("Har du vært snill?"), and the music is a carol with sleigh bells.
+- **October, Halloween** 🎃: every bush is a round jack-o'-lantern, some glowing, and Pianka hides inside one of them. Autumn trees, graves, spider webs, a bubbling cauldron, ghosts and bats around you, ghostly moans and sinister laughs in the dark, a purple night, Pianka in a witch hat, a wolf howls in the clip and the music is a spooky waltz.
+- **December, Christmas** 🎄: snow everywhere and snowing, Pianka hides in presents and snow piles, tiny evil nisser replace the rats and giggle when they are close, Santa laughs "Ho ho ho!" somewhere in the forest, Pianka wears a Santa hat. In the clip a voice asks "Have you been nice?", sometimes in Norwegian ("Har du vært snill?"), and the music is a carol with sleigh bells.
 - **Birthdays** 🎂: Patrick on August 18, Milenkitka on September 6 and Aurelia on September 21. Balloons all over the forest, party hats, confetti and Happy Birthday in the clip.
 
-The game owner sees an **Admin** part at the bottom of the shop to switch the season live for everyone (Halloween, Christmas, a birthday, Auto or None) and to replay the clip. More admins go in `Admins` in `src/shared/Config.luau`. `Season` there sets the start: "auto", "Halloween", "Christmas", "Birthday:Patrick" or "None".
+The game owner sees an **Admin** part at the bottom of the shop to switch the season live for everyone (Halloween, Christmas, a birthday, Auto or None) and to replay the intro or Pianka's pop. More admins go in `Admins` in `src/shared/Config.luau`. `Season` there sets the start: "auto", "Halloween", "Christmas", "Birthday:Patrick" or "None".
 
 ## Modes (same for everyone on a server)
 
@@ -31,7 +31,7 @@ The game owner sees an **Admin** part at the bottom of the shop to switch the se
 
 Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS only shows the area. Up close her hiding place rustles. Wrong spots can hide a frog, a rat or a fish gift. Any bush in the forest can be searched once per round for a fish.
 
-In Normal and Hard, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her. In Normal everyone close by watches her swell up and pop into 7 kittens in slow motion, safe while it plays.
+In Normal and Hard, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her. In Normal everyone close by watches her swell up, jiggle and struggle, then pop into 7 kittens in slow motion, safe while it plays.
 
 Open the **🗺 Map** (M) to plan your way: hedges, guard dog lines, neighbors with lanterns, cabins, home and the area where Pianka is.
 

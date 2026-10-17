@@ -17,6 +17,7 @@ local seasonal = {
 	ratName = if workspace:GetAttribute("Season") == "Christmas" then "Nisse" else "Rat",
 	birthday = workspace:GetAttribute("BirthdayHero") :: string?,
 	sfx = nil :: Sound?,
+	extra = nil :: Sound?,
 	footer = nil :: TextLabel?,
 	rebuild = nil :: (() -> ())?,
 }
@@ -1621,6 +1622,9 @@ do
 	if Config.SeasonSfxId ~= 0 then
 		seasonal.sfx = new("Sound", { SoundId = "rbxassetid://" .. Config.SeasonSfxId, Parent = SoundService })
 	end
+	if Config.ExtraSfxId ~= 0 then
+		seasonal.extra = new("Sound", { SoundId = "rbxassetid://" .. Config.ExtraSfxId, Parent = SoundService })
+	end
 	type Flier = { model: Model, r: number, h: number, w: number, a: number }
 	local snowSky: BasePart? = nil
 	local flock: { Flier } = {}
@@ -1688,6 +1692,44 @@ do
 	end
 	build()
 	seasonal.rebuild = build
+	-- Ghost moans and sinister laughs at Halloween, Santa and giggling nisser at Christmas
+	task.spawn(function()
+		while seasonal.extra do
+			task.wait(math.random(5, 11))
+			local extra = seasonal.extra :: Sound
+			local center = camera.CFrame.Position
+			local sfx = Config.ExtraSfx
+			if seasonal.name == "Halloween" then
+				local g = ghosts[math.random(1, math.max(#ghosts, 1))]
+				local list = if math.random() < 0.5 then sfx.Ghost else sfx.Laugh
+				if g and g.model.PrimaryPart then
+					playClip(g.model.PrimaryPart, list[math.random(1, #list)], 2.2, 0.9 + math.random() * 0.2, 150, extra)
+				end
+			elseif seasonal.name == "Christmas" then
+				local near: BasePart? = nil
+				local rats = workspace:FindFirstChild("Rats")
+				for _, rat in (if rats then rats:GetChildren() else {}) do
+					local body = if rat:IsA("Model") then rat.PrimaryPart else nil
+					if body and (body.Position - center).Magnitude < 45 then
+						near = body
+						break
+					end
+				end
+				if near and math.random() < 0.5 then
+					playClip(near, sfx.Giggle[math.random(1, #sfx.Giggle)], 2, 1 + math.random() * 0.2, 90, extra)
+				else
+					local a = math.random() * math.pi * 2
+					local spot = Instance.new("Attachment")
+					spot.Position = center + Vector3.new(math.cos(a) * 40, 4, math.sin(a) * 40)
+					spot.Parent = workspace.Terrain
+					playClip(spot, sfx.HoHo[math.random(1, #sfx.HoHo)], 2.5, 0.95 + math.random() * 0.1, 160, extra)
+					task.delay(4, function()
+						spot:Destroy()
+					end)
+				end
+			end
+		end
+	end)
 	RunService.RenderStepped:Connect(function(dt: number)
 		local center = camera.CFrame.Position
 		if snowSky then
@@ -1994,6 +2036,7 @@ for _, hero in Config.HeroOrder do
 	end
 end
 table.insert(adminChoices, { "▶ Intro", "intro" })
+table.insert(adminChoices, { "▶ Kittens", "burst" })
 for _, choice in adminChoices do
 	local button = new("TextButton", {
 		BackgroundColor3 = Color3.fromRGB(90, 90, 110),
@@ -2009,6 +2052,9 @@ for _, choice in adminChoices do
 		if choice[2] == "intro" then
 			shop.Visible = false
 			task.spawn(playIntro)
+		elseif choice[2] == "burst" then
+			shop.Visible = false
+			shopEvent:FireServer("burst", "preview")
 		else
 			shopEvent:FireServer("season", choice[2])
 		end
@@ -2339,6 +2385,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 			end
 			local mom: Model? = nil
 			local belly: BasePart? = nil
+			local mood: TextLabel? = nil
 			if watch then
 				local m = template:Clone()
 				shrink(m, 1)
@@ -2359,6 +2406,19 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 					OutlineColor = Color3.new(1, 1, 1),
 					Parent = m,
 				})
+				local face = new("BillboardGui", {
+					Size = UDim2.fromOffset(70, 70),
+					StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0),
+					AlwaysOnTop = true,
+					Parent = m,
+				})
+				mood = new("TextLabel", {
+					Size = UDim2.fromScale(1, 1),
+					BackgroundTransparency = 1,
+					TextScaled = true,
+					Text = "😺",
+					Parent = face,
+				})
 				m.Parent = workspace
 				mom = m
 				table.insert(cover, m)
@@ -2377,8 +2437,16 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 					}))
 				end
 			end
-			playClip(at, Config.Scream, 3, 1, 300, voiceSound)
-			popText(cat .. ": MEEOOOWW!! 😱", Color3.fromRGB(255, 150, 200))
+			-- She strains and struggles, then screams right before the pop
+			local extra = seasonal.extra
+			if extra then
+				playClip(at, Config.ExtraSfx.Strain, 2.5, 1, 200, extra)
+			end
+			popText(cat .. " is struggling! 😣", Color3.fromRGB(255, 150, 200))
+			task.delay(pop - 0.6, function()
+				playClip(at, Config.Scream, 3, 1, 300, voiceSound)
+				popText(cat .. ": MEEOOOWW!! 😱", Color3.fromRGB(255, 150, 200))
+			end)
 			local runners: { { model: Model, to: Vector3, dir: Vector3 } } = {}
 			local burst: ParticleEmitter? = nil
 			local start = os.clock()
@@ -2388,24 +2456,39 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 				local center = from + Vector3.new(0, 1.5, 0)
 				if t < pop then
 					local k = t / pop
+					-- Contractions: she squeezes harder and more often before the pop
+					local c = 0
+					for _, when in { 0.22, 0.45, 0.63, 0.77, 0.87, 0.95 } do
+						c = math.max(c, math.exp(-((k - when) / 0.05) ^ 2))
+					end
 					if mom and belly then
-						local wobble = math.sin(t * (8 + 14 * k)) * 0.18 * k
-						local pivot = CFrame.lookAt(from + Vector3.new(0, 1.4 + math.abs(math.sin(t * 9)) * 0.25 * k, 0), from + look * 5)
-						mom:PivotTo(pivot * CFrame.Angles(0, 0, wobble))
-						local size = 1.2 + 2 * k * k + math.sin(t * 20) * 0.08 * k
+						local wobble = math.sin(t * (10 + 18 * k)) * (0.06 + 0.22 * k) * (0.5 + c)
+						local nod = math.sin(t * 7) * 0.12 * c
+						local hop = math.abs(math.sin(t * 9)) * 0.35 * c
+						local jitter = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * (0.04 + 0.16 * c) * (0.4 + k)
+						local pivot = CFrame.lookAt(from + Vector3.new(0, 1.4 + hop, 0), from + look * 5) + jitter
+						mom:PivotTo(pivot * CFrame.Angles(nod, 0, wobble))
+						local size = 1.2 + 1.8 * k * k + 0.5 * c + math.sin(t * 22) * 0.06 * (k + c)
 						belly.Size = Vector3.one * size
 						belly.CFrame = mom:GetPivot() * CFrame.new(0, -0.2 - size * 0.15, 0.2)
 					end
+					if mood then
+						mood.Text = if k < 0.2 then "😺" elseif k < 0.5 then "😣" elseif k < 0.8 then "😫" else "😱"
+					end
 					if watch then
-						local a = base + t * 0.5
-						local r = 9 - 3 * k
-						camera.CFrame = CFrame.lookAt(center + Vector3.new(math.sin(a) * r, 2.5 + k, math.cos(a) * r), center)
+						local a = base + t * 0.3
+						local r = 10 - 4 * k
+						local shake = Vector3.new(math.random() - 0.5, math.random() - 0.5, 0) * 0.2 * c
+						camera.CFrame = CFrame.lookAt(center + Vector3.new(math.sin(a) * r, 2.5 + k, math.cos(a) * r) + shake, center)
 					end
 				else
 					if not burst then
 						if mom then
 							mom:Destroy()
 							mom = nil
+						end
+						if extra then
+							playClip(at, Config.ExtraSfx.Pop, 3, if watch then 0.75 else 1, 300, extra)
 						end
 						if watch then
 							local white = new("Frame", {
@@ -2442,7 +2525,11 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 						end
 						confetti()
 						chime()
-						showBanner("💥 Pop! " .. Config.KittenCount .. " kittens!\nStack them all on your head! 🐈", 5)
+						if value.preview then
+							showBanner("💥 Pop! " .. Config.KittenCount .. " kittens!", 3)
+						else
+							showBanner("💥 Pop! " .. Config.KittenCount .. " kittens!\nStack them all on your head! 🐈", 5)
+						end
 						for i, pos in value.to do
 							local kitten = template:Clone()
 							shrink(kitten, 0.45)
@@ -2454,7 +2541,7 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 						end
 					end
 					-- Slow motion right after the pop, then normal speed
-					local slow = if watch then 2.4 else 0
+					local slow = if watch then Config.KittenBurst.slow else 0
 					local e = if t < pop + slow then (t - pop) * 0.25 else slow * 0.25 + (t - pop - slow)
 					local fly = 0.6
 					if burst and watch and t >= pop + slow then
@@ -2480,11 +2567,11 @@ catEvent.OnClientEvent:Connect(function(kind: string, who: Player?, value: any, 
 					if watch then
 						if t < pop + slow then
 							local k = (t - pop) / slow
-							local a = base + pop * 0.5 + k * 1.6
+							local a = base + pop * 0.3 + k * 1.6
 							camera.CFrame = CFrame.lookAt(center + Vector3.new(math.sin(a) * 7, 2.6 + k * 2, math.cos(a) * 7), center + Vector3.new(0, 1, 0))
 						else
 							local k = math.min((t - pop - slow) / (total - pop - slow), 1)
-							local a = base + pop * 0.5 + 1.6
+							local a = base + pop * 0.3 + 1.6
 							local r = 7 + 14 * k
 							camera.CFrame = CFrame.lookAt(center + Vector3.new(math.sin(a) * r, 4.6 + 14 * k, math.cos(a) * r), center)
 						end

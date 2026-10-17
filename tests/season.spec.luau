@@ -11,6 +11,7 @@ Engine.patch = function(name: string, module: any)
 	if name == "Config" then
 		module.Season = SEASON
 		module.Admins = { ADMIN }
+		module.ExtraSfxId = 99
 	end
 end
 Engine.startServer()
@@ -118,7 +119,7 @@ check(player:GetAttribute("Admin") == true, "admin flag missing")
 
 -- The admin switches the season from the shop, a normal player can not
 local shopEvent = Engine.game:GetService("ReplicatedStorage"):FindFirstChild("Shop")
-local _, otherCtx = Engine.addPlayer("Kid")
+local kid, otherCtx = Engine.addPlayer("Kid")
 run(2)
 Engine.asClient(otherCtx, function()
 	shopEvent:FireServer("season", NEXT)
@@ -130,6 +131,21 @@ Engine.asClient(ctx, function()
 end)
 run(10)
 inspect(NEXT)
+
+-- The admin replays Pianka's pop: held still and safe while it plays, then free again
+local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+Engine.asClient(otherCtx, function()
+	shopEvent:FireServer("burst", "preview")
+end)
+run(1)
+check(kid:GetAttribute("Clip") == nil, "a normal player replayed the kitten clip")
+Engine.asClient(ctx, function()
+	shopEvent:FireServer("burst", "preview")
+end)
+run(1)
+check(player:GetAttribute("Clip") == true and root ~= nil and root.Anchored, "admin kitten replay did not start")
+run(11)
+check(player:GetAttribute("Clip") == nil and root ~= nil and not root.Anchored, "admin kitten replay did not end")
 
 for _, e in Engine.errors do
 	failures += 1
