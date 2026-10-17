@@ -17,11 +17,11 @@ When you join, a short clip shows Pianka running out of the house at sunset. Eve
 
 The game changes with the date:
 
-- **October, Halloween** 🎃: every bush is a pumpkin, some glowing, and Pianka hides inside one of them. Autumn trees, bats in the sky, a purple night, Pianka in a witch hat, a wolf howls in the clip and the music is a spooky waltz.
+- **October, Halloween** 🎃: every bush is a round jack-o'-lantern, some glowing, and Pianka hides inside one of them. Autumn trees, graves, spider webs, a bubbling cauldron, ghosts and bats around you, a purple night, Pianka in a witch hat, a wolf howls in the clip and the music is a spooky waltz.
 - **December, Christmas** 🎄: snow everywhere and snowing, Pianka hides in presents and snow piles, tiny evil nisser replace the rats, Pianka wears a Santa hat. In the clip a voice asks "Have you been nice?", sometimes in Norwegian ("Har du vært snill?"), and the music is a carol with sleigh bells.
-- **Birthdays** 🎂: on August 18 for Patrick and September 21 for Aurelia there are balloons at camp, party hats, confetti and Happy Birthday in the clip.
+- **Birthdays** 🎂: Patrick on August 18, Milenkitka on September 6 and Aurelia on September 21. Balloons all over the forest, party hats, confetti and Happy Birthday in the clip.
 
-For testing set `Season` in `src/shared/Config.luau` to "Halloween", "Christmas", "Birthday:Patrick" or "None".
+The game owner sees an **Admin** part at the bottom of the shop to switch the season live for everyone (Halloween, Christmas, a birthday, Auto or None) and to replay the clip. More admins go in `Admins` in `src/shared/Config.luau`. `Season` there sets the start: "auto", "Halloween", "Christmas", "Birthday:Patrick" or "None".
 
 ## Modes (same for everyone on a server)
 
@@ -31,7 +31,7 @@ For testing set `Season` in `src/shared/Config.luau` to "Halloween", "Christmas"
 
 Pianka hides in a bush, barrel, log, crate, pile of leaves or basket. The GPS only shows the area. Up close her hiding place rustles. Wrong spots can hide a frog, a rat or a fish gift. Any bush in the forest can be searched once per round for a fish.
 
-In Normal and Hard, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her.
+In Normal and Hard, Pianka jumps on your head when you find her, and every kitten you pick up stacks on top of her. In Normal everyone close by watches her swell up and pop into 7 kittens in slow motion, safe while it plays.
 
 Open the **🗺 Map** (M) to plan your way: hedges, guard dog lines, neighbors with lanterns, cabins, home and the area where Pianka is.
 
@@ -47,13 +47,21 @@ In Hard a pack of dogs follows behind you in a V. They only attack if you get in
 
 Watch out for rats! A bite costs a heart. Jump on them to squash them, or click your lantern to scare them away.
 
-Collect glowing fish and spend them in the **Shop**: colored lanterns, a crown and a kitten that rides on your shoulder.
+Collect glowing fish and spend them in the **Shop** (scroll for more): colored lanterns, hats, a sparkle trail, a crown, a kitten that rides on your shoulder and power ups.
 
 Every round can have a twist: Pianka up a tree, zoomies, a rat party, a full moon or a golden Pianka.
 
-Turning the lantern back on flashes and scares rats. Glowing mushrooms give super speed (blue), super light that scares rats (yellow) or a super jump (pink). Mud puddles slow you down. Neighbors sometimes point the way. Rescue 5, 25 or 100 times to earn ⭐ 🏅 👑 next to your name.
+Turning the lantern back on flashes and scares rats. Glowing mushrooms give a power:
 
-Spooky neighbors live in cabins and talk in Norwegian. At night they come out with lanterns and hunt you. Tap the lantern button (or press F) to turn your light off: it gets really dark and you only see shapes, but neighbors can hardly see you and dogs see you less. If a neighbor catches you, he holds you up and it is game over for you this round. Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
+- ⚡ super speed, 💡 super light that scares rats, 🦘 super jump
+- 🛡️ shield bubble: saves you from one bite or grab
+- 🦘🦘 double jump: jump again in the air
+- 👻 ghost: nothing can touch you for a few seconds
+- ❄️ freeze: dogs and neighbors close by stop for a moment
+
+The new powers can also be bought in the shop. Mud puddles slow you down. Neighbors sometimes point the way. Rescue 5, 25 or 100 times to earn ⭐ 🏅 👑 next to your name.
+
+Spooky neighbors live in cabins and talk in Norwegian. At night they come out with lanterns and hunt you. Tap the lantern button (or press F) to turn your light off: it gets really dark and you only see shapes, but neighbors and rats can not spot you and dogs see you less. If they already saw you, they keep chasing. If a neighbor catches you, he holds you up and it is game over for you this round. Listen for meows. Your rescues are saved and the best show on the camp leaderboard.
 
 Each hero has a look: Patrick wears a red cap, Aurelia has cat ears and a tail, Milenkitka has a hair bun and a yellow scarf. When you carry Pianka home the chase music plays and the screen rushes.
 

@@ -20,6 +20,8 @@ export type Settings = {
 	lungeTime: number,
 	restTime: number,
 	hiddenFactor: number,
+	-- Neighbors look for lantern light: with it off they cannot spot you at all
+	darkHides: boolean?,
 	lines: number?,
 }
 
@@ -30,6 +32,7 @@ export type Runner = {
 	speed: number,
 	safe: boolean,
 	hidden: boolean?,
+	dark: boolean?,
 }
 
 export type Dog = {
@@ -240,9 +243,10 @@ function DogBrain.formation(count: number): { { side: number, back: number } }
 	return slots
 end
 
--- How far a dog sees this runner. Lantern off at night hides you.
+-- How far a dog sees this runner. Lantern off at night hides you, from neighbors always
 local function sight(s: Settings, r: Runner, range: number): number
-	return if r.hidden then range * s.hiddenFactor else range
+	local hidden = if s.darkHides then r.dark else r.hidden
+	return if hidden then range * s.hiddenFactor else range
 end
 
 local function spot(dog: Dog, s: Settings, runners: { Runner }, world: World, now: number): (string?, number?)
@@ -310,7 +314,7 @@ local function stepPatrol(dog: Dog, dt: number, now: number, runners: { Runner }
 		end
 	elseif dog.state == "alert" then
 		local r = findRunner(runners, dog.target)
-		if not r or r.safe or (r.hidden and (flat(r.pos) - dog.pos).Magnitude > sight(s, r, s.coneRange) + 2) then
+		if not r or r.safe then
 			dog.state = "return"
 			dog.untilTime = now + 1
 			return "lost", nil
@@ -326,7 +330,7 @@ local function stepPatrol(dog: Dog, dt: number, now: number, runners: { Runner }
 		end
 	elseif dog.state == "chase" then
 		local r = findRunner(runners, dog.target)
-		if not r or r.safe or now >= dog.untilTime or (r.hidden and (flat(r.pos) - dog.pos).Magnitude > sight(s, r, s.coneRange)) then
+		if not r or r.safe or now >= dog.untilTime then
 			dog.state = "return"
 			dog.untilTime = now + 2
 			return "lost", nil

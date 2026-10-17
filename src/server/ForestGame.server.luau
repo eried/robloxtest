@@ -17,6 +17,14 @@ local today = os.date("!*t") :: any
 local season, birthdayHero = Season.pick(Config.Season, today.month, today.day, Config.Birthdays)
 workspace:SetAttribute("Season", season)
 workspace:SetAttribute("BirthdayHero", birthdayHero)
+-- Leaf colors for the season, and where the bushes stand so they can be rebuilt
+local function leafPalette(): { Color3 }
+	return if season == "Halloween"
+		then { Color3.fromRGB(210, 110, 40), Color3.fromRGB(170, 60, 35), Color3.fromRGB(190, 140, 50) }
+		elseif season == "Christmas" then { Season.SNOW, Color3.fromRGB(225, 235, 240), Color3.fromRGB(235, 240, 245) }
+		else { Color3.fromRGB(60, 120, 50), Color3.fromRGB(75, 140, 60), Color3.fromRGB(50, 105, 45) }
+end
+local bushSpots: { { pos: Vector3, size: number } } = {}
 
 local catEvent = Instance.new("RemoteEvent")
 catEvent.Name = "PiankaEvent"
@@ -122,7 +130,7 @@ do
 	workspace.Terrain:Clear()
 end
 -- A flat ground part with its top exactly at 0, so nothing sinks into terrain or grass
-makePart("Part", {
+local ground = makePart("Part", {
 	Name = "Ground",
 	Size = Vector3.new(Config.ForestSize + 40, 4, Config.ForestSize + 40),
 	Position = Vector3.new(0, -2, 0),
@@ -258,11 +266,6 @@ do
 	glow.Brightness = 1.5
 	glow.Parent = house:FindFirstChild("Floor")
 	house.Parent = camp
-	if season == "Birthday" then
-		for _, spot in { at + Vector3.new(-6, 0, -6.6), at + Vector3.new(-6, 0, 6.6), Vector3.new(6, 0, -10), Vector3.new(6, 0, 10) } do
-			Season.balloons(spot, 5, rng, camp)
-		end
-	end
 	for x = -5, 5, 2.5 do
 		for z = -6, 6, 3 do
 			table.insert(treeSpots, at + Vector3.new(x, 0, z))
@@ -276,10 +279,7 @@ forest.Name = "Forest"
 forest.Parent = workspace
 
 do
-	local leafColors = if season == "Halloween"
-		then { Color3.fromRGB(210, 110, 40), Color3.fromRGB(170, 60, 35), Color3.fromRGB(190, 140, 50) }
-		elseif season == "Christmas" then { Season.SNOW, Color3.fromRGB(225, 235, 240), Color3.fromRGB(235, 240, 245) }
-		else { Color3.fromRGB(60, 120, 50), Color3.fromRGB(75, 140, 60), Color3.fromRGB(50, 105, 45) }
+	local leafColors = leafPalette()
 
 	local function makeTree(pos: Vector3)
 		local tree = Instance.new("Model")
@@ -296,11 +296,12 @@ do
 			Parent = tree,
 		})
 		if rng:NextNumber() < 0.5 then
-			local color = leafColors[rng:NextInteger(1, #leafColors)]
+			local index = rng:NextInteger(1, #leafColors)
+			local color = leafColors[index]
 			for _ = 1, 3 do
 				local size = rng:NextNumber(7, 11)
 				local offset = Vector3.new(rng:NextNumber(-2, 2), height + rng:NextNumber(-1, 2), rng:NextNumber(-2, 2))
-				makePart("Part", {
+				local leaf = makePart("Part", {
 					Name = "Leaves",
 					Shape = Enum.PartType.Ball,
 					Size = Vector3.one * size,
@@ -310,6 +311,7 @@ do
 					CanCollide = false,
 					Parent = tree,
 				})
+				leaf:SetAttribute("Leaf", index)
 			end
 		else
 			local size = rng:NextNumber(9, 12)
@@ -324,17 +326,6 @@ do
 					CanCollide = false,
 					Parent = tree,
 				})
-				if season == "Christmas" then
-					makePart("Part", {
-						Name = "Snow",
-						Size = Vector3.new(size * 0.8, 0.5, size * 0.8),
-						CFrame = CFrame.new(pos + Vector3.new(0, y + 1.6, 0)) * CFrame.Angles(0, math.rad(45 * i), 0),
-						Color = Season.SNOW,
-						Material = Enum.Material.Snow,
-						CanCollide = false,
-						Parent = tree,
-					})
-				end
 				size *= 0.72
 				y += 2.8
 			end
@@ -358,23 +349,7 @@ do
 	for _ = 1, Config.BushCount do
 		local pos = randomSpot(5)
 		if pos.Magnitude > Config.SpawnClearRadius and isFree(pos, 0) then
-			local size = rng:NextNumber(3, 6)
-			if season == "Halloween" then
-				Season.pumpkin(pos, size * 0.8, rng:NextNumber() < 0.12, rng, forest)
-			elseif season == "Christmas" then
-				Season.snowPile(pos, size, forest)
-			else
-				makePart("Part", {
-					Name = "Bush",
-					Shape = Enum.PartType.Ball,
-					Size = Vector3.one * size,
-					Position = pos + Vector3.new(0, size * 0.3, 0),
-					Color = leafColors[rng:NextInteger(1, #leafColors)],
-					Material = Enum.Material.Grass,
-					CanCollide = false,
-					Parent = forest,
-				})
-			end
+			table.insert(bushSpots, { pos = pos, size = rng:NextNumber(3, 6) })
 		end
 	end
 end
@@ -1058,8 +1033,12 @@ local function wagTail(tail: BasePart): Tween
 	return tween
 end
 
--- A copy of Pianka for the intro clip
-do
+-- A copy of Pianka for the clips, rebuilt when the season changes her hat
+local function makeTemplate()
+	local old = ReplicatedStorage:FindFirstChild("CatTemplate")
+	if old then
+		old:Destroy()
+	end
 	local template = makeCat(CFrame.new(0, 0, 0), 1)
 	template.model.Name = "CatTemplate"
 	local tag = template.tagText.Parent :: BillboardGui
@@ -1068,6 +1047,7 @@ do
 	template.model.PrimaryPart = template.body
 	template.model.Parent = ReplicatedStorage
 end
+makeTemplate()
 
 local function spawnWildCat(pos: Vector3): (Cat, ProximityPrompt)
 	local cat = makeCat(CFrame.new(pos) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0), 1)
@@ -1227,6 +1207,9 @@ local function clearHard()
 		root.Anchored = false
 	end
 	table.clear(frozen)
+	for _, player in Players:GetPlayers() do
+		player:SetAttribute("Clip", nil)
+	end
 	removeCat(ride.cat)
 	ride.player, ride.cat = nil, nil
 end
@@ -1330,6 +1313,7 @@ local function maxHearts(player: Player): number
 end
 
 local function resetHearts(player: Player)
+	player:SetAttribute("DoubleJump", nil)
 	player:SetAttribute("MaxHearts", maxHearts(player))
 	player:SetAttribute("Hearts", maxHearts(player))
 	if player:GetAttribute("Hero") == "Oskar" then
@@ -1585,6 +1569,8 @@ type Rat = {
 	fleeFrom: Vector3,
 	deadUntil: number,
 	speed: number,
+	-- Who this rat is after. Rats only start on players with their light on
+	prey: Player?,
 }
 local rats: { Rat } = {}
 local ratFolder = Instance.new("Folder")
@@ -1797,8 +1783,57 @@ local function spawnRats(catPos: Vector3)
 end
 
 local loseHeart: (Player, boolean?) -> ()
+
+-- Shield bubble: takes one hit for you, then pops
+local function useShield(player: Player): boolean
+	if not player:GetAttribute("Shield") then
+		return false
+	end
+	player:SetAttribute("Shield", nil)
+	local character = player.Character
+	local bubble = character and character:FindFirstChild("ShieldBubble")
+	if bubble then
+		bubble:Destroy()
+	end
+	player:SetAttribute("GhostUntil", math.max((player:GetAttribute("GhostUntil") :: number?) or 0, os.clock() + 1.5))
+	catEvent:FireAllClients("shieldPop", player)
+	return true
+end
+
+local function showShield(player: Player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root or not player:GetAttribute("Shield") or (character :: Model):FindFirstChild("ShieldBubble") then
+		return
+	end
+	local bubble = makePart("Part", {
+		Name = "ShieldBubble",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one * 7.5,
+		CFrame = root.CFrame,
+		Color = Color3.fromRGB(120, 210, 255),
+		Material = Enum.Material.ForceField,
+		Transparency = 0.2,
+		Anchored = false,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Massless = true,
+		CastShadow = false,
+		Parent = character,
+	})
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = bubble
+	weld.Parent = bubble
+end
+
 local function biteBy(rat: Rat, player: Player)
 	local now = os.clock()
+	if useShield(player) then
+		rat.cooldown = now + 3
+		return
+	end
 	rat.cooldown = now + 3
 	if now - (lastBitten[player] or 0) < 2.5 then
 		return
@@ -1956,7 +1991,58 @@ local POWERS = {
 	{ kind = "speed", color = Color3.fromRGB(90, 170, 255), attribute = "BoostUntil", time = 6 },
 	{ kind = "bright", color = Color3.fromRGB(255, 220, 70), attribute = "GlowUntil", time = 10 },
 	{ kind = "jump", color = Color3.fromRGB(255, 120, 200), attribute = "JumpUntil", time = 8 },
+	{ kind = "shield", color = Color3.fromRGB(120, 230, 255), attribute = "", time = 0 },
+	{ kind = "double", color = Color3.fromRGB(120, 255, 140), attribute = "", time = 30 },
+	{ kind = "ghost", color = Color3.fromRGB(235, 235, 255), attribute = "GhostUntil", time = 12 },
+	{ kind = "freeze", color = Color3.fromRGB(150, 200, 255), attribute = "", time = 8 },
 }
+
+-- Shield, double jump, ghost and freeze, from a mushroom or the shop
+local function grantPower(player: Player, kind: string, time: number)
+	local character = player.Character
+	if kind == "shield" then
+		player:SetAttribute("Shield", true)
+		showShield(player)
+	elseif kind == "double" then
+		player:SetAttribute("DoubleJump", workspace:GetServerTimeNow() + time)
+	elseif kind == "ghost" then
+		player:SetAttribute("GhostUntil", os.clock() + time)
+		if character then
+			local old = character:FindFirstChild("GhostGlow")
+			if old then
+				old:Destroy()
+			end
+			local glow = Instance.new("Highlight")
+			glow.Name = "GhostGlow"
+			glow.FillColor = Color3.fromRGB(235, 235, 255)
+			glow.FillTransparency = 0.35
+			glow.OutlineTransparency = 0.2
+			glow.Parent = character
+			task.delay(time, function()
+				glow:Destroy()
+			end)
+		end
+	elseif kind == "freeze" then
+		local root = getRoot(player)
+		if root then
+			local frozenModels: { Instance } = {}
+			local now = os.clock()
+			for _, dog in liveDogs do
+				if (dog.brain.pos - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude < 45 then
+					DogBrain.distract(dog.brain, dog.brain.pos, now, time)
+					table.insert(frozenModels, dog.model)
+				end
+			end
+			for _, n in neighbors do
+				if n.brain and (n.brain.pos - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude < 45 then
+					DogBrain.distract(n.brain, n.brain.pos, now, time)
+					table.insert(frozenModels, n.model)
+				end
+			end
+			catEvent:FireAllClients("freeze", player, frozenModels, time)
+		end
+	end
+end
 
 local function spawnMushrooms()
 	mushroomFolder:ClearAllChildren()
@@ -2011,9 +2097,13 @@ local function spawnMushrooms()
 			end
 			taken = true
 			model.Parent = nil
-			player:SetAttribute(power.attribute, os.clock() + power.time)
-			applyHero(player)
-			task.delay(power.time + 0.1, applyHero, player)
+			if power.attribute ~= "" and power.kind ~= "ghost" then
+				player:SetAttribute(power.attribute, os.clock() + power.time)
+				applyHero(player)
+				task.delay(power.time + 0.1, applyHero, player)
+			else
+				grantPower(player, power.kind, power.time)
+			end
 			catEvent:FireClient(player, "power", nil, power.kind)
 			task.delay(45, function()
 				if round == myRound then
@@ -2687,6 +2777,48 @@ local function startKittens(cat: Cat, ultra: boolean, player: Player)
 	wildCat = nil
 	workspace:SetAttribute("CatPosition", nil)
 
+	-- Players close by watch her pop in slow motion, held still and safe while it plays
+	local flatCenter = Vector3.new(center.X, 0, center.Z)
+	local viewers: { Player } = {}
+	local ids: { number } = {}
+	for _, other in Players:GetPlayers() do
+		local root = getRoot(other)
+		if root and not root.Anchored and (Vector3.new(root.Position.X, 0, root.Position.Z) - flatCenter).Magnitude < 70 then
+			other:SetAttribute("Clip", true)
+			root.Anchored = true
+			table.insert(frozen, root)
+			table.insert(viewers, other)
+			table.insert(ids, other.UserId)
+		end
+	end
+	local taken: { Vector3 } = {}
+	for _ = 1, Config.KittenCount do
+		table.insert(taken, kittenSpot(flatCenter, taken))
+	end
+	kittensLeft = Config.KittenCount
+	workspace:SetAttribute("KittensLeft", kittensLeft)
+	catEvent:FireAllClients("kittens", player, { from = center, to = taken, viewers = ids })
+	task.wait(Config.KittenBurst.pop)
+	local boom = Instance.new("Explosion")
+	boom.Position = center
+	boom.BlastPressure = 0
+	boom.DestroyJointRadiusPercent = 0
+	boom.ExplosionType = Enum.ExplosionType.NoCraters
+	boom.Parent = workspace
+	task.wait(Config.KittenBurst.total - Config.KittenBurst.pop)
+	for _, other in viewers do
+		other:SetAttribute("Clip", nil)
+		local root = getRoot(other)
+		local i = root and table.find(frozen, root)
+		if root and i then
+			root.Anchored = false
+			table.remove(frozen, i)
+		end
+	end
+	if round ~= myRound or kittensLeft == 0 then
+		return
+	end
+	-- Pianka jumps on the finder's head, the kittens are out there now
 	local character = player.Character
 	local mom = character and carryCat(character, 0.6, 0)
 	if mom then
@@ -2696,26 +2828,6 @@ local function startKittens(cat: Cat, ultra: boolean, player: Player)
 			mom.collar.Color = GOLD
 		end
 		ride.player, ride.cat = player, mom
-	end
-
-	-- She screams, pops into confetti and her kittens run off
-	local taken: { Vector3 } = {}
-	for _ = 1, Config.KittenCount do
-		table.insert(taken, kittenSpot(Vector3.new(center.X, 0, center.Z), taken))
-	end
-	kittensLeft = Config.KittenCount
-	workspace:SetAttribute("KittensLeft", kittensLeft)
-	catEvent:FireAllClients("kittens", player, { from = center, to = taken })
-	task.wait(Config.KittenBurst[1])
-	local boom = Instance.new("Explosion")
-	boom.Position = center
-	boom.BlastPressure = 0
-	boom.DestroyJointRadiusPercent = 0
-	boom.ExplosionType = Enum.ExplosionType.NoCraters
-	boom.Parent = workspace
-	task.wait(Config.KittenBurst[2])
-	if round ~= myRound or kittensLeft == 0 then
-		return
 	end
 	for _, pos in taken do
 		spawnKitten(pos)
@@ -3096,9 +3208,34 @@ hideInBushes = function(catPos: Vector3)
 	end
 end
 
--- Every bush in the forest can be searched once per round
-for _, bush in forest:GetChildren() do
-	if bush.Name == "Bush" and bush:IsA("BasePart") then
+-- The season's world: bushes (any can be searched once per round), tree snow, decorations
+local seasonWorld = {}
+
+function seasonWorld.bushes()
+	for _, child in forest:GetChildren() do
+		if child.Name == "Bush" then
+			child:Destroy()
+		end
+	end
+	local leaves = leafPalette()
+	for i, spot in bushSpots do
+		local bush: BasePart
+		if season == "Halloween" then
+			bush = Season.pumpkin(spot.pos, spot.size * 0.75, i % 8 == 0, rng, forest)
+		elseif season == "Christmas" then
+			bush = Season.snowPile(spot.pos, spot.size, forest)
+		else
+			bush = makePart("Part", {
+				Name = "Bush",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * spot.size,
+				Position = spot.pos + Vector3.new(0, spot.size * 0.3, 0),
+				Color = leaves[i % #leaves + 1],
+				Material = Enum.Material.Grass,
+				CanCollide = false,
+				Parent = forest,
+			})
+		end
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.ActionText = "Search"
 		prompt.ObjectText = (bush:GetAttribute("Look") :: string?) or "Bush"
@@ -3122,6 +3259,142 @@ for _, bush in forest:GetChildren() do
 			catEvent:FireClient(player, "bush", player, found, bush)
 		end)
 	end
+end
+
+function seasonWorld.trees()
+	local leaves = leafPalette()
+	for _, tree in forest:GetChildren() do
+		if tree.Name ~= "Tree" then
+			continue
+		end
+		for _, p in tree:GetChildren() do
+			if p.Name == "Snow" then
+				p:Destroy()
+			elseif p.Name == "Leaves" and p:IsA("BasePart") then
+				p.Color = leaves[(p:GetAttribute("Leaf") :: number?) or 1]
+				p.Material = if season == "Christmas" then Enum.Material.Snow else Enum.Material.Grass
+			elseif p.Name == "Needles" and p:IsA("BasePart") and season == "Christmas" then
+				makePart("Part", {
+					Name = "Snow",
+					Size = Vector3.new(p.Size.X * 0.8, 0.5, p.Size.Z * 0.8),
+					CFrame = p.CFrame * CFrame.new(0, 1.6, 0),
+					Color = Season.SNOW,
+					Material = Enum.Material.Snow,
+					CanCollide = false,
+					Parent = tree,
+				})
+			end
+		end
+	end
+	ground.Color = if season == "Christmas" then Season.SNOW else Color3.fromRGB(80, 130, 55)
+	ground.Material = if season == "Christmas" then Enum.Material.Snow else Enum.Material.Grass
+end
+
+-- Graves, webs, a cauldron and glowing pumpkins for Halloween, a tree for Christmas, balloons for a birthday
+function seasonWorld.decor()
+	local old = workspace:FindFirstChild("SeasonDecor")
+	if old then
+		old:Destroy()
+	end
+	local decor = Instance.new("Folder")
+	decor.Name = "SeasonDecor"
+	local function spot(): Vector3?
+		for _ = 1, 30 do
+			local pos = randomSpot(12)
+			if (pos - home).Magnitude > 30 and isFree(pos, 3) then
+				return pos
+			end
+		end
+		return nil
+	end
+	if season == "Halloween" then
+		for _ = 1, 40 do
+			local pos = spot()
+			if pos then
+				Season.grave(pos, rng, decor)
+			end
+		end
+		for row = 0, 1 do
+			for col = 0, 2 do
+				Season.grave(Vector3.new(-12 - col * 3.5, 0, -16 - row * 4), rng, decor)
+			end
+		end
+		Season.cauldron(Vector3.new(9, 0, -9), decor)
+		for _, at in { Vector3.new(16.6, 0, -2.8), Vector3.new(16.6, 0, 2.8), Vector3.new(15.2, 0, -4.4) } do
+			Season.pumpkin(at, 1.8, true, rng, decor).Name = "Decor"
+		end
+		local webs = 0
+		for _, tree in forest:GetChildren() do
+			local trunk = tree:FindFirstChild("Trunk") :: BasePart?
+			if trunk and webs < 30 and rng:NextNumber() < 0.08 then
+				webs += 1
+				local a = rng:NextNumber(0, math.pi * 2)
+				local out = Vector3.new(math.cos(a), 0, math.sin(a))
+				local at = Vector3.new(trunk.Position.X, 4.5, trunk.Position.Z) + out * (trunk.Size.Y / 2 + 1.4)
+				Season.web(CFrame.lookAt(at, at + out), 1.5, decor)
+			end
+		end
+	elseif season == "Christmas" then
+		local treeAt = Vector3.new(9, 0, -9)
+		for i, size in { 6, 4.6, 3.2, 1.8 } do
+			makePart("Part", {
+				Name = "Decor",
+				Size = Vector3.new(size, 2, size),
+				CFrame = CFrame.new(treeAt + Vector3.new(0, i * 1.7, 0)) * CFrame.Angles(0, math.rad(i * 25), 0),
+				Color = Color3.fromRGB(35, 110, 55),
+				CanCollide = false,
+				Parent = decor,
+			})
+		end
+		local colors = { Color3.fromRGB(255, 60, 60), Color3.fromRGB(255, 210, 60), Color3.fromRGB(80, 140, 255), Color3.fromRGB(255, 255, 255) }
+		for i = 1, 24 do
+			local a = i * 2.4
+			local y = 1.5 + (i % 6) * 1.2
+			local r = 3 - y * 0.32
+			makePart("Part", {
+				Name = "Decor",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.one * 0.45,
+				Position = treeAt + Vector3.new(math.cos(a) * r, y + 1, math.sin(a) * r),
+				Color = colors[i % #colors + 1],
+				Material = Enum.Material.Neon,
+				CanCollide = false,
+				Parent = decor,
+			})
+		end
+		makePart("Part", { Name = "Decor", Size = Vector3.one * 0.9, Position = treeAt + Vector3.new(0, 8.6, 0), Color = Color3.fromRGB(255, 220, 80), Material = Enum.Material.Neon, CanCollide = false, Parent = decor })
+	elseif season == "Birthday" then
+		for _, at in { home + Vector3.new(-6, 0, -6.6), home + Vector3.new(-6, 0, 6.6), Vector3.new(6, 0, -10), Vector3.new(6, 0, 10) } do
+			Season.balloons(at, 6, rng, decor)
+		end
+		for _ = 1, 45 do
+			local pos = spot()
+			if pos then
+				Season.balloons(pos, rng:NextInteger(3, 5), rng, decor)
+			end
+		end
+	end
+	decor.Parent = workspace
+end
+
+seasonWorld.bushes()
+seasonWorld.trees()
+seasonWorld.decor()
+
+-- Admins can switch the season live to test it: "auto", "None", "Halloween", "Christmas", "Birthday:Patrick"
+function seasonWorld.switch(setting: string)
+	local now = os.date("!*t") :: any
+	season, birthdayHero = Season.pick(setting, now.month, now.day, Config.Birthdays)
+	workspace:SetAttribute("Season", season)
+	workspace:SetAttribute("BirthdayHero", birthdayHero)
+	seasonWorld.bushes()
+	seasonWorld.trees()
+	seasonWorld.decor()
+	makeTemplate()
+	for _, player in Players:GetPlayers() do
+		task.spawn(dressHero, player)
+	end
+	newRound()
 end
 
 dropCat = function(player: Player, by: string?)
@@ -3173,6 +3446,9 @@ end
 -- A dog or a neighbor caught a player
 local lastCaught: { [Player]: number } = {}
 local function caughtBy(player: Player, from: Vector3, by: string)
+	if useShield(player) then
+		return
+	end
 	local stack = stacks[player]
 	if workspace:GetAttribute("Escape") and stack and #stack > 0 then
 		failHard(player)
@@ -3233,6 +3509,8 @@ local function savePlayer(player: Player)
 			lantern = player:GetAttribute("Lantern"),
 			crown = player:GetAttribute("Crown") == true,
 			pet = player:GetAttribute("Pet") == true,
+			hat = player:GetAttribute("Hat"),
+			trail = player:GetAttribute("Trail") == true,
 		}
 		pcall(function()
 			saves:SetAsync(key, data)
@@ -3391,6 +3669,88 @@ applyCosmetics = function(player: Player)
 		crown.Parent = character
 	end
 
+	-- Shop hats sit on the head, the trail sparkles behind you
+	local oldHat = character and character:FindFirstChild("ShopHat")
+	if oldHat then
+		oldHat:Destroy()
+	end
+	local hatId = player:GetAttribute("Hat")
+	if character and head and type(hatId) == "string" then
+		local hat = Instance.new("Model")
+		hat.Name = "ShopHat"
+		local top = head.CFrame * CFrame.new(0, head.Size.Y / 2, 0)
+		local pieces: { { size: Vector3, at: CFrame, color: Color3, shape: Enum.PartType? } } = if hatId == "HatTop"
+			then {
+				{ size = Vector3.new(1.7, 0.12, 1.7), at = CFrame.new(0, 0.06, 0), color = Color3.fromRGB(30, 30, 35), shape = Enum.PartType.Cylinder },
+				{ size = Vector3.new(1.1, 1.2, 1.1), at = CFrame.new(0, 0.7, 0), color = Color3.fromRGB(30, 30, 35), shape = Enum.PartType.Cylinder },
+				{ size = Vector3.new(1.12, 0.2, 1.12), at = CFrame.new(0, 0.25, 0), color = Color3.fromRGB(190, 40, 50), shape = Enum.PartType.Cylinder },
+			}
+			elseif hatId == "HatWitch" then {
+				{ size = Vector3.new(1.9, 0.1, 1.9), at = CFrame.new(0, 0.05, 0), color = Color3.fromRGB(60, 25, 80), shape = Enum.PartType.Cylinder },
+				{ size = Vector3.new(1.1, 0.6, 1.1), at = CFrame.new(0, 0.4, 0), color = Color3.fromRGB(60, 25, 80), shape = nil },
+				{ size = Vector3.new(0.7, 0.6, 0.7), at = CFrame.new(0, 0.95, 0.1), color = Color3.fromRGB(60, 25, 80), shape = nil },
+				{ size = Vector3.new(0.35, 0.6, 0.35), at = CFrame.new(0, 1.45, 0.25), color = Color3.fromRGB(60, 25, 80), shape = nil },
+			}
+			elseif hatId == "HatPirate" then {
+				{ size = Vector3.new(1.9, 0.5, 0.9), at = CFrame.new(0, 0.3, 0), color = Color3.fromRGB(40, 30, 25), shape = nil },
+				{ size = Vector3.new(1.3, 0.55, 0.8), at = CFrame.new(0, 0.6, 0), color = Color3.fromRGB(40, 30, 25), shape = nil },
+				{ size = Vector3.new(0.3, 0.3, 0.05), at = CFrame.new(0, 0.55, -0.43), color = Color3.fromRGB(240, 240, 240), shape = nil },
+			}
+			else {
+				{ size = Vector3.new(0.95, 0.45, 0.95), at = CFrame.new(0, 0.25, 0), color = Color3.fromRGB(80, 160, 255), shape = nil },
+				{ size = Vector3.new(0.7, 0.45, 0.7), at = CFrame.new(0, 0.65, 0), color = Color3.fromRGB(255, 210, 60), shape = nil },
+				{ size = Vector3.new(0.45, 0.45, 0.45), at = CFrame.new(0, 1.05, 0), color = Color3.fromRGB(255, 90, 160), shape = nil },
+				{ size = Vector3.one * 0.35, at = CFrame.new(0, 1.4, 0), color = Color3.new(1, 1, 1), shape = Enum.PartType.Ball },
+			}
+		for _, piece in pieces do
+			local shape = piece.shape
+			local part = makePart("Part", {
+				Name = "Hat",
+				Size = if shape == Enum.PartType.Cylinder then Vector3.new(piece.size.Y, piece.size.X, piece.size.Z) else piece.size,
+				CFrame = top * piece.at * (if shape == Enum.PartType.Cylinder then CFrame.Angles(0, 0, math.rad(90)) else CFrame.identity),
+				Shape = shape or Enum.PartType.Block,
+				Color = piece.color,
+				Anchored = false,
+				CanCollide = false,
+				CanQuery = false,
+				CanTouch = false,
+				Massless = true,
+				Parent = hat,
+			})
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = head
+			weld.Part1 = part
+			weld.Parent = part
+		end
+		hat.Parent = character
+	end
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	for _, name in { "Sparkle", "TrailA", "TrailB" } do
+		local old = root and root:FindFirstChild(name)
+		if old then
+			old:Destroy()
+		end
+	end
+	if root and player:GetAttribute("Trail") then
+		local a0 = Instance.new("Attachment")
+		a0.Name = "TrailA"
+		a0.Position = Vector3.new(0, 0.8, 0)
+		a0.Parent = root
+		local a1 = Instance.new("Attachment")
+		a1.Name = "TrailB"
+		a1.Position = Vector3.new(0, -1.2, 0)
+		a1.Parent = root
+		local trail = Instance.new("Trail")
+		trail.Name = "Sparkle"
+		trail.Attachment0 = a0
+		trail.Attachment1 = a1
+		trail.Lifetime = 0.8
+		trail.LightEmission = 0.8
+		trail.Color = ColorSequence.new(Color3.fromRGB(255, 230, 120), Color3.fromRGB(255, 120, 220))
+		trail.Transparency = NumberSequence.new(0.2, 1)
+		trail.Parent = root
+	end
+
 	-- The pet kitten rides on your shoulder
 	local oldPet = character and character:FindFirstChild("Pet")
 	if oldPet then
@@ -3476,6 +3836,12 @@ shopEvent.OnServerEvent:Connect(function(player, action, id)
 		return
 	end
 	lastShop[player] = now
+	if action == "season" then
+		if player:GetAttribute("Admin") then
+			seasonWorld.switch(id)
+		end
+		return
+	end
 	local item = nil
 	for _, entry in Config.Shop do
 		if entry.id == id then
@@ -3483,6 +3849,18 @@ shopEvent.OnServerEvent:Connect(function(player, action, id)
 		end
 	end
 	if not item then
+		return
+	end
+	if item.kind == "power" then
+		local stats = player:FindFirstChild("leaderstats")
+		local fish = stats and stats:FindFirstChild("Fish") :: IntValue?
+		if not fish or fish.Value < item.price or player:GetAttribute("Out") then
+			catEvent:FireClient(player, "poor")
+			return
+		end
+		fish.Value -= item.price
+		grantPower(player, item.power, item.time)
+		catEvent:FireClient(player, "power", nil, item.power)
 		return
 	end
 	local owned = ownedList(player)
@@ -3508,6 +3886,10 @@ shopEvent.OnServerEvent:Connect(function(player, action, id)
 			player:SetAttribute("Crown", not player:GetAttribute("Crown"))
 		elseif item.kind == "pet" then
 			player:SetAttribute("Pet", not player:GetAttribute("Pet"))
+		elseif item.kind == "hat" then
+			player:SetAttribute("Hat", if player:GetAttribute("Hat") == id then nil else id)
+		elseif item.kind == "trail" then
+			player:SetAttribute("Trail", not player:GetAttribute("Trail"))
 		end
 		applyHero(player)
 		applyCosmetics(player)
@@ -3548,6 +3930,10 @@ local function addPlayer(player: Player)
 				end
 				player:SetAttribute("Crown", data.crown == true)
 				player:SetAttribute("Pet", data.pet == true)
+				if type(data.hat) == "string" then
+					player:SetAttribute("Hat", data.hat)
+				end
+				player:SetAttribute("Trail", data.trail == true)
 				applyHero(player)
 				applyCosmetics(player)
 			end
@@ -3560,8 +3946,11 @@ local function addPlayer(player: Player)
 	player:GetAttributeChangedSignal("Hero"):Connect(function()
 		dressHero(player)
 	end)
+	local creator = game.CreatorType == Enum.CreatorType.User and game.CreatorId ~= 0 and player.UserId == game.CreatorId
+	player:SetAttribute("Admin", creator or table.find(Config.Admins, player.UserId) ~= nil or nil)
 	player.CharacterAdded:Connect(function(character)
 		giveLantern(player, character)
+		task.delay(0.5, showShield, player)
 		if player:GetAttribute("Out") then
 			task.defer(setGhost, player)
 		end
@@ -3879,11 +4268,15 @@ do
 					break
 				end
 				local safe = (t.pos - homeFlat).Magnitude < Config.RatSafeRadius
+					or ((t.player:GetAttribute("GhostUntil") :: number?) or 0) > now
+					or t.player:GetAttribute("Clip") == true
+				local unseen = t.player:GetAttribute("LightOff") == true and rat.prey ~= t.player
 				local inLeash = (t.pos - rat.nest).Magnitude < Config.RatLeash
-				if distance < targetDistance and inLeash and not safe and t.root.Position.Y < 5.5 then
+				if distance < targetDistance and inLeash and not safe and not unseen and t.root.Position.Y < 5.5 then
 					target, targetDistance = t, distance
 				end
 			end
+			rat.prey = if target then target.player else nil
 			if squashed or nearest > 120 then
 				continue
 			end
@@ -4015,8 +4408,11 @@ do
 					pos = pos,
 					heading = heading,
 					speed = humanoid.WalkSpeed * calm,
-					safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7 or player:GetAttribute("Held") == true or workspace:GetAttribute("Clip") == true,
+					safe = (pos - homeFlat).Magnitude < Config.RatSafeRadius or root.Position.Y > 7 or player:GetAttribute("Held") == true
+						or workspace:GetAttribute("Clip") == true or player:GetAttribute("Clip") == true
+						or ((player:GetAttribute("GhostUntil") :: number?) or 0) > os.clock(),
 					hidden = night and player:GetAttribute("LightOff") == true,
+					dark = player:GetAttribute("LightOff") == true,
 				})
 				byId[player.UserId] = player
 			end
@@ -4157,6 +4553,9 @@ do
 
 	local function grabbedBy(n: Neighbor, player: Player)
 		if player:GetAttribute("Held") or player:GetAttribute("Out") or n.holding then
+			return
+		end
+		if useShield(player) then
 			return
 		end
 		local root = getRoot(player)

@@ -24,7 +24,8 @@ return {
 	KittenCount = 7,
 	KittenTime = 150,
 	KittenHomeMin = 120,
-	KittenBurst = { 0.9, 3 },
+	-- Pianka pops into kittens: belly grows, pop, slow motion, then they run (seconds)
+	KittenBurst = { pop = 2.2, total = 6.4 },
 
 	Dogs = {
 		Practice = {
@@ -48,9 +49,9 @@ return {
 	},
 
 	Hunters = {
-		Practice = { patrolSpeed = 5, coneAngle = 28, coneRange = 18, alertDelay = 1, chaseFactor = 1.05, chaseTime = 2.5, catch = 3, hiddenFactor = 0.3 },
-		Normal = { patrolSpeed = 5, coneAngle = 30, coneRange = 22, alertDelay = 0.8, chaseFactor = 1.1, chaseTime = 3, catch = 3, hiddenFactor = 0.3 },
-		Hard = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3, hiddenFactor = 0.3 },
+		Practice = { patrolSpeed = 5, coneAngle = 28, coneRange = 18, alertDelay = 1, chaseFactor = 1.05, chaseTime = 2.5, catch = 3, hiddenFactor = 0, darkHides = true },
+		Normal = { patrolSpeed = 5, coneAngle = 30, coneRange = 22, alertDelay = 0.8, chaseFactor = 1.1, chaseTime = 3, catch = 3, hiddenFactor = 0, darkHides = true },
+		Hard = { patrolSpeed = 6, coneAngle = 32, coneRange = 24, alertDelay = 0.7, chaseFactor = 1.15, chaseTime = 3.5, catch = 3, hiddenFactor = 0, darkHides = true },
 	},
 	HuntByDay = { Hard = true },
 	Seekers = { Practice = 1, Normal = 0, Hard = 1 },
@@ -82,7 +83,7 @@ return {
 	RatSafeRadius = 40,
 
 	FishCount = 45,
-	MushroomCount = { Practice = 8, Normal = 6, Hard = 4 },
+	MushroomCount = { Practice = 10, Normal = 8, Hard = 7 },
 	MudCount = { Practice = 8, Normal = 14, Hard = 20 },
 	TeamBonus = 3,
 	FishRespawn = 45,
@@ -94,7 +95,19 @@ return {
 		{ id = "LanternRainbow", name = "Rainbow lantern", price = 150, kind = "lantern", color = Color3.fromRGB(255, 255, 255) },
 		{ id = "Crown", name = "Crown", price = 200, kind = "crown", color = Color3.fromRGB(255, 210, 60) },
 		{ id = "Pet", name = "Kitten pet", price = 300, kind = "pet", color = Color3.fromRGB(34, 34, 40) },
+		{ id = "HatParty", name = "Party hat", price = 40, kind = "hat", color = Color3.fromRGB(255, 90, 160) },
+		{ id = "HatTop", name = "Top hat", price = 60, kind = "hat", color = Color3.fromRGB(30, 30, 35) },
+		{ id = "HatWitch", name = "Witch hat", price = 70, kind = "hat", color = Color3.fromRGB(110, 50, 140) },
+		{ id = "HatPirate", name = "Pirate hat", price = 80, kind = "hat", color = Color3.fromRGB(60, 40, 30) },
+		{ id = "TrailSparkle", name = "Sparkle trail", price = 120, kind = "trail", color = Color3.fromRGB(255, 230, 120) },
+		-- Power ups work right away, buy them again for the next one
+		{ id = "PowerShield", name = "🛡️ Shield bubble", price = 20, kind = "power", power = "shield", time = 0, color = Color3.fromRGB(120, 230, 255) },
+		{ id = "PowerDouble", name = "🦘 Double jump", price = 25, kind = "power", power = "double", time = 600, color = Color3.fromRGB(120, 255, 140) },
+		{ id = "PowerGhost", name = "👻 Ghost 15 s", price = 30, kind = "power", power = "ghost", time = 15, color = Color3.fromRGB(235, 235, 255) },
+		{ id = "PowerFreeze", name = "❄️ Freeze dogs", price = 30, kind = "power", power = "freeze", time = 8, color = Color3.fromRGB(150, 200, 255) },
 	},
+	-- Players who can switch the season from the shop to test it (the game owner always can)
+	Admins = {},
 
 	NeighborCount = 9,
 	NeighborSpeed = 3,
@@ -111,7 +124,7 @@ return {
 	-- Seasons: "auto" is a hero's birthday, Halloween in October, Christmas in December.
 	-- Or "Halloween", "Christmas", "Birthday:Patrick", "None"
 	Season = "auto",
-	Birthdays = { Patrick = { 8, 18 }, Aurelia = { 9, 21 } },
+	Birthdays = { Patrick = { 8, 18 }, Aurelia = { 9, 21 }, Milenkitka = { 9, 6 } },
 	HalloweenMusicId = 94126609707368,
 	ChristmasMusicId = 107040817150467,
 	SeasonSfxId = 81307958921304,

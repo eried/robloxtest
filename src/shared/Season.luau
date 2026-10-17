@@ -41,24 +41,26 @@ local function part(props: { [string]: any }): BasePart
 	return p
 end
 
--- A pumpkin: a ball with ribs and a stem. Lit ones are jack-o'-lanterns with a glowing face
+-- A round pumpkin with a carved glowing face. Lit ones also light up the ground
 function Season.pumpkin(pos: Vector3, size: number, lit: boolean, rand: Random, parent: Instance?): BasePart
+	local r = size / 2
 	local main = part({
 		Name = "Bush",
 		Shape = Enum.PartType.Ball,
 		Size = Vector3.one * size,
-		Position = pos + Vector3.new(0, size * 0.4, 0),
+		Position = pos + Vector3.new(0, r * 0.9, 0),
 		Color = ORANGE,
 		Parent = parent,
 	})
 	main:SetAttribute("Look", "Pumpkin")
+	-- Soft lobes keep it round but give the pumpkin its ridges
 	for i = 1, 4 do
-		local a = i * math.pi / 2 + rand:NextNumber(0, 0.4)
+		local a = i * math.pi / 2 + math.pi / 4
 		part({
-			Name = "Rib",
+			Name = "Lobe",
 			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * size * 0.8,
-			Position = main.Position + Vector3.new(math.cos(a), -0.08, math.sin(a)) * size * 0.2,
+			Size = Vector3.one * size * 0.93,
+			Position = main.Position + Vector3.new(math.cos(a), -0.04, math.sin(a)) * size * 0.06,
 			Color = DEEP_ORANGE,
 			CanQuery = false,
 			Parent = main,
@@ -67,35 +69,40 @@ function Season.pumpkin(pos: Vector3, size: number, lit: boolean, rand: Random, 
 	part({
 		Name = "Stem",
 		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(size * 0.28, size * 0.13, size * 0.13),
-		CFrame = CFrame.new(main.Position + Vector3.new(0, size * 0.5, 0)) * CFrame.Angles(0, 0, math.rad(80)),
+		Size = Vector3.new(size * 0.24, size * 0.12, size * 0.12),
+		CFrame = CFrame.new(main.Position + Vector3.new(0, r * 1.02, 0)) * CFrame.Angles(0, 0, math.rad(80)),
 		Color = Color3.fromRGB(80, 95, 40),
 		CanQuery = false,
 		Parent = main,
 	})
-	if lit then
-		local face = CFrame.new(main.Position) * CFrame.Angles(0, rand:NextNumber(0, math.pi * 2), 0)
-		for _, x in { -0.2, 0.2 } do
-			part({
-				Name = "Eye",
-				Class = "WedgePart",
-				Size = Vector3.new(size * 0.18, size * 0.16, 0.12),
-				CFrame = face * CFrame.new(x * size, size * 0.1, -size * 0.49) * CFrame.Angles(0, math.rad(180), 0),
-				Color = GLOW,
-				Material = Enum.Material.Neon,
-				CanQuery = false,
-				Parent = main,
-			})
-		end
+	-- The face is carved on the front, each piece turned to follow the round shape
+	local face = CFrame.new(main.Position) * CFrame.Angles(0, rand:NextNumber(0, math.pi * 2), 0)
+	local function carve(name: string, x: number, y: number, w: number, h: number, tilt: number, color: Color3, lift: number)
+		local z = math.sqrt(math.max(1 - x * x - y * y, 0.01))
 		part({
-			Name = "Mouth",
-			Size = Vector3.new(size * 0.46, size * 0.1, 0.12),
-			CFrame = face * CFrame.new(0, -size * 0.13, -size * 0.48),
-			Color = GLOW,
-			Material = Enum.Material.Neon,
+			Name = name,
+			Size = Vector3.new(w * size, h * size, size * 0.06),
+			CFrame = face * CFrame.lookAt(Vector3.zero, Vector3.new(x, y, -z)) * CFrame.new(0, 0, -r - size * lift) * CFrame.Angles(0, 0, math.rad(tilt)),
+			Color = color,
+			Material = if color == GLOW then Enum.Material.Neon else Enum.Material.SmoothPlastic,
 			CanQuery = false,
 			Parent = main,
 		})
+	end
+	for _, x in { -0.36, 0.36 } do
+		carve("Eye", x, 0.26, 0.19, 0.19, 45, GLOW, 0)
+	end
+	carve("Nose", 0, 0.02, 0.11, 0.11, 45, GLOW, 0)
+	-- A wide smile made of short pieces along a curve
+	for i = -2, 2 do
+		local x = i * 0.2
+		local y = -0.3 - 0.14 * (1 - (x / 0.42) ^ 2)
+		carve("Mouth", x, y, 0.13, 0.1, math.deg(math.atan(0.28 * x / 0.42 ^ 2)), GLOW, 0)
+	end
+	for _, x in { -0.1, 0.1 } do
+		carve("Tooth", x, -0.39, 0.06, 0.06, 0, ORANGE, 0.01)
+	end
+	if lit then
 		local light = Instance.new("PointLight")
 		light.Color = Color3.fromRGB(255, 150, 60)
 		light.Range = 10
@@ -244,6 +251,138 @@ function Season.balloons(at: Vector3, count: number, rand: Random, parent: Insta
 			Parent = model,
 		})
 	end
+	model.Parent = parent
+	return model
+end
+
+-- A friendly little ghost: a sheet with dark eyes
+function Season.ghost(parent: Instance?): Model
+	local model = Instance.new("Model")
+	model.Name = "Ghost"
+	local sheet = Color3.fromRGB(245, 245, 255)
+	local head = part({ Name = "Head", Shape = Enum.PartType.Ball, Size = Vector3.one * 2.4, Color = sheet, Transparency = 0.15, CanQuery = false, CastShadow = false, Parent = model })
+	model.PrimaryPart = head
+	part({
+		Name = "Sheet",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(2.2, 2.3, 2.3),
+		CFrame = head.CFrame * CFrame.new(0, -1.1, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = sheet,
+		Transparency = 0.15,
+		CanQuery = false,
+		CastShadow = false,
+		Parent = model,
+	})
+	for i = 0, 3 do
+		local a = i * math.pi / 2
+		part({
+			Name = "Tail",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * 0.8,
+			Position = head.Position + Vector3.new(math.cos(a) * 0.75, -2.2, math.sin(a) * 0.75),
+			Color = sheet,
+			Transparency = 0.15,
+			CanQuery = false,
+			CastShadow = false,
+			Parent = model,
+		})
+	end
+	for _, x in { -0.4, 0.4 } do
+		part({ Name = "Eye", Size = Vector3.new(0.3, 0.45, 0.1), CFrame = head.CFrame * CFrame.new(x, 0.15, -1.12), Color = Color3.fromRGB(20, 20, 25), CanQuery = false, CastShadow = false, Parent = model })
+	end
+	part({ Name = "Mouth", Shape = Enum.PartType.Ball, Size = Vector3.one * 0.35, CFrame = head.CFrame * CFrame.new(0, -0.45, -1.08), Color = Color3.fromRGB(20, 20, 25), CanQuery = false, CastShadow = false, Parent = model })
+	model.Parent = parent
+	return model
+end
+
+-- A gravestone with a round top, a bit crooked
+function Season.grave(pos: Vector3, rand: Random, parent: Instance?): BasePart
+	local tilt = CFrame.Angles(math.rad(rand:NextNumber(-8, 8)), rand:NextNumber(0, math.pi * 2), math.rad(rand:NextNumber(-6, 6)))
+	local stone = Color3.fromRGB(125, 125, 130)
+	local slab = part({ Name = "Grave", Size = Vector3.new(2.2, 2.4, 0.5), CFrame = CFrame.new(pos + Vector3.new(0, 1.1, 0)) * tilt, Color = stone, Material = Enum.Material.Slate, Parent = parent })
+	part({
+		Name = "Top",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.5, 2.2, 2.2),
+		CFrame = slab.CFrame * CFrame.new(0, 1.2, 0) * CFrame.Angles(0, math.rad(90), 0),
+		Color = stone,
+		Material = Enum.Material.Slate,
+		CanQuery = false,
+		Parent = slab,
+	})
+	part({ Name = "Mark", Size = Vector3.new(1.1, 0.12, 0.05), CFrame = slab.CFrame * CFrame.new(0, 0.6, -0.27), Color = Color3.fromRGB(60, 60, 65), CanQuery = false, Parent = slab })
+	part({ Name = "Mark", Size = Vector3.new(0.12, 0.8, 0.05), CFrame = slab.CFrame * CFrame.new(0, 0.6, -0.27), Color = Color3.fromRGB(60, 60, 65), CanQuery = false, Parent = slab })
+	return slab
+end
+
+-- A spider web: spokes and a ring, standing up next to a tree
+function Season.web(center: CFrame, radius: number, parent: Instance?): Model
+	local model = Instance.new("Model")
+	model.Name = "Web"
+	local silk = Color3.fromRGB(235, 235, 240)
+	for i = 0, 3 do
+		part({ Name = "Spoke", Size = Vector3.new(radius * 2, 0.05, 0.05), CFrame = center * CFrame.Angles(0, 0, i * math.pi / 4), Color = silk, CanQuery = false, CastShadow = false, Parent = model })
+	end
+	for _, k in { 0.5, 0.9 } do
+		for i = 0, 7 do
+			local a = i * math.pi / 4 + math.pi / 8
+			local len = 2 * radius * k * math.sin(math.pi / 8)
+			part({
+				Name = "Ring",
+				Size = Vector3.new(len, 0.05, 0.05),
+				CFrame = center * CFrame.new(math.cos(a) * radius * k * math.cos(math.pi / 8), math.sin(a) * radius * k * math.cos(math.pi / 8), 0) * CFrame.Angles(0, 0, a + math.pi / 2),
+				Color = silk,
+				CanQuery = false,
+				CastShadow = false,
+				Parent = model,
+			})
+		end
+	end
+	model.Parent = parent
+	return model
+end
+
+-- A witch's cauldron with green bubbling brew
+function Season.cauldron(pos: Vector3, parent: Instance?): Model
+	local model = Instance.new("Model")
+	model.Name = "Cauldron"
+	local iron = Color3.fromRGB(30, 30, 35)
+	part({ Name = "Pot", Shape = Enum.PartType.Ball, Size = Vector3.one * 3.2, Position = pos + Vector3.new(0, 1.6, 0), Color = iron, Material = Enum.Material.Metal, Parent = model })
+	local brew = part({
+		Name = "Brew",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.2, 2.6, 2.6),
+		CFrame = CFrame.new(pos + Vector3.new(0, 2.75, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(110, 255, 90),
+		Material = Enum.Material.Neon,
+		CanQuery = false,
+		Parent = model,
+	})
+	part({
+		Name = "Rim",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, 2.9, 2.9),
+		CFrame = CFrame.new(pos + Vector3.new(0, 2.85, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = iron,
+		Material = Enum.Material.Metal,
+		CanQuery = false,
+		Parent = model,
+	})
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(110, 255, 90)
+	light.Range = 14
+	light.Brightness = 2
+	light.Shadows = false
+	light.Parent = brew
+	local bubbles = Instance.new("ParticleEmitter")
+	bubbles.Color = ColorSequence.new(Color3.fromRGB(150, 255, 120))
+	bubbles.LightEmission = 0.6
+	bubbles.Size = NumberSequence.new(0.35)
+	bubbles.Speed = NumberRange.new(1.5, 3)
+	bubbles.Lifetime = NumberRange.new(0.8, 1.6)
+	bubbles.Rate = 12
+	bubbles.EmissionDirection = Enum.NormalId.Right
+	bubbles.Parent = brew
 	model.Parent = parent
 	return model
 end

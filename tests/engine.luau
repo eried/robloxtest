@@ -171,7 +171,7 @@ for _, name in {
 	"ChildRemoved", "DescendantAdded", "DescendantRemoving", "Equipped", "Unequipped", "PromptTriggered", "MessageOut",
 	"AncestryChanged", "Destroying", "HealthChanged", "Running", "StateChanged", "Hit", "PromptShown", "PromptHidden",
 	"TriggerEnded", "MouseEnter", "MouseLeave", "FocusLost", "Deactivated", "Loaded", "LastInputTypeChanged",
-	"CharacterAppearanceLoaded", "WindowFocused", "WindowFocusReleased", "PromptGamePassPurchaseFinished",
+	"CharacterAppearanceLoaded", "WindowFocused", "WindowFocusReleased", "PromptGamePassPurchaseFinished", "JumpRequest",
 } do
 	EVENTS[name] = true
 end

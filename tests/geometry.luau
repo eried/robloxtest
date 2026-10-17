@@ -88,6 +88,22 @@ do
 		end
 	end
 end
+for _, m in workspace:GetChildren() do
+	if m.Name == "Ghost" and m.ClassName == "Model" then
+		dump(m, "ghost")
+		break
+	end
+end
+do
+	local got = {}
+	local decor = workspace:FindFirstChild("SeasonDecor")
+	for _, d in (if decor then decor:GetChildren() else {}) do
+		if (d.Name == "Grave" or d.Name == "Cauldron" or d.Name == "Web" or d.Name == "Balloons") and not got[d.Name] then
+			got[d.Name] = true
+			dump(d, string.lower(d.Name))
+		end
+	end
+end
 first("Birds", "bird", 1)
 first("Neighbors", "neighbor", 1)
 for _, m in workspace:GetChildren() do
@@ -176,7 +192,7 @@ for _, m in workspace:GetChildren() do
 		press(m:FindFirstChildWhichIsA("ProximityPrompt", true))
 	end
 end
-for _ = 1, 20 * 5 do
+for _ = 1, 20 * 8 do
 	Engine.step(1 / 20)
 end
 for _, kitten in workspace:FindFirstChild("Kittens"):GetChildren() do

@@ -841,6 +841,7 @@ local function play(mode: string, kind: string, hero: string, level: number?)
 				speed = bot.speed * calm,
 				safe = (bot.pos - HOME).Magnitude < Config.RatSafeRadius,
 				hidden = night and bot.lightOff,
+				dark = bot.lightOff,
 			}
 		end
 		-- Bones: careful bots throw as soon as a dog is after them, kids only when it is close

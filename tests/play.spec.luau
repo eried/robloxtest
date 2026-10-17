@@ -155,7 +155,7 @@ end
 
 -- Bots
 local bots: { any } = {}
-local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false, clipSince = nil :: number?, nicola = false, nicolaMissing = 0 }
+local stats = { nightSeen = false, daySeen = false, huntOk = true, heartsOk = true, rounds = 0, searching = false, maxLevel = 1, tower = 0, towerPianka = false, practiceMenu = false, clipSince = nil :: number?, nicola = false, nicolaMissing = 0, burstSeen = false }
 
 local function addBot(name: string, kind: string, hero: string): any
 	local player, ctx = Engine.addPlayer(name)
@@ -467,9 +467,19 @@ local function invariants()
 		stats.clipSince = nil
 		for _, bot in bots do
 			local root = bot.player.Character and bot.player.Character:FindFirstChild("HumanoidRootPart")
-			if root and root.Anchored and not bot.player:GetAttribute("Held") then
-				check(false, bot.name .. " still frozen after the escape clip")
+			if root and root.Anchored and not bot.player:GetAttribute("Held") and not bot.player:GetAttribute("Clip") then
+				check(false, bot.name .. " still frozen after a clip")
 			end
+		end
+	end
+	-- Watching Pianka pop holds you still for a moment only
+	for _, bot in bots do
+		if bot.player:GetAttribute("Clip") then
+			bot.clipSince = bot.clipSince or Engine.now
+			check(Engine.now - bot.clipSince < Config.KittenBurst.total + 2, bot.name .. " stuck watching the kitten burst")
+			stats.burstSeen = true
+		else
+			bot.clipSince = nil
 		end
 	end
 	for _, bot in bots do
@@ -668,6 +678,26 @@ if fish then
 	run(2)
 	local owned = bots[1].player:GetAttribute("Owned") or ""
 	check(string.find(owned, "LanternPink", 1, true) ~= nil, "shop: buying a lantern did not work")
+	-- Power ups and new looks from the shop
+	fish.Value += 200
+	for _, id in { "PowerShield", "PowerDouble", "PowerGhost", "PowerFreeze", "HatWitch", "TrailSparkle" } do
+		Engine.asClient(bots[1].ctx, function()
+			shopEvent:FireServer("buy", id)
+		end)
+		run(0.5)
+	end
+	run(1)
+	local p1 = bots[1].player
+	check(p1:GetAttribute("Shield") == true, "shop: no shield bubble")
+	check(type(p1:GetAttribute("DoubleJump")) == "number", "shop: no double jump")
+	check(type(p1:GetAttribute("GhostUntil")) == "number", "shop: no ghost mode")
+	local character = p1.Character
+	check(character ~= nil and character:FindFirstChild("ShopHat", true) ~= nil, "shop: hat not worn")
+	Engine.asClient(bots[1].ctx, function()
+		shopEvent:FireServer("season", "Halloween")
+	end)
+	run(2)
+	check(workspace:GetAttribute("Season") == nil, "shop: a normal player switched the season")
 end
 
 -- Game passes: owned on join, and bought from the shop
@@ -761,6 +791,7 @@ check(stats.nicolaMissing < 5, "Nicola missing while the pair is together")
 check((counts.escaped or 0) == 0 or (counts.escapeClip or 0) > 0, "escape won without the clip")
 check(stats.practiceMenu, "practice: menu with Normal did not open after the round")
 check(stats.towerPianka, "tower: Pianka not under the kittens in Normal")
+check(stats.burstSeen, "nobody watched Pianka pop into kittens")
 print(string.format("Levels: top %d, hiding spots searched %d, bones picked %d, thrown %d, play again %d, calls %d, meows back %d, heard %d",
 	stats.maxLevel, counts.bush or 0, counts.gotBone or 0, counts.bone or 0, stats.again or 0, counts.call or 0, counts.meowBack or 0, counts.heard or 0))
 print(string.format("Events: hunt %d, dawn %d, dropped %d, gift %d, twist %d, out %d",
