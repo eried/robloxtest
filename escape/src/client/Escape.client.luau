@@ -1010,8 +1010,7 @@ local asleepShown = false
 local stride = 0
 local lastPaw = 0
 type Rig = { joints: { { weld: Weld, base: CFrame, swing: number, wag: boolean } }, moving: number, low: number }
-local rigs: { [Model]: Rig } = setmetatable({}, { __mode = "k" }) :: any
-local keyBases: { [Model]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+local rigs: { [Model]: Rig } = {}
 RunService.RenderStepped:Connect(function(dt: number)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -1148,6 +1147,12 @@ RunService.RenderStepped:Connect(function(dt: number)
 				end
 				rig = { joints = joints, moving = -1, low = -1 }
 				rigs[c] = rig
+				local model = c
+				model.AncestryChanged:Connect(function()
+					if not model.Parent then
+						rigs[model] = nil
+					end
+				end)
 			end
 			local v = r.AssemblyLinearVelocity
 			local moving = math.clamp(Vector3.new(v.X, 0, v.Z).Magnitude / 10, 0, 1)
@@ -1172,9 +1177,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local keys = world:FindFirstChild("Keys")
 	for _, key in (if keys then keys:GetChildren() else {}) do
 		if key:IsA("Model") then
-			local base = keyBases[key] or key:GetPivot()
-			keyBases[key] = base
-			key:PivotTo(base * CFrame.new(0, math.sin(t * 2.5) * 0.4, 0) * CFrame.Angles(0, t * 2, 0))
+			local home = key:GetAttribute("Home")
+			if typeof(home) == "Vector3" then
+				key:PivotTo(CFrame.new(home + Vector3.new(0, math.sin(t * 2) * 0.2, 0)) * CFrame.Angles(0, t * 1.6, 0))
+			end
 		end
 	end
 end)
@@ -1991,7 +1997,9 @@ local function wakeClip(name: string, at: Vector3, cause: string?, culprit: any)
 	-- First a second on the cat that did it: the squeak she stepped on, or the eyes that saw her move
 	local root = culpritRoot(culprit)
 	if root then
-		popIcon(root, if cause == "toy" then "💥" else "👀", 1.6, 90)
+		if cause ~= "toy" then
+			popIcon(root, "👀", 1.6, 90)
+		end
 		local first = os.clock()
 		while clipId == my and os.clock() - first < 1 do
 			camera.CFrame = catShot(root)
@@ -2781,7 +2789,6 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 			local info = Config.Toys[b] or Config.Toys.squeaky
 			local clip = if b == "squeaky" and math.random() < 0.5 then "Squeak2" else info.sound
 			sound(clip, 2, 0.9 + math.random() * 0.2, main, 140)
-			popIcon(main, "💥", 0.9, 54)
 			-- The controller's light flashes while it buzzes
 			local lightBar = model:FindFirstChild("Light") :: BasePart?
 			if lightBar then

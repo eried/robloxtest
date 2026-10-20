@@ -362,48 +362,14 @@ def flutter(g, n, f0, span):
     return amp[k] * ((1 - np.cos(phase)) / 2) ** shape[k]
 
 
-def room(x, wet=0.1, seed=5):
-    """A small quiet bedroom, wrapped around so the loop stays seamless."""
-    g = np.random.default_rng(seed)
-    m = int(0.3 * SR)
-    t = np.arange(m) / SR
-    ir = lowpass(g.standard_normal(m), 8) * np.exp(-t * 18)
-    ir /= np.sqrt(np.sum(ir ** 2))
-    w = np.fft.irfft(np.fft.rfft(x) * np.fft.rfft(ir, len(x)), len(x))
-    return x * (1 - wet) + w * wet * np.sqrt(np.mean(x ** 2)) / max(np.sqrt(np.mean(w ** 2)), 1e-9)
-
-
-def breathe(deep):
-    """Asleep: a soft nasal inhale, a pause, a long relaxed sigh out, a rest. Mom snores a little."""
-    g = np.random.default_rng(11 if deep else 12)
-    up = 1.0 if deep else 1.12
-    if deep:
-        plan = [(1.5, 0.14, 1.95, 0.55, 1.0, 0.35), (1.7, 0.12, 2.15, 0.65, 0.9, 0.6), (1.45, 0.16, 1.85, 0.5, 0.95, 0.15)]
-    else:
-        plan = [(1.2, 0.12, 1.55, 0.55, 1.0, 0), (1.35, 0.1, 1.7, 0.7, 0.85, 0), (1.15, 0.14, 1.5, 0.5, 0.92, 0)]
-    out = [np.zeros(int(0.04 * SR))]
-    for d_in, gap, d_out, rest, gain, snore in plan:
-        n = int(d_in * SR)
-        e = curve(n, 1.6, 1.3)
-        soft = shaped(g, n, [(650 * up, 320, 1.0), (1700 * up, 600, 0.55), (2900 * up, 900, 0.2)], 180 * up, 4500 * up, 0.45)
-        bright = shaped(g, n, [(950 * up, 400, 0.8), (2200 * up, 700, 0.9), (3400 * up, 1000, 0.35)], 250 * up, 6000 * up, 0.35)
-        inhale = e * (soft * (1 - 0.6 * e) + bright * 0.6 * e) * 0.5
-        if snore > 0:
-            body = shaped(g, n, [(420, 160, 1.0), (900, 300, 0.45), (1600, 500, 0.12)], 90, 2400, 0.25)
-            buzz = flutter(g, n, 33, 6)
-            inhale += body * (0.3 + 0.7 * buzz) * curve(n, 2.6, 1.3) * snore * 0.65
-        m = int(d_out * SR)
-        e2 = curve(m, 0.9, 2.4) * np.minimum(np.arange(m) / (0.06 * SR), 1)
-        low = shaped(g, m, [(380 * up, 220, 1.0), (1250 * up, 450, 0.45), (2400 * up, 700, 0.15)], 110 * up, 3800 * up, 0.6)
-        air = shaped(g, m, [(800 * up, 400, 0.6), (1900 * up, 700, 0.5)], 200 * up, 5000 * up, 0.4)
-        exhale = e2 * (low * 0.75 + air * 0.25 * e2) * 0.42
-        if deep:
-            k = int(0.12 * SR)
-            exhale[:k] += shaped(g, k, [(300, 150, 1.0), (700, 250, 0.4)], 100, 1500, 0.3) * curve(k, 0.6, 3.0) * 0.12
-        out += [inhale * gain, np.zeros(int(gap * SR)), exhale * gain, np.zeros(int(rest * SR))]
-    x = room(np.concatenate(out), 0.1, 13 if deep else 14)
-    x *= 0.09 / np.sqrt(np.mean(x ** 2))
-    return x * min(1, 0.92 / np.abs(x).max())
+def snoring(light):
+    """Snoring recorded by iamgiorgio (freesound.org 371299). The kids get a softer, higher one."""
+    filt = f"aresample={SR},atrim=0:12.0,acompressor=threshold=0.06:ratio=3:attack=15:release=300"
+    if light:
+        filt += ",highpass=f=220,lowpass=f=3600,rubberband=pitch=1.18:tempo=1.1,acompressor=threshold=0.05:ratio=4:attack=10:release=250"
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", os.path.join(ROOT, "sounds", "snore.mp3"), "-af", filt, "-ac", "1", "-f", "s16le", "-"], capture_output=True, check=True).stdout
+    x = np.frombuffer(raw, np.int16).astype(float) / 32768
+    return norm(x * env(len(x), 0.15, 0.4), 0.6 if light else 0.8)
 
 
 def squeak(double):
@@ -850,7 +816,7 @@ def to_mp3(x, path, loud=None):
 
 def main():
     clips = [
-        ("Breath", breathe(True)), ("BreathLight", breathe(False)), ("Snort", snort()),
+        ("Breath", snoring(False)), ("BreathLight", snoring(True)), ("Snort", snort()),
         ("Hmm", voice("hmm", -2, 0.9, 0.2)), ("HmmKid", voice("hmm_kid", 3, 0.9, 0.2)), ("Grumble", voice("mmm", -3, 0.85, 0.3)),
         ("Aww", voice("aww", 1, 0.95, 0.2)), ("Kiss", voice("kiss", 1, 1.0, 0.15)),
         ("Squeak", squeak(False)), ("Squeak2", squeak(True)), ("Track", ball_track()),

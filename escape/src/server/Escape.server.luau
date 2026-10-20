@@ -149,11 +149,11 @@ local yard: Level = Plan.yard
 local HOUSE_W, HOUSE_D = floor1.w * U, floor1.h * U
 
 -- Rooms: floor cells joined together, named by the labels in them
-local STYLES: { { words: { string }, material: Enum.Material, color: Color3, light: Color3, bright: number } } = {
+local STYLES: { { words: { string }, material: Enum.Material, color: Color3, light: Color3, bright: number, wall: Color3? } } = {
 	{ words = { "bath", "toilet" }, material = Enum.Material.CeramicTiles, color = Color3.fromRGB(110, 160, 185), light = Color3.fromRGB(255, 230, 200), bright = 0.6 },
 	{ words = { "kitchen", "storage" }, material = Enum.Material.Slate, color = Color3.fromRGB(205, 196, 180), light = Color3.fromRGB(255, 220, 170), bright = 0.7 },
-	{ words = { "kid" }, material = Enum.Material.Fabric, color = Color3.fromRGB(120, 150, 205), light = Color3.fromRGB(140, 160, 255), bright = 0.35 },
-	{ words = { "girl" }, material = Enum.Material.Fabric, color = Color3.fromRGB(220, 160, 195), light = Color3.fromRGB(200, 150, 255), bright = 0.35 },
+	{ words = { "kid" }, material = Enum.Material.Fabric, color = Color3.fromRGB(90, 135, 215), light = Color3.fromRGB(130, 165, 255), bright = 0.35, wall = Color3.fromRGB(150, 190, 240) },
+	{ words = { "girl" }, material = Enum.Material.Fabric, color = Color3.fromRGB(240, 140, 190), light = Color3.fromRGB(255, 160, 215), bright = 0.35, wall = Color3.fromRGB(250, 180, 210) },
 	{ words = { "mom" }, material = Enum.Material.Fabric, color = Color3.fromRGB(150, 175, 150), light = Color3.fromRGB(140, 160, 255), bright = 0.35 },
 	{ words = { "guest" }, material = Enum.Material.Fabric, color = Color3.fromRGB(196, 178, 150), light = Color3.fromRGB(255, 220, 180), bright = 0.45 },
 }
@@ -257,6 +257,18 @@ local function buildLevel(lv: Level, baseY: number, top: boolean, parent: Folder
 		end) do
 			local floorPart = block(r, 0, 0, baseY, baseY + 0.12, { Name = "Floor", Material = s.material, Color = s.color, Parent = parent })
 			floorPart:SetAttribute("Room", string.lower(room.name))
+		end
+		-- Kids' rooms get colored walls on the inside
+		if s.wall then
+			for _, k in room.cells do
+				local x, y = k % lv.w, k // lv.w
+				for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+					if cell(lv, x + d[1], y + d[2]) == "w" then
+						local face = Vector3.new((x + 0.5 + d[1] * 0.5) * U - d[1] * 0.04, baseY + WALL / 2, (y + 0.5 + d[2] * 0.5) * U - d[2] * 0.04)
+						part({ Name = "Wallpaper", Size = if d[1] ~= 0 then Vector3.new(0.06, WALL, U) else Vector3.new(U, WALL, 0.06), CFrame = CFrame.new(face), Material = Enum.Material.SmoothPlastic, Color = s.wall, CanCollide = false, CanQuery = false, CastShadow = false, Parent = parent })
+					end
+				end
+			end
 		end
 		-- A ceiling lamp in each named room, dim and blue in bedrooms
 		if room.name ~= "" then
@@ -450,6 +462,15 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 	local blanketColor = if look then look.blanket else Color3.fromRGB(200, 185, 160)
 	box(model, "Blanket", cf * CFrame.new(0, 4.6, -1.6), Vector3.new(width - 0.2, 0.4, depth - 4.6), blanketColor, Enum.Material.Fabric)
 	surface(floorNo, r, baseY + 4.8)
+	if it.t == "bedGirl" then
+		-- A princess canopy over her pillow
+		local pink = Color3.fromRGB(255, 170, 210)
+		box(model, "Crown", cf * CFrame.new(0, 13.5, depth / 2 - 1.2), Vector3.new(width + 1, 0.5, 2), Color3.fromRGB(255, 225, 240), Enum.Material.SmoothPlastic, false)
+		for _, x in { -1, 1 } do
+			local veil = box(model, "Veil", cf * CFrame.new(x * (width / 2 + 0.2), 7.5, depth / 2 - 1.6), Vector3.new(0.15, 12, 3), pink, Enum.Material.Fabric, false)
+			veil.Transparency = 0.35
+		end
+	end
 	if it.t == "bedMom" then
 		-- Her phone by the pillow, it lights up when a camera sees Pianka
 		box(model, "Phone", cf * CFrame.new(width / 2 - 1.4, 4.58, depth / 2 - 2.4), Vector3.new(1, 0.16, 1.8), Color3.fromRGB(30, 30, 36), Enum.Material.SmoothPlastic, false)
@@ -856,7 +877,7 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 		if #room.cells < 6 then
 			continue
 		end
-		local tint = PALETTE[(index + floorNo) % #PALETTE + 1]
+		local tint = if string.find(name, "girl", 1, true) then Color3.fromRGB(235, 90, 160) elseif string.find(name, "kid", 1, true) then Color3.fromRGB(60, 110, 210) else PALETTE[(index + floorNo) % #PALETTE + 1]
 		-- A rug in the middle of the room, or by the sofa when the middle is the stairs
 		if not plain then
 			local w, h = math.max(2, math.floor((maxX - minX + 1) * 0.5)), math.max(2, math.floor((maxY - minY + 1) * 0.45))
@@ -1344,6 +1365,20 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 			if p then
 				poster(p, 12.5, { Color3.fromRGB(250, 200, 225), Color3.fromRGB(240, 80, 140), Color3.fromRGB(150, 110, 220) })
 			end
+			-- Hearts on the wall
+			for h = 1, 2 do
+				local wallAt = wallSpot(room.cells, 29 + h * 13)
+				if wallAt then
+					for i, x in { -1.3, 0, 1.3 } do
+						local hc = wallAt * CFrame.new(x, 13 + (i % 2) * 0.8, -0.15)
+						local red = if i == 2 then Color3.fromRGB(240, 60, 120) else Color3.fromRGB(255, 130, 180)
+						piece("Heart", hc * CFrame.Angles(0, 0, math.rad(45)), Vector3.new(0.8, 0.8, 0.1), red)
+						for _, side in { -1, 1 } do
+							round(piece("Heart", hc * CFrame.new(side * 0.28, 0.28, 0) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.1, 0.6, 0.6), red), Enum.PartType.Cylinder)
+						end
+					end
+				end
+			end
 		elseif has("mom") then
 			-- Books, a plant and family drawings from the kids
 			local spot = wallSpot(room.cells, 7)
@@ -1808,13 +1843,16 @@ local KEY_GLOW = Color3.fromRGB(255, 215, 110)
 local function makeKey(pos: Vector3, index: number): Model
 	local model = Instance.new("Model")
 	model.Name = "Key"
-	-- Bronze like the key on the screen, with a glow around it so it shows in a dark room
-	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = CFrame.new(pos), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
+	-- Bronze like the key on the screen, with a glow around it so it shows in a dark room.
+	-- It turns around its middle, which sits at pos
+	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = CFrame.new(pos - Vector3.new(0, 0, 0.75)), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
 	local ring = part({ Name = "Ring", Size = Vector3.new(0.55, 2.1, 2.1), CFrame = center.CFrame * CFrame.new(0, 0, 1.95) * CFrame.Angles(0, 0, math.rad(90)), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
 	;(ring :: Part).Shape = Enum.PartType.Cylinder
 	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.85, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.6, -1), Material = Enum.Material.Metal, Color = KEY_BRONZE, CanCollide = false, Parent = model })
 	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.6, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.5, -0.3), Material = Enum.Material.Metal, Color = KEY_BRONZE, CanCollide = false, Parent = model })
 	model.PrimaryPart = center
+	center.PivotOffset = CFrame.new(0, 0, 0.75)
+	model:SetAttribute("Home", pos)
 	-- The light sits just above the key so it lights the key itself and the floor around it
 	local lamp = part({ Name = "Glow", Size = Vector3.one * 0.2, CFrame = center.CFrame * CFrame.new(0, 2.2, 0), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = model })
 	local light = Instance.new("PointLight")
@@ -1869,7 +1907,7 @@ local function placeKeys(reroll: boolean?)
 		housePicks = fresh
 	end
 	for i, s in housePicks :: { any } do
-		local y = keyHeight(s.floor, s.pos) + 1.6
+		local y = keyHeight(s.floor, s.pos) + 1.4
 		table.insert(keyModels, makeKey(Vector3.new(s.pos.X, y, s.pos.Z), i))
 	end
 end
@@ -1891,7 +1929,7 @@ local function placeGateKeys()
 		gatePicks = fresh
 	end
 	for i, s in gatePicks :: { any } do
-		local key = makeKey(s.pos + Vector3.new(0, 1.6, 0), i)
+		local key = makeKey(s.pos + Vector3.new(0, 1.4, 0), i)
 		key:SetAttribute("Gate", true)
 		table.insert(keyModels, key)
 	end
@@ -2246,7 +2284,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 			-- Keys
 			for i = #keyModels, 1, -1 do
 				local key = keyModels[i]
-				if (key:GetPivot().Position - pos).Magnitude < 3.4 then
+				-- Walking through a key picks it up
+				local kp = (key:GetAttribute("Home") :: Vector3?) or key:GetPivot().Position
+				if Vector3.new(kp.X - pos.X, 0, kp.Z - pos.Z).Magnitude < 3.2 and math.abs(kp.Y - pos.Y) < 4 then
 					table.remove(keyModels, i)
 					local forGate = key:GetAttribute("Gate") == true
 					key:Destroy()

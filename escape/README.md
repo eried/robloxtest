@@ -46,7 +46,7 @@ The house, yard and town come from `plans/*.json`, drawn in the Pianka Escape Pl
 - `src/shared/Watch.luau` where the backyard cameras look and what they see
 - `src/server/Escape.server.luau` builds the house and yard from the plan and makes it a home, keys, toys, stirring sleepers, cameras, the doors and the gate
 - `src/client/Escape.client.luau` screen, snoring, sneaking, cat walk, clips
-- `tools/make_audio.py` makes the sounds, the sneaky music, its tense layer and the dream music box. Voice lines in `sounds/voice` were made once with Piper
+- `tools/make_audio.py` makes the sounds, the sneaky music, its tense layer and the dream music box. Voice lines in `sounds/voice` were made once with Piper. The snoring in `sounds/snore.mp3` is "b8_snoring" by iamgiorgio on freesound.org (371299)
 
 ## Tests and publish
 
