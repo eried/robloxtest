@@ -649,7 +649,8 @@ local function buildMom(parent: Instance): { model: Model, arms: { BasePart }, s
 	return { model = model, arms = arms, shoulders = shoulders, upper = upper }
 end
 
-local function buildMouse(parent: Instance): Model
+-- The dream mouse. Once caught its eyes turn to x x
+local function buildMouse(parent: Instance): (Model, (boolean) -> ())
 	local model = Instance.new("Model")
 	model.Name = "Mouse"
 	local gray = Color3.fromRGB(150, 150, 160)
@@ -668,14 +669,33 @@ local function buildMouse(parent: Instance): Model
 	end
 	local body = add(Vector3.new(0.7, 0.55, 0.7), Vector3.new(0, 0.3, 0), gray, true)
 	add(Vector3.one * 0.42, Vector3.new(0, 0.38, -0.42), gray, true)
+	local alive, dead = {}, {}
 	for _, x in { -0.16, 0.16 } do
 		add(Vector3.one * 0.24, Vector3.new(x, 0.62, -0.38), Color3.fromRGB(255, 170, 190), true)
-		add(Vector3.one * 0.08, Vector3.new(x * 0.6, 0.45, -0.6), Color3.new(0, 0, 0), true)
+		table.insert(alive, add(Vector3.one * 0.08, Vector3.new(x * 0.6, 0.45, -0.6), Color3.new(0, 0, 0), true))
+		for _, a in { 45, -45 } do
+			local bar = add(Vector3.new(0.24, 0.05, 0.05), Vector3.new(x * 0.6, 0.46, -0.62), Color3.new(0, 0, 0), false)
+			bar.CFrame = bar.CFrame * CFrame.Angles(0, 0, math.rad(a))
+			bar.Transparency = 1
+			table.insert(dead, bar)
+		end
+	end
+	for _, x in { -0.2, 0.2 } do
+		for _, z in { -0.2, 0.22 } do
+			add(Vector3.one * 0.13, Vector3.new(x, 0.04, z), Color3.fromRGB(255, 170, 190), true)
+		end
 	end
 	add(Vector3.new(0.07, 0.07, 1.1), Vector3.new(0, 0.2, 0.85), Color3.fromRGB(255, 170, 190), false)
 	model.PrimaryPart = body
 	model.Parent = parent
-	return model
+	return model, function(isDead: boolean)
+		for _, p in alive do
+			p.Transparency = if isDead then 1 else 0
+		end
+		for _, p in dead do
+			p.Transparency = if isDead then 0 else 1
+		end
+	end
 end
 
 -- The dream plays inside a bubble: out of the door, a mouse, and Milenkitka so happy she hugs Pianka
@@ -741,7 +761,7 @@ local function dreamBubble(): (Frame, (number) -> ())
 	end
 	local cat = Cat.build(CFrame.new(-10, 0, 0), 1)
 	cat.model.Parent = wm
-	local mouse = buildMouse(wm)
+	local mouse, mouseDead = buildMouse(wm)
 	local mom = buildMom(wm)
 	local momBase = CFrame.lookAt(Vector3.new(26, 0, 0), Vector3.new(20, 0, 5))
 	local momParts: { [BasePart]: CFrame } = {}
@@ -799,7 +819,7 @@ local function dreamBubble(): (Frame, (number) -> ())
 			catX = -10 + (t - 2) / 2.5 * 12
 		elseif t < 5.5 then
 			catX = 2
-			catY = -0.4
+			catY = -0.3
 		elseif t < 6.1 then
 			local k = (t - 5.5) / 0.6
 			catX = 2 + k * 4.5
@@ -822,19 +842,27 @@ local function dreamBubble(): (Frame, (number) -> ())
 			local at = Vector3.new(21.5, 0, 0):Lerp(Vector3.new(24.4, 1.6, 1.2), k)
 			catCf = CFrame.lookAt(at, Vector3.new(26, at.Y, 0))
 		end
-		cat.model:PivotTo(catCf)
+		-- The model pivots on the body, so lift it to stand on the grass
+		cat.model:PivotTo(catCf * CFrame.new(0, 1.4, 0))
 		-- The mouse runs in, gets caught, is carried and dropped at her feet
 		local mouseCf: CFrame
+		local lift = CFrame.new(0, 0.45, 0)
 		if t < 4 then
-			mouseCf = CFrame.new(40, 0, 0.5)
+			mouseCf = CFrame.new(40, 0, 0.5) * lift
 		elseif t < 5.5 then
 			local k = math.clamp((t - 4) / 1.2, 0, 1)
-			mouseCf = CFrame.lookAt(Vector3.new(14 - k * 7.5, 0, 0.5), Vector3.new(0, 0, 0.5))
+			local hop = math.abs(math.sin(t * 14)) * 0.15
+			mouseCf = CFrame.lookAt(Vector3.new(14 - k * 7.5, hop, 0.5), Vector3.new(0, hop, 0.5)) * lift
+		elseif t < 6.1 then
+			mouseCf = CFrame.lookAt(Vector3.new(6.5, 0, 0.5), Vector3.new(0, 0, 0.5)) * lift
 		elseif carry then
-			mouseCf = catCf * CFrame.new(0, 1.2, -2.7) * CFrame.Angles(0, math.pi / 2, 0)
+			-- Limp in Pianka's mouth
+			mouseCf = catCf * CFrame.new(0, 1.85, -2.8) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(0, 0, 0.5 + math.sin(t * 9) * 0.15)
 		else
-			mouseCf = CFrame.lookAt(Vector3.new(23.2, 0, 1.2), Vector3.new(20, 0, 2))
+			-- Dropped at her feet, belly up, feet in the air
+			mouseCf = CFrame.lookAt(Vector3.new(23.2, 0, 1.4), Vector3.new(20, 0, 2.5)) * lift * CFrame.Angles(0, 0, math.pi)
 		end
+		mouseDead(t >= 6.1)
 		mouse:PivotTo(mouseCf)
 		if once("squeak", 4.1, t) then
 			sound("Mouse", 1)

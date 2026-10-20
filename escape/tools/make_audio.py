@@ -274,23 +274,48 @@ def stealth_tense():
     return norm(reverb(loop(parts, total), 0.3, 2.2, 1.6)[: int(total * SR)], 0.85)
 
 
+def bubble_blip(freq, seed=0):
+    """A little bubble: a sine that slides up and pops."""
+    n = int(0.12 * SR)
+    t = np.arange(n) / SR
+    f = freq * (1 + 1.6 * (t / 0.12) ** 1.5)
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 28) * env(n, 0.003, 0.02) * 0.35
+
+
 def dream_box():
-    """A music box lullaby for the dream."""
-    beat = 0.75
+    """A bubbly love waltz for the dream: oom-pah-pah, music box tune, bubbles and sparkles."""
+    beat = 0.4
     tune = [
-        (0, 78), (1, 81), (2, 86), (3, 81), (4, 79), (5, 78), (6, 76),
-        (8, 78), (9, 81), (10, 83), (11, 81), (12, 78), (13, 76), (14, 74),
-        (16, 74), (17, 78), (18, 81), (19, 86), (20, 85), (21, 83), (22, 81),
+        (0, 72, 1), (1, 69, 1), (2, 72, 1), (3, 77, 2), (5, 76, 1), (6, 74, 1), (7, 77, 1), (8, 74, 1), (9, 72, 3),
+        (12, 69, 1), (13, 74, 1), (14, 77, 1), (15, 77, 1), (16, 76, 1), (17, 74, 1), (18, 70, 1), (19, 74, 1), (20, 79, 1), (21, 76, 2), (23, 79, 1),
+        (24, 81, 1), (25, 79, 1), (26, 77, 1), (27, 84, 2), (29, 81, 1), (30, 82, 1), (31, 79, 1), (32, 76, 1), (33, 77, 3),
     ]
-    parts = [(b * beat, music_box(midi(m), 2.2), 1.0) for b, m in tune]
-    for b, m in ((0, 62), (4, 67), (8, 62), (12, 69), (16, 62), (20, 69)):
-        parts.append((b * beat, music_box(midi(m), 3.0), 0.6))
-    total = 24 * beat + 1.5
+    chords = [(53, [65, 69, 72]), (53, [65, 69, 72]), (46, [65, 70, 74]), (48, [64, 67, 72]), (50, [65, 69, 74]), (46, [65, 70, 74]),
+              (43, [67, 70, 74]), (48, [64, 67, 70]), (53, [65, 69, 72]), (53, [65, 69, 72]), (46, [65, 70, 74]), (53, [65, 69, 72])]
+    parts = []
+    for b, m, d in tune:
+        parts.append((b * beat, music_box(midi(m), 1.4 + d * 0.4), 1.0))
+        parts.append((b * beat, music_box(midi(m + 12), 0.8), 0.25))
+    for bar, (bass, triad) in enumerate(chords):
+        t0 = bar * 3 * beat
+        parts.append((t0, pluck(midi(bass), 0.5), 0.9))
+        for b in (1, 2):
+            for m in triad:
+                parts.append((t0 + b * beat, vibes(midi(m), 0.35), 0.3))
+        # Bubbles on the off beats, rising
+        for i, off in enumerate((0.5, 1.5, 2.5)):
+            if (bar + i) % 2 == 0:
+                parts.append((t0 + off * beat, bubble_blip(midi(triad[i % 3] + 12)), 0.8))
+    # Sparkles at the start, the hug and the end
+    for t0 in (0.0, 9.6, 13.2):
+        for i, m in enumerate((89, 93, 96, 101)):
+            parts.append((t0 + i * 0.07, bell(midi(m), 1.0, 1.0), 1.0))
+    total = 12 * 3 * beat + 1.6
     n = int(total * SR)
     t = np.arange(n) / SR
-    pad = sum(np.sin(2 * np.pi * midi(m) * t * (1 + 0.002 * np.sin(2 * np.pi * 0.3 * t))) for m in (62, 66, 69)) * 0.03 * np.minimum(t / 2, 1) * np.minimum((total - t) / 2, 1)
+    pad = sum(np.sin(2 * np.pi * midi(m) * t * (1 + 0.003 * np.sin(2 * np.pi * 0.4 * t))) for m in (65, 69, 72, 77)) * 0.018 * np.minimum(t / 1.5, 1) * np.minimum((total - t) / 1.5, 1)
     parts.append((0, pad, 1.0))
-    return norm(reverb(mix(parts, total)[:n], 0.4, 1.8, 2.0), 0.8)
+    return norm(reverb(mix(parts, total)[:n], 0.35, 2.2, 1.6), 0.85)
 
 
 # Sound effects -------------------------------------------------------------
