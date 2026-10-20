@@ -16,9 +16,11 @@ Pianka sleeps in her bed and dreams of catching a mouse for Milenkitka. Tonight 
 ## The backyard (stage 2)
 
 - Out of the door Pianka sees the cameras and meows a warning.
-- 5 cameras sweep the yard with red light cones. Walls, bushes and the car block their view.
+- 8 cameras sweep the yard with red light cones, each at its own speed. Walls, bushes and the car block their view.
+- Gate keys hide where two cameras cross, so sometimes both look at the same spot.
 - A moment in the light and Milenkitka's phone buzzes: she wakes up and everything starts over from the cat bed.
-- Find 3 gate keys, one is always in the garage. The gate by the driveway opens and Pianka is free.
+- One gate key is always in the little back room of the garage. The garage button out in the yard is watched by cameras. Press it, the door rolls up, then it closes slowly: hurry. A button inside opens it again.
+- With 3 gate keys the gate by the driveway opens and Pianka is free.
 
 Coming next: the town with cars and the bridge, the forest and the mouse.
 

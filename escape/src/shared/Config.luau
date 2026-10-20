@@ -38,6 +38,11 @@ return {
 	SpottedTime = 7,
 	ExitClipTime = 6.5,
 	GateKeyCount = 3,
+	-- The garage door: a button outside opens it, it closes slowly, a button inside opens it again
+	GarageOpenTime = 1.2,
+	GarageHold = 0.8,
+	GarageCloseTime = 6,
+	GarageClipTime = 1.6,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
 	SfxId = 87433688092439,

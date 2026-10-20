@@ -100,6 +100,40 @@ local function teleport(player: any, pos: any)
 	end
 end
 
+-- The garage: the button outside opens the door, it closes slowly, the button inside opens it again
+local yardFolder = world:FindFirstChild("Yard")
+local garageDoor = yardFolder:FindFirstChild("GarageDoor")
+local outsideButton, insideButton = nil, nil
+for _, p in yardFolder:GetChildren() do
+	if p.Name == "GarageButton" then
+		if p.CanCollide then
+			outsideButton = p
+		else
+			insideButton = p
+		end
+	end
+end
+check(garageDoor ~= nil and garageDoor.CanCollide == true, "the garage door is not closed")
+check(outsideButton ~= nil and insideButton ~= nil, "garage buttons missing")
+if garageDoor and outsideButton and insideButton then
+	local closedHeight = garageDoor.Size.Y
+	teleport(bo, outsideButton.Position - Vector3.new(0, 3.4, 0))
+	run(0.2)
+	check(workspace:GetAttribute("Garage") == "opening", "the outside button did not open the garage")
+	teleport(bo, bed + Vector3.new(3, 0, 0))
+	run(Config.GarageOpenTime + 0.2)
+	check(garageDoor.CanCollide == false and garageDoor.Size.Y < closedHeight / 2, "the garage door did not roll up")
+	run(Config.GarageHold + Config.GarageCloseTime * 0.5)
+	check(workspace:GetAttribute("Garage") == "closing", "the garage door does not close slowly")
+	run(Config.GarageCloseTime * 0.5 + 0.5)
+	check(workspace:GetAttribute("Garage") == "closed" and garageDoor.CanCollide == true, "the garage door did not close")
+	teleport(bo, insideButton.Position - Vector3.new(0, 2.6, 0))
+	run(0.2)
+	check(workspace:GetAttribute("Garage") == "opening", "the inside button did not open the garage")
+	teleport(bo, bed + Vector3.new(3, 0, 0))
+	run(Config.GarageOpenTime + Config.GarageHold + Config.GarageCloseTime + 1)
+end
+
 -- One key, then too much noise: someone wakes up and everything resets
 local first = keys()[1]
 teleport(ana, first:GetPivot().Position)
@@ -200,14 +234,14 @@ for _, k in keys() do
 	end
 end
 check(#gateKeys == Config.GateKeyCount, "expected 3 gate keys, found " .. #gateKeys)
-local inGarage = false
+local inBackRoom = false
 for _, k in gateKeys do
 	local p = k:GetPivot().Position
-	if p.X < -16 * U + 14 * U and p.Z < -14 * U + 15 * U then
-		inGarage = true
+	if p.X > -16 * U + 10 * U and p.X < -16 * U + 13 * U and p.Z > -14 * U + 3 * U and p.Z < -14 * U + 7 * U then
+		inBackRoom = true
 	end
 end
-check(inGarage, "no gate key in the garage")
+check(inBackRoom, "no gate key in the garage back room")
 local gate = world:FindFirstChild("Yard"):FindFirstChild("Gate")
 check(gate ~= nil and gate.CanCollide == true, "the gate is not locked")
 local cams = {}
@@ -216,7 +250,7 @@ for _, m in world:FindFirstChild("Yard"):FindFirstChild("Cameras"):GetChildren()
 		table.insert(cams, m)
 	end
 end
-check(#cams == 5, "expected 5 cameras, found " .. #cams)
+check(#cams == 8, "expected 8 cameras, found " .. #cams)
 
 -- Right after the door Pianka is safe, the exit clip plays
 run(Config.ExitClipTime + 1)
@@ -226,7 +260,7 @@ check(workspace:GetAttribute("State") == "play", "caught while standing at the d
 local cam = cams[1]
 local eye = cam:FindFirstChild("Camera").Position
 local function inView(distance: number): any
-	local look = Watch.look(cam:GetAttribute("Yaw"), cam:GetAttribute("Phase"), workspace:GetServerTimeNow())
+	local look = Watch.look(cam:GetAttribute("Yaw"), cam:GetAttribute("Phase"), workspace:GetServerTimeNow(), cam:GetAttribute("Period"))
 	return Vector3.new(eye.X, 1.4, eye.Z) + look * distance
 end
 local blocker = Engine.new("Part")

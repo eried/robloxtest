@@ -3,9 +3,9 @@ local Config = require(script.Parent:WaitForChild("Config"))
 
 local Watch = {}
 
--- Yaw 0 looks up the plan (-Z), turning clockwise seen from above
-function Watch.look(yaw: number, phase: number, t: number): Vector3
-	local a = yaw + math.rad(Config.CameraSweep) * math.sin(t * 2 * math.pi / Config.CameraPeriod + phase)
+-- Yaw 0 looks up the plan (-Z), turning clockwise seen from above. Each camera sweeps at its own speed
+function Watch.look(yaw: number, phase: number, t: number, period: number?): Vector3
+	local a = yaw + math.rad(Config.CameraSweep) * math.sin(t * 2 * math.pi / (period or Config.CameraPeriod) + phase)
 	return Vector3.new(math.sin(a), 0, -math.cos(a))
 end
 

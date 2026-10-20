@@ -1,7 +1,7 @@
 {
   "bg": null,
   "bgOpacity": 50,
-  "cells": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggxxgwwwwwwwwwwwwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwggwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwgggggggggggggggxxgwwdddddddwwwggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwwwwwwwwwwwwwwwddwwwwwwwwwwwwwwwgggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppppppppppppppppppppppppggggggggggggggggggggggggggggggxxgggpppppppppppppppppppppppppppppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxxxxdddddddxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "cells": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggxxgwwwwwwwwwwwwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffwfffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffwfffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffwfffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffwfffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffwddwwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwggwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwgggggggggggggggxxgwwdddddddwwwggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwwwwwwwwwwwwwwwddwwwwwwwwwwwwwwwgggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppppppppppppppppppppppppggggggggggggggggggggggggggggggxxgggpppppppppppppppppppppppppppppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxxxxdddddddxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "h": 56,
   "items": [
     {
@@ -24,104 +24,6 @@
       "t": "gate",
       "x": 6,
       "y": 55
-    },
-    {
-      "id": "p66",
-      "r": 0,
-      "t": "key",
-      "x": 3,
-      "y": 3
-    },
-    {
-      "id": "p67",
-      "r": 0,
-      "t": "key",
-      "x": 12,
-      "y": 13
-    },
-    {
-      "id": "p68",
-      "r": 0,
-      "t": "key",
-      "x": 11,
-      "y": 4
-    },
-    {
-      "id": "p69",
-      "r": 0,
-      "t": "key",
-      "x": 3,
-      "y": 50
-    },
-    {
-      "id": "p70",
-      "r": 0,
-      "t": "key",
-      "x": 60,
-      "y": 3
-    },
-    {
-      "id": "p71",
-      "r": 0,
-      "t": "key",
-      "x": 58,
-      "y": 50
-    },
-    {
-      "id": "p72",
-      "r": 0,
-      "t": "key",
-      "x": 40,
-      "y": 45
-    },
-    {
-      "id": "p73",
-      "r": 0,
-      "t": "key",
-      "x": 25,
-      "y": 8
-    },
-    {
-      "id": "p74",
-      "r": 0,
-      "t": "key",
-      "x": 55,
-      "y": 24
-    },
-    {
-      "id": "p75",
-      "r": 2,
-      "t": "camera",
-      "x": 16,
-      "y": 36
-    },
-    {
-      "id": "p76",
-      "r": 1,
-      "t": "camera",
-      "x": 47,
-      "y": 13
-    },
-    {
-      "id": "p77",
-      "r": 2,
-      "t": "camera",
-      "x": 13,
-      "y": 16
-    },
-    {
-      "id": "p78",
-      "r": 0,
-      "t": "camera",
-      "x": 40,
-      "y": 54
-    },
-    {
-      "id": "p79",
-      "r": 0,
-      "t": "camera",
-      "x": 30,
-      "y": 13
     },
     {
       "id": "p80",
@@ -178,6 +80,132 @@
       "t": "flowers",
       "x": 40,
       "y": 8
+    },
+    {
+      "id": "c1",
+      "r": 2,
+      "t": "camera",
+      "x": 16,
+      "y": 36
+    },
+    {
+      "id": "c2",
+      "r": 1,
+      "t": "camera",
+      "x": 48,
+      "y": 13
+    },
+    {
+      "id": "c3",
+      "r": 2,
+      "t": "camera",
+      "x": 13,
+      "y": 16
+    },
+    {
+      "id": "c4",
+      "r": 0,
+      "t": "camera",
+      "x": 28,
+      "y": 54
+    },
+    {
+      "id": "c5",
+      "r": 0,
+      "t": "camera",
+      "x": 30,
+      "y": 13
+    },
+    {
+      "id": "c6",
+      "r": 0,
+      "t": "camera",
+      "x": 48,
+      "y": 36
+    },
+    {
+      "id": "c7",
+      "r": 3,
+      "t": "camera",
+      "x": 15,
+      "y": 27
+    },
+    {
+      "id": "c8",
+      "r": 2,
+      "t": "camera",
+      "x": 44,
+      "y": 1
+    },
+    {
+      "id": "c9",
+      "r": 0,
+      "t": "key",
+      "x": 11,
+      "y": 4
+    },
+    {
+      "id": "c10",
+      "r": 0,
+      "t": "key",
+      "x": 10,
+      "y": 6
+    },
+    {
+      "id": "c11",
+      "r": 0,
+      "t": "key",
+      "x": 8,
+      "y": 21
+    },
+    {
+      "id": "c12",
+      "r": 0,
+      "t": "key",
+      "x": 18,
+      "y": 46
+    },
+    {
+      "id": "c13",
+      "r": 0,
+      "t": "key",
+      "x": 24,
+      "y": 44
+    },
+    {
+      "id": "c14",
+      "r": 0,
+      "t": "key",
+      "x": 55,
+      "y": 8
+    },
+    {
+      "id": "c15",
+      "r": 0,
+      "t": "key",
+      "x": 40,
+      "y": 5
+    },
+    {
+      "id": "c16",
+      "r": 0,
+      "t": "key",
+      "x": 55,
+      "y": 24
+    },
+    {
+      "id": "c17",
+      "r": 0,
+      "t": "garageButton",
+      "x": 12,
+      "y": 24
+    },
+    {
+      "id": "c18",
+      "r": 0,
+      "t": "garageButtonIn",
+      "x": 12,
+      "y": 14
     }
   ],
   "labels": [
@@ -204,9 +232,21 @@
       "text": "Gate, 3 locks",
       "x": 7.5,
       "y": 53.4
+    },
+    {
+      "id": "l92",
+      "text": "Back room",
+      "x": 11,
+      "y": 5
+    },
+    {
+      "id": "l93",
+      "text": "Garage button",
+      "x": 12.5,
+      "y": 25.6
     }
   ],
-  "rev": "claude139",
+  "rev": "claude140",
   "updated": 1792486159467,
   "w": 64
 }

@@ -134,6 +134,7 @@ local FOOT: { [string]: { number } } = {
 	washer = { 2, 2 }, toilet = { 1, 2 }, bathtub = { 2, 4 }, other = { 2, 2 }, tree = { 2, 2 }, bush = { 2, 2 }, rock = { 1, 1 },
 	flowers = { 3, 2 }, shed = { 5, 4 }, trampoline = { 5, 5 }, woodpile = { 3, 1 }, bin = { 1, 1 }, car = { 4, 8 }, houseDoor = { 1, 1 },
 	gate = { 2, 1 }, ratSpawn = { 1, 1 }, ratHole = { 1, 1 }, ratGap = { 2, 1 }, jumpSpot = { 1, 1 }, camera = { 1, 1 },
+	garageButton = { 1, 1 }, garageButtonIn = { 1, 1 },
 }
 local function rectOf(it: { t: string, x: number, y: number, r: number }): Rect
 	local f = FOOT[it.t] or { 1, 1 }
@@ -658,13 +659,17 @@ local YX, YZ = -16 * U, -14 * U
 local function inHouse(x: number, y: number): boolean
 	return x >= 16 and x < 16 + floor1.w and y >= 14 and y < 14 + floor1.h
 end
-local cameras: { { eye: Vector3, yaw: number, phase: number } } = {}
+local cameras: { { eye: Vector3, yaw: number, phase: number, period: number } } = {}
 local yardKeySpots: { { pos: Vector3, garage: boolean } } = {}
 local gate: BasePart? = nil
 local gateClosedCf = CFrame.identity
 local gateSlide = Vector3.zero
 local gateLine = math.huge
 local camFolder: Folder
+local garageDoor: BasePart? = nil
+local garageClosed = CFrame.identity
+local garageSize = Vector3.zero
+local garageButtons: { { part: BasePart, inside: boolean } } = {}
 do
 	local yf = folder("Yard")
 	camFolder = folder("Cameras", yf)
@@ -699,6 +704,43 @@ do
 		return c == "d" and not inHouse(x, y) and x > 0 and y > 0 and x < yard.w - 1 and y < yard.h - 1
 	end) do
 		block(r, YX, YZ, DOOR, WALL, { Name = "DoorTop", Material = Enum.Material.Brick, Color = Color3.fromRGB(170, 120, 100), Parent = yf })
+		-- The big door out of the garage rolls up, inner doors stay open
+		local outer = false
+		for _, n in { { r.x, r.y - 1 }, { r.x, r.y + r.h }, { r.x - 1, r.y }, { r.x + r.w, r.y } } do
+			local c = rawCell(yard, n[1], n[2])
+			if c ~= "f" and c ~= "w" and c ~= "d" then
+				outer = true
+			end
+		end
+		if outer then
+			local across = r.w >= r.h
+			local size = if across then Vector3.new(r.w * U, DOOR, 1) else Vector3.new(1, DOOR, r.h * U)
+			local door = part({ Name = "GarageDoor", Size = size, CFrame = CFrame.new(YX + (r.x + r.w / 2) * U, DOOR / 2, YZ + (r.y + r.h / 2) * U), Material = Enum.Material.DiamondPlate, Color = Color3.fromRGB(205, 205, 210), Parent = yf })
+			garageDoor = door
+			garageClosed = door.CFrame
+			garageSize = size
+		end
+	end
+	-- A dim lamp in the garage
+	do
+		local sx, sz, n = 0, 0, 0
+		for y = 0, yard.h - 1 do
+			for x = 0, yard.w - 1 do
+				if rawCell(yard, x, y) == "f" and not inHouse(x, y) then
+					sx += x
+					sz += y
+					n += 1
+				end
+			end
+		end
+		if n > 0 then
+			local lamp = part({ Name = "Lamp", Size = Vector3.new(3, 0.4, 3), CFrame = CFrame.new(YX + (sx / n + 0.5) * U, WALL - 0.3, YZ + (sz / n + 0.5) * U), Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 225, 170), CanCollide = false, Parent = yf })
+			local light = Instance.new("PointLight")
+			light.Color = lamp.Color
+			light.Brightness = 0.5
+			light.Range = 40
+			light.Parent = lamp
+		end
 	end
 	-- The gate in the fence, locked three times
 	for _, r in rects(yard, function(c, x, y)
@@ -763,21 +805,40 @@ do
 			-- A camera on a pole, sweeping left and right. The client turns it and draws its cone
 			local yaw = (it.r % 4) * math.pi / 2
 			local phase = #cameras * 1.9
+			local period = Config.CameraPeriod * (1 + 0.17 * ((#cameras % 3) - 1))
 			local eye = c + Vector3.new(0, 14, 0)
-			local look = Watch.look(yaw, phase, 0)
+			local look = Watch.look(yaw, phase, 0, period)
 			local cam = Instance.new("Model")
 			cam.Name = "Cam"
 			cam:SetAttribute("Yaw", yaw)
 			cam:SetAttribute("Phase", phase)
+			cam:SetAttribute("Period", period)
 			cam.Parent = camFolder
 			local head = part({ Name = "Camera", Size = Vector3.new(1.2, 1.2, 2.4), CFrame = CFrame.lookAt(eye, eye + look * 10 - Vector3.new(0, 4, 0)), Color = Color3.fromRGB(235, 235, 240), CanCollide = false, Parent = cam })
 			local led = part({ Name = "Led", Size = Vector3.one * 0.35, CFrame = head.CFrame * CFrame.new(0.35, 0.35, -1.2), Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 40, 40), CanCollide = false, Parent = cam })
 			led:SetAttribute("Blink", true)
 			cam.PrimaryPart = head
 			part({ Name = "Pole", Size = Vector3.new(0.5, 14, 0.5), CFrame = CFrame.new(c + Vector3.new(0, 6.6, 0)), Color = Color3.fromRGB(80, 80, 85), Parent = camFolder })
-			table.insert(cameras, { eye = eye, yaw = yaw, phase = phase })
+			table.insert(cameras, { eye = eye, yaw = yaw, phase = phase, period = period })
 		elseif it.t == "key" then
 			table.insert(yardKeySpots, { pos = Vector3.new(c.X, 0, c.Z), garage = rawCell(yard, it.x, it.y) == "f" })
+		elseif it.t == "garageButton" then
+			-- A post with a big button, out in the yard
+			part({ Name = "ButtonPost", Size = Vector3.new(1, 4.5, 1), CFrame = CFrame.new(c + Vector3.new(0, 2.25, 0)), Color = Color3.fromRGB(80, 80, 85), Material = Enum.Material.Metal, Parent = yf })
+			local b = part({ Name = "GarageButton", Size = Vector3.new(1.8, 0.6, 1.8), CFrame = CFrame.new(c + Vector3.new(0, 4.8, 0)), Material = Enum.Material.Neon, Color = Color3.fromRGB(80, 230, 100), Parent = yf })
+			table.insert(garageButtons, { part = b, inside = false })
+		elseif it.t == "garageButtonIn" then
+			-- On the wall next to it inside the garage
+			local offset = Vector3.zero
+			for _, n in { { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 } } do
+				if rawCell(yard, it.x + n[1], it.y + n[2]) == "w" then
+					offset = Vector3.new(n[1], 0, n[2]) * (U / 2 - 0.35)
+					break
+				end
+			end
+			local size = if offset.X ~= 0 then Vector3.new(0.6, 1.6, 1.6) else Vector3.new(1.6, 1.6, 0.6)
+			local b = part({ Name = "GarageButton", Size = size, CFrame = CFrame.new(c + offset + Vector3.new(0, 4, 0)), Material = Enum.Material.Neon, Color = Color3.fromRGB(80, 230, 100), CanCollide = false, Parent = yf })
+			table.insert(garageButtons, { part = b, inside = true })
 		end
 	end
 end
@@ -817,6 +878,47 @@ rayParams.FilterType = Enum.RaycastFilterType.Exclude
 local function setStage(s: string)
 	stage = s
 	workspace:SetAttribute("Stage", s)
+end
+
+-- The garage door: closed, opening, hold, closing
+local garage = { open = 0, phase = "closed", hold = 0 }
+local GREEN, AMBER = Color3.fromRGB(80, 230, 100), Color3.fromRGB(255, 180, 60)
+local function setGarage(phase: string)
+	garage.phase = phase
+	workspace:SetAttribute("Garage", phase)
+	for _, b in garageButtons do
+		b.part.Color = if phase == "closed" or phase == "closing" then GREEN else AMBER
+	end
+end
+local function showGarage()
+	local door = garageDoor
+	if door then
+		local gap = garage.open * (DOOR - 1)
+		door.Size = Vector3.new(garageSize.X, DOOR - gap, garageSize.Z)
+		door.CFrame = garageClosed + Vector3.new(0, gap / 2, 0)
+		door.CanCollide = gap < 3.6
+	end
+end
+local function stepGarage(dt: number)
+	if garage.phase == "opening" then
+		garage.open = math.min(1, garage.open + dt / Config.GarageOpenTime)
+		if garage.open >= 1 then
+			garage.hold = Config.GarageHold
+			setGarage("hold")
+		end
+		showGarage()
+	elseif garage.phase == "hold" then
+		garage.hold -= dt
+		if garage.hold <= 0 then
+			setGarage("closing")
+		end
+	elseif garage.phase == "closing" then
+		garage.open = math.max(0, garage.open - dt / Config.GarageCloseTime)
+		if garage.open <= 0 then
+			setGarage("closed")
+		end
+		showGarage()
+	end
 end
 
 local function root(player: Player): BasePart?
@@ -934,6 +1036,9 @@ end
 local function resetRound()
 	setState("play")
 	setStage("house")
+	garage.open = 0
+	setGarage("closed")
+	showGarage()
 	table.clear(seen)
 	table.clear(safeUntil)
 	gateFound = 0
@@ -1024,7 +1129,7 @@ end
 -- The first camera that can see this spot right now, walls and bushes block the view
 local function watcher(pos: Vector3, t: number): Vector3?
 	for _, cam in cameras do
-		if Watch.inCone(cam.eye, Watch.look(cam.yaw, cam.phase, t), pos) then
+		if Watch.inCone(cam.eye, Watch.look(cam.yaw, cam.phase, t, cam.period), pos) then
 			local filter: { Instance } = { camFolder, keyFolder }
 			for _, p in Players:GetPlayers() do
 				if p.Character then
@@ -1128,6 +1233,20 @@ RunService.Heartbeat:Connect(function(dt: number)
 					end
 				end
 			end
+			-- Garage buttons open the door, the one outside shows it opening
+			if garage.phase == "closed" or garage.phase == "closing" then
+				for _, b in garageButtons do
+					local bp = b.part.Position
+					if Vector3.new(bp.X - pos.X, 0, bp.Z - pos.Z).Magnitude < 3.4 and math.abs(bp.Y - pos.Y) < 5 then
+						if not b.inside and garage.phase == "closed" then
+							safeUntil[player] = math.max(safeUntil[player] or 0, now + Config.GarageClipTime)
+						end
+						setGarage("opening")
+						event:FireAllClients("garage", player, if b.inside then "inside" else "outside")
+						break
+					end
+				end
+			end
 			-- Out of the front door and into the yard
 			if doorOpen and not player:GetAttribute("Out") and pos.Y < 10 and (pos.X < -1 or pos.Z < -1 or pos.X > HOUSE_W + 1 or pos.Z > HOUSE_D + 1) then
 				player:SetAttribute("Out", true)
@@ -1165,6 +1284,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 				break
 			end
 		end
+	end
+	if state == "play" then
+		stepGarage(dt)
 	end
 	-- Too much noise wakes a sleeper, otherwise they calm down over time
 	for _, s in sleepers do
@@ -1209,5 +1331,6 @@ end)
 
 placeKeys()
 setStage("house")
+setGarage("closed")
 workspace:SetAttribute("CatBed", catBed)
 workspace:SetAttribute("Floor2", FLOOR2)

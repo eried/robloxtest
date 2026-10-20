@@ -309,7 +309,7 @@ end)
 showKeys()
 
 -- Backyard cameras turn, blink and light a red cone on the ground
-type Cam = { model: Model, eye: Vector3, yaw: number, phase: number, cone: { BasePart }, led: BasePart? }
+type Cam = { model: Model, eye: Vector3, yaw: number, phase: number, period: number, cone: { BasePart }, led: BasePart?, reach: { [number]: number } }
 local cams: { Cam } = {}
 local coneFolder = new("Folder", { Name = "Cones", Parent = workspace })
 local RED = Color3.fromRGB(255, 60, 60)
@@ -332,8 +332,10 @@ local function addCam(model: Instance)
 		eye = head.Position,
 		yaw = (model:GetAttribute("Yaw") :: number?) or 0,
 		phase = (model:GetAttribute("Phase") :: number?) or 0,
+		period = (model:GetAttribute("Period") :: number?) or Config.CameraPeriod,
 		cone = cone,
 		led = model:FindFirstChild("Led") :: BasePart?,
+		reach = {},
 	})
 end
 for _, d in world:GetDescendants() do
@@ -341,6 +343,24 @@ for _, d in world:GetDescendants() do
 end
 world.DescendantAdded:Connect(function(d)
 	task.defer(addCam, d)
+end)
+
+-- Garage buttons get a marker, the door hums when it moves
+local function addButton(p: Instance)
+	if p:IsA("BasePart") and p.Name == "GarageButton" then
+		local bill = new("BillboardGui", { Size = UDim2.fromOffset(44, 44), StudsOffsetWorldSpace = Vector3.new(0, 2.4, 0), MaxDistance = 80, Parent = p })
+		new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = "🔘", Parent = bill })
+	end
+end
+for _, d in world:GetDescendants() do
+	addButton(d)
+end
+world.DescendantAdded:Connect(addButton)
+workspace:GetAttributeChangedSignal("Garage"):Connect(function()
+	local door = world:FindFirstChild("Yard") and world.Yard:FindFirstChild("GarageDoor")
+	if sfx and door and workspace:GetAttribute("Garage") == "closing" then
+		playClip(door, Config.Sfx.Gate, 1.2, Config.Sfx.Gate[2] / Config.GarageCloseTime, 160, sfx)
+	end
 end)
 
 -- A flat triangle from two wedges
@@ -388,7 +408,7 @@ RunService.RenderStepped:Connect(function()
 	seenRay.FilterDescendantsInstances = filter
 	local hidden = false
 	for _, c in cams do
-		local look = Watch.look(c.yaw, c.phase, t)
+		local look = Watch.look(c.yaw, c.phase, t, c.period)
 		c.model:PivotTo(CFrame.lookAt(c.eye, c.eye + look * 10 - Vector3.new(0, 4, 0)))
 		if c.led then
 			c.led.Transparency = if math.floor(t * 2) % 2 == 0 then 0 else 0.85
@@ -400,9 +420,16 @@ RunService.RenderStepped:Connect(function()
 		for i = 0, SLICES do
 			local a = yaw - half + i * half * 2 / SLICES
 			local dir = Vector3.new(math.sin(a), 0, -math.cos(a))
-			local hit = workspace:Raycast(apex + Vector3.new(0, 1.2, 0), dir * Config.CameraRange, seenRay)
-			local length = if hit then math.max(1, (hit.Position - apex).Magnitude) else Config.CameraRange
-			points[i + 1] = apex + dir * length
+			-- How far the light reaches this way, worked out once every 2 degrees
+			local step = math.floor(math.deg((a - c.yaw + math.pi) % (2 * math.pi) - math.pi) / 2 + 0.5)
+			local length = c.reach[step]
+			if not length then
+				local d = math.rad(step * 2) + c.yaw
+				local hit = workspace:Raycast(apex + Vector3.new(0, 1.2, 0), Vector3.new(math.sin(d), 0, -math.cos(d)) * Config.CameraRange, seenRay)
+				length = if hit then math.max(1, (hit.Position - apex).Magnitude) else Config.CameraRange
+				c.reach[step] = length
+			end
+			points[i + 1] = apex + dir * (length :: number)
 		end
 		for i = 1, SLICES do
 			triangle(apex, points[i], points[i + 1], c.cone[i * 2 - 1], c.cone[i * 2])
@@ -706,6 +733,29 @@ local function exitClip()
 	showBanner("📹 Cameras! Stay out of the red light.\nFind 3 gate keys 🗝️🗝️🗝️", 6)
 end
 
+-- The garage button: a quick look at the door rolling up, then hurry
+local function garageClip()
+	local door = world:FindFirstChild("Yard") and world.Yard:FindFirstChild("GarageDoor") :: BasePart?
+	local root = myRoot()
+	if introOn or not door or not root then
+		return
+	end
+	clipOn = true
+	camera.CameraType = Enum.CameraType.Scriptable
+	local from = root.Position
+	local start = os.clock()
+	while os.clock() - start < Config.GarageClipTime - 0.1 do
+		local t = (os.clock() - start) / Config.GarageClipTime
+		local side = Vector3.new(from.X - door.Position.X, 0, from.Z - door.Position.Z)
+		side = if side.Magnitude > 0.1 then side.Unit else Vector3.new(0, 0, 1)
+		camera.CFrame = CFrame.lookAt(door.Position + side * (26 - t * 6) + Vector3.new(0, 9, 0), door.Position + Vector3.new(0, 2, 0))
+		RunService.RenderStepped:Wait()
+	end
+	camera.CameraType = Enum.CameraType.Custom
+	clipOn = false
+	popText("🚗 The garage is open... hurry!", Color3.fromRGB(255, 220, 120))
+end
+
 -- A camera saw Pianka: mom's phone lights up and buzzes, she wakes up
 local function spottedClip(eye: Vector3)
 	if introOn then
@@ -844,6 +894,14 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
 		end
 	elseif kind == "spotted" then
 		task.spawn(spottedClip, b)
+	elseif kind == "garage" then
+		local door = world:FindFirstChild("Yard") and world.Yard:FindFirstChild("GarageDoor")
+		if sfx and door then
+			playClip(door, Config.Sfx.Gate, 1.3, 1.6, 160, sfx)
+		end
+		if a == player and b == "outside" then
+			task.spawn(garageClip)
+		end
 	elseif kind == "free" then
 		local who = if a == player then "You" else (a and a.DisplayName or "Someone")
 		if sfx then
