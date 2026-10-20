@@ -279,6 +279,28 @@ def set_name():
     print("Game name:", res.get("displayName"))
 
 
+def grant():
+    """Lets the game use every sound in the config. Roblox refuses to play an audio asset in a
+    game that was not granted it ("User is not authorized to access Asset")."""
+    universe = universe_id(place_id())
+    with open(CONFIG) as f:
+        ids = sorted({int(a) for _, a in re.findall(r"\b(\w+Id) = (\d{6,}),", f.read())})
+    if not ids:
+        return
+    body = json.dumps({
+        "subjectType": "Universe",
+        "subjectId": str(universe),
+        "action": "Use",
+        "requests": [{"assetId": a, "grantToDependencies": True} for a in ids],
+    }).encode()
+    try:
+        res = call("PATCH", f"{API}/asset-permissions-api/v1/assets/permissions", body, {"Content-Type": "application/json"})
+        print("Sound permissions for the game:", json.dumps(res))
+    except SystemExit as err:
+        print("Could not grant the sounds to the game:", err)
+        print("The API key needs the Asset Permissions API with write access for this experience")
+
+
 def sounds():
     """Prints who owns the game and each sound, and whether Roblox approved the sound."""
     universe = universe_id(place_id())
@@ -300,4 +322,4 @@ def sounds():
 
 
 if __name__ == "__main__":
-    {"audio": audio, "passes": passes, "publish": publish, "restart": restart, "status": status, "public": make_public, "name": set_name, "sounds": sounds}[sys.argv[1]]()
+    {"audio": audio, "passes": passes, "publish": publish, "restart": restart, "status": status, "public": make_public, "name": set_name, "sounds": sounds, "grant": grant}[sys.argv[1]]()

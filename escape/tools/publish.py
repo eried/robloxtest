@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Upload sounds and publish Pianka the Escape, reusing tools/roblox.py.
 
-python3 escape/tools/publish.py audio | publish | restart | name | status | public | sounds
+python3 escape/tools/publish.py audio | grant | publish | restart | name | status | public | sounds
 """
 import os
 import sys
@@ -30,5 +30,5 @@ def publish():
 
 
 if __name__ == "__main__":
-    actions = {"audio": roblox.audio, "publish": publish, "restart": roblox.restart, "status": roblox.status, "public": roblox.make_public, "name": roblox.set_name, "sounds": roblox.sounds}
+    actions = {"audio": roblox.audio, "publish": publish, "restart": roblox.restart, "status": roblox.status, "public": roblox.make_public, "name": roblox.set_name, "sounds": roblox.sounds, "grant": roblox.grant}
     actions[sys.argv[1]]()

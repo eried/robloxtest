@@ -49,6 +49,13 @@ jobs:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 escape/tools/publish.py audio | tee -a "$GITHUB_STEP_SUMMARY"
 
+      - name: Let the game use its sounds
+        if: env.HAS_KEY == 'true'
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py grant | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Build place
         if: env.HAS_KEY == 'true'
         run: |
