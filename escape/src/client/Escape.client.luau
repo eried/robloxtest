@@ -41,13 +41,13 @@ local function myRoot(): BasePart?
 	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
--- Sounds: one sheet of clips, preloaded. A clip only plays once its sound is loaded,
--- before that Roblox does not know how long it is and cuts the clip to nothing
+-- Sounds: sheets of clips. They play right away, and start again properly once Roblox has
+-- loaded them, so nothing waits on a load that a phone never reports
 local function source(id: number, looped: boolean?): Sound?
 	if id == 0 then
 		return nil
 	end
-	return new("Sound", { SoundId = "rbxassetid://" .. id, Looped = looped == true, Volume = 0, Parent = SoundService })
+	return new("Sound", { SoundId = "rbxassetid://" .. id, Looped = looped == true, Volume = 0.5, Parent = SoundService })
 end
 local sfx = source(Config.SfxId)
 local voices = source(Config.VoicesId)
@@ -55,9 +55,11 @@ local meows = source(Config.SoundsId)
 local music = source(Config.MusicId, true)
 local tense = source(Config.TenseId, true)
 local dreamBox = source(Config.DreamId)
+local longCall = source(Config.LongCallId)
+local sources: { [string]: Sound? } = { sfx = sfx, voices = voices, meows = meows, music = music, tense = tense, dream = dreamBox, call = longCall }
 task.spawn(function()
 	local list = {}
-	for _, s in { sfx, voices, meows, music, tense, dreamBox } do
+	for _, s in sources do
 		if s then
 			table.insert(list, s)
 		end
@@ -70,31 +72,16 @@ task.spawn(function()
 		end)
 	end)
 end)
+local function loaded(s: Sound): boolean
+	return s.IsLoaded or s.TimeLength > 0
+end
 
--- Runs f once the sound has loaded, or warns after a while
+-- Runs f now, and once more when the sound has loaded if it had not yet
 local function whenLoaded(s: Sound, f: () -> ())
-	if s.IsLoaded then
-		f()
-		return
+	f()
+	if not loaded(s) then
+		s.Loaded:Once(f)
 	end
-	local fired = false
-	local conn = s.Loaded:Once(function()
-		if not fired then
-			fired = true
-			f()
-		end
-	end)
-	task.delay(15, function()
-		conn:Disconnect()
-		if not fired then
-			fired = true
-			if s.IsLoaded then
-				f()
-			else
-				warn("Sound still not loaded:", s.SoundId)
-			end
-		end
-	end)
 end
 
 -- One clip from a sound sheet. Little sounds are skipped until the sheet has loaded
@@ -103,7 +90,7 @@ local function playClip(parent: Instance, clip: { number }?, volume: number, spe
 		return nil
 	end
 	local source = from :: Sound
-	if optional and not source.IsLoaded then
+	if optional and not loaded(source) then
 		return nil
 	end
 	local c = clip :: { number }
@@ -114,26 +101,37 @@ local function playClip(parent: Instance, clip: { number }?, volume: number, spe
 	s.RollOffMode = Enum.RollOffMode.InverseTapered
 	s.RollOffMinDistance = 8
 	s.RollOffMaxDistance = range
+	s.PlaybackRegionsEnabled = true
+	s.PlaybackRegion = NumberRange.new(c[1], c[1] + c[2])
 	s.Parent = parent
-	whenLoaded(source, function()
-		if not s.Parent then
-			return
-		end
-		s.PlaybackRegionsEnabled = true
-		s.PlaybackRegion = NumberRange.new(c[1], c[1] + c[2])
-		s:Play()
+	-- Cleaned up once the clip has really played. A sound that is not loaded yet "ends" at
+	-- once, so it only gets cleaned up after it has loaded and played
+	local function finish()
 		s.Ended:Once(function()
 			s:Destroy()
 		end)
 		task.delay(c[2] / speed + 1, function()
 			s:Destroy()
 		end)
-	end)
-	task.delay(18, function()
-		if not s.IsPlaying then
-			s:Destroy()
-		end
-	end)
+	end
+	s:Play()
+	if loaded(s) then
+		finish()
+	else
+		s.Loaded:Once(function()
+			if s.Parent then
+				s.PlaybackRegion = NumberRange.new(c[1], c[1] + c[2])
+				s.TimePosition = c[1]
+				s:Play()
+				finish()
+			end
+		end)
+		task.delay(20, function()
+			if not s.IsPlaying then
+				s:Destroy()
+			end
+		end)
+	end
 	return s
 end
 local function sound(name: string, volume: number?, speed: number?, parent: Instance?, range: number?): Sound?
@@ -152,7 +150,7 @@ local function loopClip(parent: Instance, clip: { number }, volume: number, rang
 	s.RollOffMinDistance = 6
 	s.RollOffMaxDistance = range
 	s.Parent = parent
-	whenLoaded(sfx :: Sound, function()
+	whenLoaded(s, function()
 		s.PlaybackRegionsEnabled = true
 		s.PlaybackRegion = NumberRange.new(clip[1], clip[1] + clip[2])
 		s.LoopRegion = s.PlaybackRegion
@@ -172,6 +170,18 @@ end
 local function meow(clip: { number }, volume: number, speed: number?, parent: Instance?)
 	playClip(parent or SoundService, clip, volume, speed or 1, 120, meows)
 end
+-- The long "Piaaanka!" when she is sent back to bed
+local function callHome()
+	if longCall then
+		local s = (longCall :: Sound):Clone()
+		s.Volume = 1.6
+		s.Parent = SoundService
+		s:Play()
+		task.delay(8, function()
+			s:Destroy()
+		end)
+	end
+end
 
 -- Music: the sneaky tune and its tense layer play in sync. Danger fades the tense one in
 local danger, spike = 0, 0
@@ -182,6 +192,7 @@ local function startMusic()
 	end
 	musicOn = true
 	local calm = music :: Sound
+	calm.Volume = 0.8
 	whenLoaded(calm, function()
 		calm.TimePosition = 0
 		calm:Play()
@@ -197,6 +208,45 @@ end
 
 -- Screen
 local gui = new("ScreenGui", { Name = "Escape", ResetOnSpawn = false, IgnoreGuiInset = true, Parent = player:WaitForChild("PlayerGui") })
+-- For the game's owner only: is each sound file loaded, and the last sound problem Roblox reported
+task.spawn(function()
+	local ok, creator = pcall(function()
+		return game.CreatorId
+	end)
+	if not ok or creator ~= player.UserId then
+		return
+	end
+	local strip = new("TextButton", { Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(330, 44), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4, TextColor3 = Color3.new(1, 1, 1), TextSize = 12, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 40, Text = "", Parent = gui })
+	strip.Activated:Connect(function()
+		strip.Visible = false
+	end)
+	local problems: { string } = {}
+	pcall(function()
+		game:GetService("LogService").MessageOut:Connect(function(message: string, kind: Enum.MessageType)
+			local lower = string.lower(message)
+			if kind ~= Enum.MessageType.MessageOutput and (string.find(lower, "sound", 1, true) or string.find(lower, "asset", 1, true) or string.find(lower, "audio", 1, true)) then
+				table.insert(problems, string.sub(message, 1, 120))
+				if #problems > 2 then
+					table.remove(problems, 1)
+				end
+			end
+		end)
+	end)
+	local start = os.clock()
+	while strip.Parent do
+		local parts = {}
+		for name, snd in sources do
+			if snd then
+				local mark = if loaded(snd :: Sound) then "✅" elseif os.clock() - start > 20 then "❌" else "⏳"
+				table.insert(parts, name .. mark)
+			end
+		end
+		table.sort(parts)
+		strip.Text = "🔊 " .. table.concat(parts, " ") .. (if #problems > 0 then "\n" .. table.concat(problems, "\n") else "")
+		task.wait(1)
+	end
+end)
+
 local keyBar = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 12),
@@ -518,7 +568,7 @@ local function addSleeper(model: Instance)
 		local kid = model:GetAttribute("Sleeper") ~= "Milenkitka"
 		if phase == "warn" then
 			sound("Snort", 1.5, if kid then 1.2 else 1, head, 90)
-			if not clipOn and seesMe(model, head, "warn") then
+			if Config.LookWakes and not clipOn and seesMe(model, head, "warn") then
 				warnFlash()
 			end
 		elseif phase == "look" then
@@ -533,6 +583,9 @@ for _, d in world:GetDescendants() do
 	task.spawn(addSleeper, d)
 end
 afterClip = function()
+	if not Config.LookWakes then
+		return
+	end
 	for _, sl in sleepers do
 		if (sl.phase == "warn" or sl.phase == "look") and seesMe(sl.model, sl.head, sl.phase) then
 			warnFlash()
@@ -892,7 +945,7 @@ RunService.RenderStepped:Connect(function()
 		table.insert(filter, keys)
 	end
 	for _, sl in sleepers do
-		local stirring = sl.phase == "warn" or sl.phase == "look"
+		local stirring = Config.LookWakes and (sl.phase == "warn" or sl.phase == "look")
 		local dir, half = sightDir(sl.model, sl.head, sl.phase)
 		if not stirring or dir == Vector3.zero then
 			if sl.drawn ~= "" then
@@ -988,7 +1041,9 @@ RunService.RenderStepped:Connect(function(dt: number)
 					end
 				end
 				if d < Config.StirRange + 10 then
-					alarm = math.max(alarm, if s.phase == "look" then 1 elseif s.phase == "warn" then 0.75 else 0)
+					if Config.LookWakes then
+						alarm = math.max(alarm, if s.phase == "look" then 1 elseif s.phase == "warn" then 0.75 else 0)
+					end
 				end
 			end
 		end
@@ -1016,10 +1071,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 	end
 	danger += (target - danger) * math.min(1, dt * (if target > danger then 3 else 0.6))
 	if music and musicOn then
-		music.Volume = if tense then 0.6 * (1 - 0.65 * danger) else 0.6
+		music.Volume = if tense then 0.8 * (1 - 0.65 * danger) else 0.8
 	end
 	if tense and musicOn then
-		tense.Volume = 0.85 * danger
+		tense.Volume = 0.9 * danger
 	end
 	-- Keep the tense layer in step with the tune, checked now and then
 	local now = os.clock()
@@ -1905,10 +1960,7 @@ local function wakeClip(name: string, at: Vector3, cause: string?, culprit: any)
 	end
 	local start = os.clock()
 	sound("Snort", 1.6)
-	task.delay(0.6, function()
-		local calls = Config.Calls
-		voice(calls[math.random(1, #calls)], 1.8)
-	end)
+	task.delay(0.5, callHome)
 	local who: Sleeper? = nil
 	for _, s in sleepers do
 		if s.model:GetAttribute("Sleeper") == name then
@@ -2165,10 +2217,7 @@ local function spottedClip(eye: Vector3, culprit: any)
 				phase = 2
 				sound("Snort", 1.4)
 				popIcon(head, "‼️", 2, 80)
-				task.delay(0.6, function()
-					local calls = Config.Calls
-					voice(calls[math.random(1, #calls)], 1.8)
-				end)
+				task.delay(0.5, callHome)
 			end
 		end
 		RunService.RenderStepped:Wait()
@@ -2624,6 +2673,26 @@ local function freeClip(root: BasePart)
 	end
 	showEndCard()
 end
+
+-- A key picture floats over every key nearby, walls hide it
+local function markKey(key: Instance)
+	task.defer(function()
+		local main = key:IsA("Model") and key.PrimaryPart
+		if main then
+			local bill = new("BillboardGui", { Size = UDim2.fromOffset(40, 40), StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0), MaxDistance = 34, Parent = main })
+			new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = if key:GetAttribute("Gate") then "🗝️" else "🔑", Parent = bill })
+		end
+	end)
+end
+task.spawn(function()
+	local keys = world:WaitForChild("Keys", 20)
+	if keys then
+		for _, k in keys:GetChildren() do
+			markKey(k)
+		end
+		keys.ChildAdded:Connect(markKey)
+	end
+end)
 
 -- Keys twinkle now and then so you can find them by ear. Outside, crickets
 local crickets: Sound? = nil

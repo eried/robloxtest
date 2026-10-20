@@ -15,6 +15,8 @@ Engine.patch = function(name: string, module: any)
 		module.DreamId = 96
 		-- The bots escape fast
 		module.MinRunTime = 30
+		-- Test the peeking rule too
+		module.LookWakes = true
 	end
 end
 Engine.startServer()

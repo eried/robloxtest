@@ -769,11 +769,19 @@ def save_wav(path, x):
         w.writeframes((np.clip(x, -1, 1) * 32767).astype(np.int16).tobytes())
 
 
-def to_mp3(x, path):
+def to_mp3(x, path, loud=None):
+    """Writes an mp3. With loud, the music is brought to that loudness (LUFS) and its low end
+    thinned so phone speakers play it clearly."""
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         tmp = f.name
     save_wav(tmp, x)
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", tmp, "-ac", "1", "-b:a", "128k", path], check=True)
+    chain = []
+    if loud is not None:
+        shape = "highpass=f=90,equalizer=f=1800:t=q:w=1:g=3"
+        probe = subprocess.run(["ffmpeg", "-hide_banner", "-i", tmp, "-af", f"{shape},loudnorm=I={loud}:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
+        m = json.loads(probe[probe.rindex("{") : probe.rindex("}") + 1])
+        chain = ["-af", f"{shape},loudnorm=I={loud}:TP=-1.5:LRA=11:linear=true:measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}", "-ar", "44100"]
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", tmp, *chain, "-ac", "1", "-b:a", "128k", path], check=True)
     os.remove(tmp)
 
 
@@ -800,7 +808,7 @@ def main():
     os.makedirs(os.path.join(ROOT, "music"), exist_ok=True)
     to_mp3(np.concatenate(chunks), os.path.join(ROOT, "sounds", "PiankaEscapeSfx.mp3"))
     for name, x in (("PiankaSneak", stealth_calm()), ("PiankaTense", stealth_tense()), ("PiankaDream", dream_box())):
-        to_mp3(x, os.path.join(ROOT, "music", name + ".mp3"))
+        to_mp3(x, os.path.join(ROOT, "music", name + ".mp3"), loud=-13)
         print(name, round(len(x) / SR, 2), "s")
     print(json.dumps(table))
 

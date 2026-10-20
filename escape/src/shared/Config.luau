@@ -16,6 +16,8 @@ return {
 	-- Sleepers: Pianka sneaks within SnoreRange. Now and then they snort, then look around:
 	-- moving while they look wakes them. One squeak upstairs wakes the closest one
 	SnoreRange = 42,
+	-- When on, moving while a sleeper peeks wakes them. Off: they only snort and peek
+	LookWakes = false,
 	StirEvery = { 9, 17 },
 	StirWarn = 1.3,
 	StirTime = 2.6,
@@ -108,12 +110,14 @@ return {
 		Scratch = { 83.536, 0.45 },
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
-	MusicId = 104015424025242,
-	TenseId = 115037658171295,
-	DreamId = 87180870311915,
+	MusicId = 0,
+	TenseId = 0,
+	DreamId = 0,
 
 	-- Voices and meows from Find Pianka the Cat
 	VoicesId = 97571276201632,
+	-- The long "Piaaanka!" call from the first game, when she is sent back to bed
+	LongCallId = 112612503374928,
 	Calls = { { 0.3, 2.729 }, { 3.529, 2.985 }, { 7.014, 2.112 } },
 	Back = { 9.626, 2.549 },
 	SoundsId = 91539648212607,

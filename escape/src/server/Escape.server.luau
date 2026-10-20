@@ -726,15 +726,6 @@ local function buildToy(it: any, floorNo: number, baseY: number, parent: Instanc
 		;(ball :: Part).Shape = Enum.PartType.Ball
 		model.PrimaryPart = plate
 	end
-	-- Upstairs, where a squeak wakes someone, a red ring warns around the toy
-	if floorNo == 2 then
-		local radius = Config.Toys[it.t].radius + 0.3
-		local ring = box(model, "DangerRing", CFrame.new(c + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.08, radius * 2, radius * 2), Color3.fromRGB(255, 70, 70), Enum.Material.Neon, false)
-		;(ring :: Part).Shape = Enum.PartType.Cylinder
-		ring.Transparency = 0.75
-		ring.CastShadow = false
-		ring.CanQuery = false
-	end
 	table.insert(toys, { kind = it.t, model = model, pos = c, floor = floorNo, ready = 0 })
 end
 
@@ -1493,17 +1484,18 @@ local function makeKey(pos: Vector3, index: number): Model
 	local gold = Color3.fromRGB(255, 205, 60)
 	local model = Instance.new("Model")
 	model.Name = "Key"
-	local center = part({ Name = "Shaft", Size = Vector3.new(0.5, 0.5, 2.2), CFrame = CFrame.new(pos), Material = Enum.Material.Metal, Color = gold, CanCollide = false, Parent = model })
-	local ring = part({ Name = "Ring", Size = Vector3.new(0.4, 1.5, 1.5), CFrame = center.CFrame * CFrame.new(0, 0, 1.4) * CFrame.Angles(0, 0, math.rad(90)), Material = Enum.Material.Metal, Color = gold, CanCollide = false, Parent = model })
+	-- Big and glowing, easy to spot in a dark room on a small screen
+	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = CFrame.new(pos), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
+	local ring = part({ Name = "Ring", Size = Vector3.new(0.55, 2.1, 2.1), CFrame = center.CFrame * CFrame.new(0, 0, 1.95) * CFrame.Angles(0, 0, math.rad(90)), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
 	;(ring :: Part).Shape = Enum.PartType.Cylinder
-	part({ Name = "Tooth", Size = Vector3.new(0.4, 0.6, 0.4), CFrame = center.CFrame * CFrame.new(0, -0.45, -0.7), Material = Enum.Material.Metal, Color = gold, CanCollide = false, Parent = model })
-	part({ Name = "Tooth", Size = Vector3.new(0.4, 0.45, 0.4), CFrame = center.CFrame * CFrame.new(0, -0.38, -0.2), Material = Enum.Material.Metal, Color = gold, CanCollide = false, Parent = model })
+	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.85, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.6, -1), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
+	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.6, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.5, -0.3), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
 	model.PrimaryPart = center
 	model.Parent = keyFolder
 	local light = Instance.new("PointLight")
 	light.Color = gold
-	light.Range = 10
-	light.Brightness = 1.4
+	light.Range = 14
+	light.Brightness = 1.8
 	light.Parent = center
 	local sparkle = Instance.new("Sparkles")
 	sparkle.SparkleColor = gold
@@ -2032,7 +2024,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		elseif s.phase == "warn" and now >= s.next then
 			setStir(s, "look", now + Config.StirTime)
 		elseif s.phase == "look" then
-			local mover = seesMoving(s)
+			local mover = if Config.LookWakes then seesMoving(s) else nil
 			if mover then
 				wake(s, "look", mover)
 				break
