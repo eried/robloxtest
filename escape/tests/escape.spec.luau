@@ -241,21 +241,41 @@ if kid then
 	check(eyes > 0, "the kid looks around with closed eyes")
 	run(Config.StirTime * 0.5)
 	check(workspace:GetAttribute("State") == "play", "standing still while the kid looked woke him")
-	-- Next time he looks, move
-	for _ = 1, math.ceil((Config.StirEvery[2] + 12) / DT) do
-		Engine.step(DT)
-		if kid:GetAttribute("Stir") == "look" then
-			break
+	-- Next time he looks, move a moment and stop: it builds up, drains, and he sleeps on
+	-- The next time he looks into the room, not at the wall by his bed
+	local function nextLook(): Vector3
+		local facing = Vector3.zero
+		for _ = 1, 4 do
+			for _ = 1, math.ceil((Config.StirEvery[2] + 12) / DT) do
+				Engine.step(DT)
+				if kid:GetAttribute("Stir") == "look" then
+					break
+				end
+			end
+			run(0.4)
+			facing = kid:GetAttribute("Facing")
+			if facing.X > 0 then
+				break
+			end
+			run(Config.StirTime)
 		end
+		return facing
 	end
-	-- Stand where he looks
-	local up = kid:FindFirstChild("Head").CFrame.UpVector
-	local facing = Vector3.new(up.X, 0, up.Z).Unit
+	local facing = nextLook()
 	spot = Vector3.new(head.X, Config.Floor2 + 1.4, head.Z) + facing * 9
-	-- Wait out the moment the head turns, then creep toward him
-	run(0.4)
-	for i = 1, 30 do
-		teleport(ana, spot - facing * i * 0.22)
+	for i = 1, 14 do
+		teleport(ana, spot - facing * i * 0.2)
+		Engine.step(DT)
+	end
+	check(((ana:GetAttribute("Tension") :: number?) or 0) > 0, "moving while the kid looked did not build up")
+	run(Config.StirTime)
+	check(workspace:GetAttribute("State") == "play", "a short move while the kid looked woke him")
+	check(((ana:GetAttribute("Tension") :: number?) or 0) == 0, "standing still did not calm it down")
+	-- Next time keep moving: after a moment he wakes up
+	facing = nextLook()
+	spot = Vector3.new(head.X, Config.Floor2 + 1.4, head.Z) + facing * 9
+	for i = 1, 60 do
+		teleport(ana, spot - facing * i * 0.15)
 		Engine.step(DT)
 		if workspace:GetAttribute("State") == "caught" then
 			break

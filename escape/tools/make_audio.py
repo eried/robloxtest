@@ -782,6 +782,18 @@ def scratch():
     return norm((tone + hiss) * np.minimum(t / 0.01, 1) * np.exp(-t * 3), 0.85)
 
 
+def drone():
+    """Tension while a sleeper watches: a low hum that beats, with static on top. Loops in 4 s."""
+    g = np.random.default_rng(61)
+    n = int(4.0 * SR)
+    t = np.arange(n) / SR
+    # Every part repeats a whole number of times in 4 s so the loop is seamless
+    hum = sum(a * np.sin(2 * np.pi * f * t + i) for i, (f, a) in enumerate(((55, 1.0), (56.5, 0.8), (82.5, 0.45), (110.25, 0.3), (165, 0.15))))
+    hum *= 0.8 + 0.2 * np.sin(2 * np.pi * 0.5 * t)
+    static = band(g.standard_normal(n), 700, 5200) * (0.45 + 0.55 * np.abs(np.sin(2 * np.pi * 3 * t)))
+    return norm(norm(hum, 0.7) + norm(static, 0.22), 0.8)
+
+
 def voice(name, semis=0.0, tempo=1.0, wet=0.15):
     x = load_wav(os.path.join(ROOT, "sounds", "voice", name + ".wav"), semis, tempo)
     return norm(reverb(x, wet, 4, 0.6))
@@ -826,7 +838,7 @@ def main():
         ("Whoosh", whoosh()), ("Beep", beep()), ("Alert", alert()), ("Buzz", buzz()), ("Ding", ding()), ("Gate", gate_motor()),
         ("Sigh", sigh()), ("Crickets", crickets()), ("Servo", servo()), ("Click", click()),
         ("Rumble", rumble()), ("Clack", clack()), ("Clatter", clatter()), ("Clink", clink()),
-        ("Scream", scream()), ("Scratch", scratch()),
+        ("Scream", scream()), ("Scratch", scratch()), ("Drone", drone()),
     ]
     table, chunks, pos = {}, [np.zeros(int(0.3 * SR))], 0.3
     for name, x in clips:

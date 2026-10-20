@@ -2220,9 +2220,11 @@ local sampleAt: { [Player]: number } = {}
 local speeds: { [Player]: number } = {}
 local sightParams = RaycastParams.new()
 sightParams.FilterType = Enum.RaycastFilterType.Exclude
-local function seesMoving(s: Sleeper): Player?
+-- Who a looking sleeper sees moving
+local function seesMoving(s: Sleeper): { Player }
+	local movers = {}
 	if os.clock() - s.since < 0.3 then
-		return nil
+		return movers
 	end
 	local facing = s.facing
 	local floorY = if s.floor == 2 then FLOOR2 else 0
@@ -2242,13 +2244,15 @@ local function seesMoving(s: Sleeper): Player?
 				end
 				sightParams.FilterDescendantsInstances = filter
 				if not workspace:Raycast(from, d, sightParams) then
-					return player
+					table.insert(movers, player)
 				end
 			end
 		end
 	end
-	return nil
+	return movers
 end
+-- How long each cat has been seen moving, 0 to 1. Full wakes the sleeper, standing still lets it go
+local tension: { [Player]: number } = {}
 
 RunService.Heartbeat:Connect(function(dt: number)
 	local now = os.clock()
@@ -2389,7 +2393,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 	if state == "play" then
 		stepGarage(dt)
 	end
-	-- Sleepers stir now and then. While they look around, moving where they can see wakes them
+	-- Sleepers stir now and then. While they look around, moving where they can see builds up
+	local watched: { [Player]: Sleeper } = {}
 	for _, s in sleepers do
 		if state ~= "play" then
 			break
@@ -2399,14 +2404,27 @@ RunService.Heartbeat:Connect(function(dt: number)
 		elseif s.phase == "warn" and now >= s.next then
 			setStir(s, "look", now + Config.StirTime)
 		elseif s.phase == "look" then
-			local mover = if Config.LookWakes then seesMoving(s) else nil
-			if mover then
-				wake(s, "look", mover)
-				break
+			if Config.LookWakes then
+				for _, p in seesMoving(s) do
+					watched[p] = s
+				end
 			end
 			if now >= s.next then
 				setStir(s, "sleep", now + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]))
 			end
+		end
+	end
+	for _, p in Players:GetPlayers() do
+		local s = watched[p]
+		local t = if state ~= "play" then 0 else math.clamp((tension[p] or 0) + (if s then dt / Config.LookGrace else -dt / Config.LookCalm), 0, 1)
+		if s and t >= 1 then
+			t = 0
+			wake(s, "look", p)
+		end
+		tension[p] = t
+		local shown = math.round(t * 20) / 20
+		if p:GetAttribute("Tension") ~= shown then
+			p:SetAttribute("Tension", shown)
 		end
 	end
 end)
@@ -2473,6 +2491,7 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	speeds[player] = nil
 	seen[player] = nil
 	safeUntil[player] = nil
+	tension[player] = nil
 end)
 
 placeKeys()

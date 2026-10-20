@@ -225,11 +225,12 @@ local function startMusic()
 end
 
 -- Screen
-local gui = new("ScreenGui", { Name = "Escape", ResetOnSpawn = false, IgnoreGuiInset = true, Parent = player:WaitForChild("PlayerGui") })
+-- The whole screen, notch and rounded corners too, so clip bars and fades reach the edges on phones
+local gui = new("ScreenGui", { Name = "Escape", ResetOnSpawn = false, IgnoreGuiInset = true, ScreenInsets = Enum.ScreenInsets.None, ClipToDeviceSafeArea = false, Parent = player:WaitForChild("PlayerGui") })
 -- The version, small in the corner for a few seconds at the start
 task.spawn(function()
 	local version = require(Shared:WaitForChild("Version")) :: string
-	local label = new("TextLabel", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 10, 1, -6), Size = UDim2.fromOffset(160, 16), BackgroundTransparency = 1, TextColor3 = Color3.new(1, 1, 1), TextTransparency = 0.3, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 40, Text = version, Parent = gui })
+	local label = new("TextLabel", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 60, 1, -10), Size = UDim2.fromOffset(160, 16), BackgroundTransparency = 1, TextColor3 = Color3.new(1, 1, 1), TextTransparency = 0.3, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 40, Text = version, Parent = gui })
 	task.wait(8)
 	TweenService:Create(label, TweenInfo.new(1.5), { TextTransparency = 1 }):Play()
 	task.wait(1.6)
@@ -309,7 +310,6 @@ local function beginClip(rank: number, danger: number): number?
 	return clipId
 end
 -- Ends the clip if no other clip took over. True when it still owned the screen
-local afterClip: (() -> ())? = nil
 local function endClip(my: number): boolean
 	if clipId ~= my then
 		return false
@@ -318,9 +318,6 @@ local function endClip(my: number): boolean
 	clipRank = 0
 	letterbox(false)
 	camera.CameraType = Enum.CameraType.Custom
-	if afterClip then
-		task.defer(afterClip :: () -> ())
-	end
 	return true
 end
 -- The server moves everyone back to bed a moment after a fail: wait for it under the black
@@ -337,7 +334,7 @@ local skipReady = 0
 local function skipButton(after: number?): TextButton
 	local b = new("TextButton", {
 		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -20, 1, -190),
+		Position = UDim2.new(1, -72, 1, -190),
 		Size = UDim2.fromOffset(64, 48),
 		BackgroundColor3 = Color3.fromRGB(28, 26, 40),
 		BackgroundTransparency = 0.2,
@@ -441,9 +438,8 @@ local function flyKey(from: Vector3, index: number, gateKey: boolean)
 end
 
 -- Sleepers breathe. A snort means they are about to look around: freeze!
-type Sleeper = { model: Model, head: BasePart, breath: Sound?, level: number, room: string, mark: TextLabel, phase: string, cone: { BasePart }, drawn: string }
+type Sleeper = { model: Model, head: BasePart, breath: Sound?, level: number, room: string, phase: string, cone: { BasePart }, drawn: string }
 local sleepers: { Sleeper } = {}
-local MARKS = { sleep = "💤", warn = "❗", look = "👀", awake = "‼️" }
 -- Breathing is loud in their own room, soft elsewhere upstairs and silent downstairs
 local SNORE = 5
 local SNORE_SOFT = 1.2
@@ -459,36 +455,7 @@ local function sightDir(model: Instance, head: BasePart, phase: string): (Vector
 	end
 	return flat.Unit, math.rad(if phase == "look" then Config.SightHalf else math.min(Config.SightHalf + 48, 170))
 end
-local function seesMe(model: Instance, head: BasePart, phase: string): boolean
-	local root = myRoot()
-	if not root or math.abs(root.Position.Y - head.Position.Y) > 12 then
-		return false
-	end
-	local d = Vector3.new(root.Position.X - head.Position.X, 0, root.Position.Z - head.Position.Z)
-	local dir, half = sightDir(model, head, phase)
-	if d.Magnitude >= Config.StirRange or (dir ~= Vector3.zero and d.Magnitude >= 1 and d.Unit:Dot(dir) < math.cos(half)) then
-		return false
-	end
-	-- Walls in between: the same low line of sight as the server
-	local floorY = if head.Position.Y > Config.Floor2 - 3 then Config.Floor2 else 0
-	local from = Vector3.new(head.Position.X, floorY + 1.5, head.Position.Z)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local skip: { Instance } = { model }
-	for _, other in Players:GetPlayers() do
-		if other.Character then
-			table.insert(skip, other.Character)
-		end
-	end
-	local keys = world:FindFirstChild("Keys")
-	if keys then
-		table.insert(skip, keys)
-	end
-	params.FilterDescendantsInstances = skip
-	return workspace:Raycast(from, Vector3.new(root.Position.X, floorY + 1.5, root.Position.Z) - from, params) == nil
-end
--- A big ❗ and a red flash at the screen edges when someone who can see you is about to look
-local warnIcon = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 84), Size = UDim2.fromOffset(90, 90), BackgroundTransparency = 1, TextScaled = true, Text = "❗", TextTransparency = 1, ZIndex = 30, Parent = gui })
+-- Red creeping in from the screen edges while a sleeper watches Pianka move
 local edges: { Frame } = {}
 local EDGES: { { anchor: Vector2, size: UDim2, rotation: number } } = {
 	{ anchor = Vector2.new(0, 0), size = UDim2.new(1, 0, 0.22, 0), rotation = 90 },
@@ -500,18 +467,6 @@ for i, e in EDGES do
 	local edge = new("Frame", { AnchorPoint = e.anchor, Position = UDim2.fromScale(e.anchor.X, e.anchor.Y), Size = e.size, BackgroundColor3 = Color3.fromRGB(255, 30, 30), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 29, Parent = gui })
 	new("UIGradient", { Rotation = e.rotation, Transparency = NumberSequence.new(0, 1), Parent = edge })
 	edges[i] = edge
-end
-local function warnFlash()
-	warnIcon.TextTransparency = 0
-	warnIcon.Size = UDim2.fromOffset(150, 150)
-	TweenService:Create(warnIcon, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Size = UDim2.fromOffset(90, 90) }):Play()
-	task.delay(Config.StirWarn, function()
-		TweenService:Create(warnIcon, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
-	end)
-	for _, edge in edges do
-		edge.BackgroundTransparency = 0.25
-		TweenService:Create(edge, TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
-	end
 end
 local function addSleeper(model: Instance)
 	if not model:IsA("Model") or not model:GetAttribute("Sleeper") then
@@ -542,14 +497,12 @@ local function addSleeper(model: Instance)
 			s:Play()
 		end)
 	end
-	local bill = new("BillboardGui", { Size = UDim2.fromOffset(56, 56), StudsOffsetWorldSpace = Vector3.new(0, 5, 0), MaxDistance = 90, Parent = head })
-	local mark = new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = MARKS.sleep, Parent = bill })
 	-- Their view lights up the floor in yellow while they stir
 	local cone = {}
 	for i = 1, SIGHT_SLICES * 2 do
 		cone[i] = new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 215, 70), Transparency = 1, Size = Vector3.one * 0.1, Parent = sightFolder })
 	end
-	local entry: Sleeper = { model = model, head = head, breath = breath, level = 0, room = (model:GetAttribute("Room") :: string?) or "", mark = mark, phase = "sleep", cone = cone, drawn = "" }
+	local entry: Sleeper = { model = model, head = head, breath = breath, level = 0, room = (model:GetAttribute("Room") :: string?) or "", phase = "sleep", cone = cone, drawn = "" }
 	table.insert(sleepers, entry)
 	model:GetAttributeChangedSignal("Stir"):Connect(function()
 		local phase = (model:GetAttribute("Stir") :: string?) or "sleep"
@@ -557,13 +510,9 @@ local function addSleeper(model: Instance)
 			sound("Sigh", 1.2, if model:GetAttribute("Sleeper") ~= "Milenkitka" then 1.2 else 1, head, 80)
 		end
 		entry.phase = phase
-		mark.Text = MARKS[phase] or MARKS.sleep
 		local kid = model:GetAttribute("Sleeper") ~= "Milenkitka"
 		if phase == "warn" then
 			sound("Snort", 1.5, if kid then 1.2 else 1, head, 90)
-			if Config.LookWakes and not clipOn and seesMe(model, head, "warn") then
-				warnFlash()
-			end
 		elseif phase == "look" then
 			sound(if kid then "HmmKid" else "Hmm", 1.4, 1, head, 90)
 		end
@@ -571,17 +520,6 @@ local function addSleeper(model: Instance)
 end
 for _, d in world:GetDescendants() do
 	task.spawn(addSleeper, d)
-end
-afterClip = function()
-	if not Config.LookWakes then
-		return
-	end
-	for _, sl in sleepers do
-		if (sl.phase == "warn" or sl.phase == "look") and seesMe(sl.model, sl.head, sl.phase) then
-			warnFlash()
-			break
-		end
-	end
 end
 
 -- The wall clock ticks in the living room downstairs
@@ -936,7 +874,7 @@ RunService.RenderStepped:Connect(function()
 		table.insert(filter, keys)
 	end
 	for _, sl in sleepers do
-		local stirring = Config.LookWakes and (sl.phase == "warn" or sl.phase == "look")
+		local stirring = Config.ShowSight and (sl.phase == "warn" or sl.phase == "look")
 		local dir, half = sightDir(sl.model, sl.head, sl.phase)
 		if not stirring or dir == Vector3.zero then
 			if sl.drawn ~= "" then
@@ -1006,6 +944,8 @@ local floorParts: { Instance } = {}
 local myRoom = ""
 local floorRoom = ""
 local roomMix = 0
+local tension = 0
+local drone: Sound? = nil
 local asleepShown = false
 local stride = 0
 local lastPaw = 0
@@ -1109,6 +1049,19 @@ RunService.RenderStepped:Connect(function(dt: number)
 	end
 	if tense and musicOn then
 		tense.Volume = 0.5 * danger * (1 - roomMix)
+	end
+	-- A sleeper watching Pianka move: red at the edges and a low drone, both grow until she stops
+	local wantTension = if clipOn then 0 else ((player:GetAttribute("Tension") :: number?) or 0)
+	tension += (wantTension - tension) * math.min(1, dt * 6)
+	for _, edge in edges do
+		edge.BackgroundTransparency = 1 - 0.75 * tension
+	end
+	if not drone and tension > 0.01 and SFX.Drone then
+		drone = loopClip(SoundService, SFX.Drone, 0, 1000)
+	end
+	if drone then
+		drone.Volume = tension * 1.6
+		drone.PlaybackSpeed = 0.85 + 0.35 * tension
 	end
 	-- Keep the tense layer in step with the tune, checked now and then
 	local now = os.clock()
@@ -1793,13 +1746,8 @@ end
 
 -- The front door is locked: it rattles, three locks clunk, three keys fly off to where they hide
 local lockedShown = false
-local doorHint: BillboardGui? = nil
 local function lockedClip(door: BasePart)
 	lockedShown = true
-	if doorHint then
-		doorHint:Destroy()
-		doorHint = nil
-	end
 	local my = beginClip(1, 0.25)
 	if not my then
 		lockedShown = false
@@ -1928,22 +1876,6 @@ local function lockedClip(door: BasePart)
 	end
 end
 
--- After the dream a door picture pulses on the front door until Pianka tries it
-local function showDoorHint()
-	if lockedShown or doorHint or workspace:GetAttribute("Stage") ~= "house" or ((workspace:GetAttribute("Keys") :: number?) or 0) >= Config.KeyCount then
-		return
-	end
-	local house = world:FindFirstChild("House")
-	local door = house and house:FindFirstChild("ExitDoor") :: BasePart?
-	if not door then
-		return
-	end
-	local bill = new("BillboardGui", { Size = UDim2.fromOffset(70, 70), StudsOffsetWorldSpace = Vector3.new(0, 11, 0), AlwaysOnTop = true, MaxDistance = 300, Parent = door })
-	local label = new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = "🚪", Parent = bill })
-	TweenService:Create(label, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Size = UDim2.fromScale(1.35, 1.35), Position = UDim2.fromScale(-0.17, -0.17) }):Play()
-	doorHint = bill
-end
-
 -- Once each round, in the hall where she sees the door and the stairs: the door is locked, the keys are up there
 RunService.Heartbeat:Connect(function()
 	if lockedShown or clipOn or introOn or workspace:GetAttribute("State") ~= "play" or workspace:GetAttribute("Stage") ~= "house" then
@@ -1997,9 +1929,6 @@ local function wakeClip(name: string, at: Vector3, cause: string?, culprit: any)
 	-- First a second on the cat that did it: the squeak she stepped on, or the eyes that saw her move
 	local root = culpritRoot(culprit)
 	if root then
-		if cause ~= "toy" then
-			popIcon(root, "👀", 1.6, 90)
-		end
 		local first = os.clock()
 		while clipId == my and os.clock() - first < 1 do
 			camera.CFrame = catShot(root)
@@ -2012,7 +1941,6 @@ local function wakeClip(name: string, at: Vector3, cause: string?, culprit: any)
 	local who: Sleeper? = nil
 	for _, s in sleepers do
 		if s.model:GetAttribute("Sleeper") == name then
-			popIcon(s.head, "‼️", 2.5, 80)
 			who = s
 		end
 	end
@@ -2130,7 +2058,6 @@ local function exitClip()
 			if t > 1.4 and not cues.meow then
 				cues.meow = true
 				meow(Config.Meow, 1.2, 1.1)
-				popIcon(root, "📹❗", 2.4, 70)
 			end
 		elseif gate and t < PAN + 2 then
 			-- The gate clunks shut three times
@@ -2227,7 +2154,6 @@ local function spottedClip(eye: Vector3, culprit: any)
 		fade.BackgroundColor3 = Color3.new(1, 1, 1)
 		fade.BackgroundTransparency = 0.1
 		TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
-		popIcon(caught, "📹", 1.6, 90)
 		local first = os.clock()
 		while clipId == my and os.clock() - first < 0.9 do
 			camera.CFrame = catShot(caught)
@@ -2265,7 +2191,6 @@ local function spottedClip(eye: Vector3, culprit: any)
 			if phase == 1 and os.clock() - arrived > Config.SpottedTime * 0.55 then
 				phase = 2
 				sound("Snort", 1.4)
-				popIcon(head, "‼️", 2, 80)
 				task.delay(0.5, callHome)
 			end
 		end
@@ -2440,15 +2365,6 @@ local function showEndCard()
 end
 
 -- Where a point in a viewport scene shows up on the screen
-local function project(cam: Camera, size: Vector2, at: Vector3): UDim2
-	local rel = cam.CFrame:PointToObjectSpace(at)
-	if rel.Z >= -0.1 then
-		return UDim2.fromScale(-1, -1)
-	end
-	local f = 1 / math.tan(math.rad(cam.FieldOfView) / 2)
-	local aspect = size.X / math.max(size.Y, 1)
-	return UDim2.fromScale(0.5 + rel.X / -rel.Z * f / aspect * 0.5, 0.5 - rel.Y / -rel.Z * f * 0.5)
-end
 
 -- After the first win the ending can be skipped
 local winsSeen = 0
@@ -2492,7 +2408,6 @@ local function homeClip()
 	TweenService:Create(black, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
 	local scene = gardenScene(vf, true)
 	local cam = scene.cam
-	local mark = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.fromOffset(70, 70), BackgroundTransparency = 1, TextScaled = true, Text = "", ZIndex = 23, Parent = screen })
 	local box: Sound? = nil
 	if dreamBox then
 		box = (dreamBox :: Sound):Clone()
@@ -2570,17 +2485,14 @@ local function homeClip()
 				(box :: Sound):Stop()
 			end
 			sound("Scratch", 1.2)
-			mark.Text = "❗"
 		end
 		if once("scream", 6.15, t) then
 			sound("Scream", 1.5)
 		end
 		if once("puzzled", 9.6, t) then
-			mark.Text = "❓"
 			meow(Config.Meow, 0.8, 1.2)
 		end
 		-- The camera: wide like the dream, close on her face, then watching her run
-		local size = screen.AbsoluteSize
 		if t < 5.6 then
 			local follow = math.clamp(catX + 2, -8, 14)
 			local camX = follow + (-5 - follow) * math.clamp((t - 3.4) / 1.2, 0, 1)
@@ -2593,8 +2505,6 @@ local function homeClip()
 		else
 			cam.CFrame = CFrame.lookAt(Vector3.new(-3, 4, 9), Vector3.new(-3, 2.2, 0))
 		end
-		local markAt = if t < 9.6 then momAt + Vector3.new(0, 8, 0) else Vector3.new(-3, 4.6, 0)
-		mark.Position = if mark.Text ~= "" and size then project(cam, size, markAt) else UDim2.fromScale(-1, -1)
 		if once("out", LENGTH - 0.8, t) then
 			TweenService:Create(black, TweenInfo.new(0.7), { BackgroundTransparency = 0 }):Play()
 		end
@@ -2685,7 +2595,6 @@ local function freeClip(root: BasePart)
 		end
 		if t > 2.4 and not cues.look then
 			cues.look = true
-			popIcon(hunter.body or root, "🐭❗", 1.4, 80)
 			meow(Config.Mew, 1, 1.3)
 		end
 		if t > 2.8 and not cues.pounce then
@@ -2696,7 +2605,6 @@ local function freeClip(root: BasePart)
 			cues.caught = true
 			sound("Mouse", 0.9, 1.3)
 			sound("Key", 0.5, 1.3)
-			popIcon(hunter.body or root, "⭐", 1.4, 80)
 		end
 		if t > 5.6 and not cues.fade then
 			cues.fade = true
@@ -2766,10 +2674,6 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 		flyKey(if root then root.Position else camera.CFrame.Position, tonumber(b) or 1, kind == "gateKey")
 	elseif kind == "allKeys" then
 		lockedShown = true
-		if doorHint then
-			doorHint:Destroy()
-			doorHint = nil
-		end
 		task.spawn(doorClip)
 	elseif kind == "gateOpen" then
 		local gate = yardPart("Gate")
@@ -2865,7 +2769,6 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 		meow(Config.Meow, 1, 1.05)
 		local root = if typeof(a) == "Instance" and a:IsA("Player") and a.Character then a.Character:FindFirstChild("HumanoidRootPart") :: BasePart? else nil
 		if root then
-			popIcon(root, "🌙🐈", 4, 100)
 			task.spawn(freeClip, root)
 		end
 	elseif kind == "scores" and type(a) == "table" then
@@ -2919,5 +2822,4 @@ task.spawn(function()
 		end
 	end
 	intro()
-	showDoorHint()
 end)

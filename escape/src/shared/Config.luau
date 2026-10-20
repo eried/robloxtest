@@ -18,11 +18,16 @@ return {
 	-- Sleepers: Pianka sneaks within SnoreRange. Now and then they snort, then look around:
 	-- moving while they look wakes them. One squeak upstairs wakes the closest one
 	SnoreRange = 42,
-	-- When on, moving while a sleeper peeks wakes them. Off: they only snort and peek
-	LookWakes = false,
+	-- A sleeper snorts, then opens the eyes and looks. Moving where they see fills a tension that
+	-- wakes them after LookGrace seconds, standing still lets it drain in LookCalm seconds
+	LookWakes = true,
+	LookGrace = 2,
+	LookCalm = 1.5,
+	-- The yellow view on the floor while they look
+	ShowSight = false,
 	StirEvery = { 9, 17 },
 	StirWarn = 1.3,
-	StirTime = 2.6,
+	StirTime = 3.4,
 	StirRange = 44,
 	SightHalf = 70,
 	MoveTolerance = 2.5,
@@ -64,7 +69,7 @@ return {
 	GarageClipTime = 1.6,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 125722368313927,
+	SfxId = 0,
 	Sfx = {
 		Breath = { 0.3, 12.0 },
 		BreathLight = { 12.6, 10.909 },
@@ -109,6 +114,7 @@ return {
 		Clink = { 92.925, 2.0 },
 		Scream = { 95.225, 3.08 },
 		Scratch = { 98.605, 0.45 },
+		Drone = { 99.355, 4.0 },
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
 	MusicId = 76864357160068,
