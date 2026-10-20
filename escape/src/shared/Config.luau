@@ -64,7 +64,7 @@ return {
 	GarageClipTime = 1.6,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 0,
+	SfxId = 125644797079879,
 	Sfx = {
 		Breath = { 0.3, 12.76 },
 		BreathLight = { 13.36, 10.6 },
