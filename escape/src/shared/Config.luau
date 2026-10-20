@@ -22,33 +22,33 @@ return {
 	StirRange = 44,
 	MoveTolerance = 2.5,
 	Toys = {
-		squeaky = { radius = 2.6 },
+		squeaky = { radius = 3.0 },
 		ballTrack = { radius = 4.2 },
 	},
 	TeaseEvery = 3,
-	LockedClipTime = 4.6,
+	LockedClipTime = 7.2,
 	CaughtTime = 4.5,
 	KeyCount = 3,
 	DownstairsKeyChance = 0.35,
-	WinRestart = 25,
+	WinRestart = 14,
 
 	-- Backyard cameras: how far and wide they see, how they sweep, how fast they catch you
 	CameraRange = 60,
 	CameraHalf = 26,
 	CameraSweep = 38,
 	CameraPeriod = 9,
-	SpotTime = 0.6,
+	SpotTime = 1.0,
 	SpottedTime = 7,
-	ExitClipTime = 6.5,
+	ExitClipTime = 10,
 	GateKeyCount = 3,
 	-- The garage door: a button outside opens it, it closes slowly, a button inside opens it again
 	GarageOpenTime = 1.2,
-	GarageHold = 0.8,
+	GarageHold = 3.5,
 	GarageCloseTime = 6,
 	GarageClipTime = 1.6,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 123345372711459,
+	SfxId = 0,
 	Sfx = {
 		Breath = { 0.3, 4.42 },
 		BreathLight = { 5.02, 3.42 },
@@ -83,6 +83,10 @@ return {
 		Buzz = { 54.836, 0.95 },
 		Ding = { 56.086, 2.4 },
 		Gate = { 58.786, 3.2 },
+		Sigh = { 62.286, 1.6 },
+		Crickets = { 64.186, 6.0 },
+		Servo = { 70.486, 2.0 },
+		Click = { 72.786, 0.12 },
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
 	MusicId = 104015424025242,

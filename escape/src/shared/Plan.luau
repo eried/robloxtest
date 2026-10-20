@@ -107,7 +107,7 @@ return {
 			{ t = "key", x = 11, y = 2, r = 0 },
 			{ t = "key", x = 20, y = 12, r = 0 },
 			{ t = "key", x = 8, y = 7, r = 0 },
-			{ t = "squeaky", x = 13, y = 11, r = 0 },
+			{ t = "squeaky", x = 19, y = 10, r = 0 },
 			{ t = "squeaky", x = 19, y = 3, r = 0 },
 			{ t = "squeaky", x = 26, y = 13, r = 0 },
 			{ t = "squeaky", x = 5, y = 18, r = 0 },

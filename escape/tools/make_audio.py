@@ -606,6 +606,50 @@ def gate_motor():
     return norm(out)
 
 
+def sigh():
+    """Settling back to sleep: a long soft sigh out."""
+    g = np.random.default_rng(41)
+    m = int(1.6 * SR)
+    t = np.arange(m) / SR
+    return norm(band(g.standard_normal(m), 200, 1600) * np.minimum(t / 0.15, 1) * np.exp(-t * 1.8), 0.7)
+
+
+def crickets():
+    """Night in the yard: crickets chirping in pairs, a soft breeze."""
+    g = np.random.default_rng(51)
+    d = 6.0
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    out = band(g.standard_normal(n), 200, 1200) * 0.04
+    for f0, start, every in ((4300, 0.1, 0.9), (4700, 0.45, 1.3), (3900, 0.7, 1.1)):
+        k = start
+        while k < d - 0.3:
+            for j in range(3):
+                i = int((k + j * 0.045) * SR)
+                m = int(0.03 * SR)
+                tt = np.arange(m) / SR
+                chirp = np.sin(2 * np.pi * f0 * tt) * np.sin(np.pi * tt / 0.03) * 0.25
+                out[i : i + m] += chirp[: len(out) - i]
+            k += every + g.uniform(-0.1, 0.1)
+    return norm(out, 0.6)
+
+
+def servo():
+    """A security camera turning: a thin motor whine."""
+    d = 2.0
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    f = 620 + 40 * np.sin(2 * np.pi * 0.5 * t)
+    whine = np.sin(2 * np.pi * np.cumsum(f) / SR) * 0.3 + np.sin(2 * np.pi * np.cumsum(f * 2.01) / SR) * 0.12
+    return norm(whine * (0.8 + 0.2 * np.sin(2 * np.pi * 11 * t)), 0.5)
+
+
+def click():
+    n = int(0.12 * SR)
+    t = np.arange(n) / SR
+    return norm(np.sin(2 * np.pi * 1800 * t) * np.exp(-t * 120) + np.sin(2 * np.pi * 900 * t) * np.exp(-t * 60) * 0.5, 0.8)
+
+
 def voice(name, semis=0.0, tempo=1.0, wet=0.15):
     x = load_wav(os.path.join(ROOT, "sounds", "voice", name + ".wav"), semis, tempo)
     return norm(reverb(x, wet, 4, 0.6))
@@ -640,6 +684,7 @@ def main():
         ("AllKeys", fanfare()), ("Purr", purr()), ("Pop", pop()), ("Mouse", mouse_squeaks()), ("Pounce", pounce()),
         ("Hearts", hearts()), ("Paw1", paw(1)), ("Paw2", paw(2)), ("Land", land()), ("Clock", clock()), ("Creak", creak()),
         ("Whoosh", whoosh()), ("Beep", beep()), ("Alert", alert()), ("Buzz", buzz()), ("Ding", ding()), ("Gate", gate_motor()),
+        ("Sigh", sigh()), ("Crickets", crickets()), ("Servo", servo()), ("Click", click()),
     ]
     table, chunks, pos = {}, [np.zeros(int(0.3 * SR))], 0.3
     for name, x in clips:

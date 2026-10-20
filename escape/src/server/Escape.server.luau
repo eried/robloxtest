@@ -379,7 +379,7 @@ local function surface(floorNo: number, r: Rect, top: number)
 	table.insert(surfaces, { floor = floorNo, rect = r, top = top })
 end
 
-type Sleeper = { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, phase: string, next: number, shut: { BasePart }, open: { BasePart } }
+type Sleeper = { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, phase: string, next: number, shut: { BasePart }, open: { BasePart }, face: { { part: BasePart, rel: CFrame } }, side: number }
 local sleepers: { Sleeper } = {}
 local toys: { { kind: string, model: Model, pos: Vector3, floor: number, ready: number } } = {}
 local keySpots: { { floor: number, pos: Vector3 } } = {}
@@ -422,6 +422,17 @@ local function buildSleeper(model: Model, cf: CFrame, width: number, depth: numb
 	return head, shut, open
 end
 
+-- Everything on the head moves with it: hair, bun, eyes
+local function headParts(model: Model, head: BasePart): { { part: BasePart, rel: CFrame } }
+	local list = {}
+	for _, p in model:GetChildren() do
+		if p:IsA("BasePart") and (p == head or p.Name == "Hair" or p.Name == "Bun" or p.Name == "LongHair" or p.Name == "Eye" or p.Name == "EyeOpen") then
+			table.insert(list, { part = p, rel = head.CFrame:ToObjectSpace(p.CFrame) })
+		end
+	end
+	return list
+end
+
 local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, parent: Instance)
 	local r = rectOf(it)
 	local front = facing(lv, r, true)
@@ -444,12 +455,13 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 	end
 	if look then
 		local head, shut, open = buildSleeper(model, cf, width, depth, look, it.t)
+		local face = headParts(model, head)
 		model:SetAttribute("Sleeper", look.name)
 		model:SetAttribute("Snore", look.snore)
 		model:SetAttribute("Pitch", look.pitch)
 		model:SetAttribute("Stir", "sleep")
 		local first = os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + #sleepers * 3
-		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, shut = shut, open = open })
+		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, shut = shut, open = open, face = face, side = 1 })
 	end
 end
 
@@ -583,11 +595,15 @@ local function buildToy(it: any, floorNo: number, baseY: number, parent: Instanc
 	if it.t == "squeaky" then
 		local color = TOY_COLORS[rng:NextInteger(1, #TOY_COLORS)]
 		local spin = CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
-		local body = box(model, "Body", CFrame.new(c + Vector3.new(0, 0.8, 0)) * spin, Vector3.new(1.6, 1.4, 1.9), color, Enum.Material.Plastic, false)
+		local body = box(model, "Body", CFrame.new(c + Vector3.new(0, 1.15, 0)) * spin, Vector3.new(2.4, 2.1, 2.8), color, Enum.Material.Plastic, false)
 		;(body :: Part).Shape = Enum.PartType.Ball
-		local head = box(model, "Head", CFrame.new(c + Vector3.new(0, 1.8, 0)) * spin * CFrame.new(0, 0, -0.6), Vector3.one * 1.0, color, Enum.Material.Plastic, false)
+		local head = box(model, "Head", CFrame.new(c + Vector3.new(0, 2.6, 0)) * spin * CFrame.new(0, 0, -0.9), Vector3.one * 1.5, color, Enum.Material.Plastic, false)
 		;(head :: Part).Shape = Enum.PartType.Ball
-		box(model, "Beak", CFrame.new(c + Vector3.new(0, 1.7, 0)) * spin * CFrame.new(0, 0, -1.2), Vector3.new(0.5, 0.25, 0.5), Color3.fromRGB(255, 140, 40), Enum.Material.Plastic, false)
+		box(model, "Beak", CFrame.new(c + Vector3.new(0, 2.45, 0)) * spin * CFrame.new(0, 0, -1.75), Vector3.new(0.75, 0.35, 0.75), Color3.fromRGB(255, 140, 40), Enum.Material.Plastic, false)
+		for _, x in { -0.35, 0.35 } do
+			local eye = box(model, "Eye", CFrame.new(c + Vector3.new(0, 2.85, 0)) * spin * CFrame.new(x, 0, -1.55), Vector3.one * 0.25, Color3.fromRGB(20, 20, 20), Enum.Material.SmoothPlastic, false)
+			;(eye :: Part).Shape = Enum.PartType.Ball
+		end
 		model.PrimaryPart = body
 	else
 		local base = box(model, "Base", CFrame.new(c + Vector3.new(0, 0.2, 0)), Vector3.new(r.w * U - 0.6, 0.4, r.h * U - 0.6), Color3.fromRGB(240, 240, 245), Enum.Material.Plastic, false)
@@ -748,6 +764,93 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 			end
 		end
 	end
+	-- Living rooms get a coffee table by the sofa and a bookshelf, kids' rooms a toy chest
+	local sofas, tvs = {}, {}
+	for _, it in lv.items do
+		if it.t == "sofa" then
+			table.insert(sofas, rectOf(it))
+		elseif it.t == "tv" then
+			table.insert(tvs, rectOf(it))
+		end
+	end
+	local function rectCenter(r: Rect): Vector3
+		return Vector3.new((r.x + r.w / 2) * U, baseY, (r.y + r.h / 2) * U)
+	end
+	local sofaPair = sofas[1] and (tvs[1] or sofas[2])
+	if sofas[1] and sofaPair then
+		local a, b = rectCenter(sofas[1]), rectCenter(sofaPair)
+		local m = (a + b) / 2
+		local cx, cy = math.floor(m.X / U), math.floor(m.Z / U)
+		if free(cx, cy) then
+			local cf = CFrame.lookAt(m, m + (b - a).Unit)
+			part({ Name = "CoffeeTable", Size = Vector3.new(6, 0.5, 3.6), CFrame = cf * CFrame.new(0, 2.6, 0), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = deco })
+			for _, lx in { -2.6, 2.6 } do
+				for _, lz in { -1.4, 1.4 } do
+					part({ Name = "TableLeg", Size = Vector3.new(0.4, 2.4, 0.4), CFrame = cf * CFrame.new(lx, 1.2, lz), Color = WOOD_DARK, CanCollide = false, Parent = deco })
+				end
+			end
+			part({ Name = "Mug", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.8, 0.6, 0.6), CFrame = cf * CFrame.new(1.4, 3.25, 0.4) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(240, 120, 110), CanCollide = false, Parent = deco })
+			taken[cy * lv.w + cx] = true
+		end
+	end
+	for _, room in roomLists[floorNo] do
+		local name = string.lower(room.name)
+		local living = string.find(name, "living", 1, true) ~= nil
+		local kids = string.find(name, "kid", 1, true) or string.find(name, "girl", 1, true)
+		if living then
+			-- Three free cells in a row along a solid wall
+			local done = false
+			for _, k in room.cells do
+				if done then
+					break
+				end
+				local x, y = k % lv.w, k // lv.w
+				for _, d in DIRS do
+					local sx, sy = d[2], d[1]
+					local ok = true
+					for i = -1, 1 do
+						local cx, cy = x + sx * i, y + sy * i
+						if not free(cx, cy) or nearDoor(cx, cy) or cell(lv, cx + d[1], cy + d[2]) ~= "w" then
+							ok = false
+						end
+					end
+					if ok then
+						done = true
+						local face = at(x, y, 0) + Vector3.new(d[1], 0, d[2]) * (U / 2 - 1.3)
+						local cf = CFrame.lookAt(face, face - Vector3.new(d[1], 0, d[2]))
+						part({ Name = "Bookshelf", Size = Vector3.new(U * 3 - 0.6, 10, 2.4), CFrame = cf * CFrame.new(0, 5, 0), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = deco })
+						for shelf = 0, 2 do
+							for book = 0, 9 do
+								local h = 1.8 + (book % 3) * 0.3
+								part({ Name = "Book", Size = Vector3.new(0.8, h, 1.8), CFrame = cf * CFrame.new(-4.6 + book * 1.02, 1.2 + shelf * 3.2 + h / 2, -0.4), Color = PALETTE[(book + shelf) % #PALETTE + 1], CanCollide = false, Parent = deco })
+							end
+						end
+						for i = -1, 1 do
+							taken[(y + sy * i) * lv.w + (x + sx * i)] = true
+						end
+						break
+					end
+				end
+			end
+		elseif kids then
+			for _, k in room.cells do
+				local x, y = k % lv.w, k // lv.w
+				local wallX = cell(lv, x - 1, y) == "w" or cell(lv, x + 1, y) == "w"
+				local wallY = cell(lv, x, y - 1) == "w" or cell(lv, x, y + 1) == "w"
+				if wallX and wallY and free(x, y) and not nearDoor(x, y) then
+					local base = at(x, y, 0)
+					local chest = Color3.fromRGB(240, 170, 60)
+					part({ Name = "ToyChest", Size = Vector3.new(3.4, 2.6, 2.6), CFrame = CFrame.new(base + Vector3.new(0, 1.3, 0)), Color = chest, Material = Enum.Material.Wood, Parent = deco })
+					part({ Name = "Lid", Size = Vector3.new(3.6, 0.4, 2.8), CFrame = CFrame.new(base + Vector3.new(0, 2.8, 0)), Color = chest:Lerp(Color3.new(1, 0.4, 0.4), 0.4), Material = Enum.Material.Wood, Parent = deco })
+					for i, c in TOY_COLORS do
+						part({ Name = "Block", Size = Vector3.one * 0.9, CFrame = CFrame.new(base + Vector3.new(-1.6 + i * 0.75, 0.45, 1.9)) * CFrame.Angles(0, i, 0), Color = c, CanCollide = false, Parent = deco })
+					end
+					taken[y * lv.w + x] = true
+					break
+				end
+			end
+		end
+	end
 	-- Curtains on both sides of every window, on the room side
 	for _, r in rects(lv, function(c)
 		return c == "n"
@@ -840,7 +943,7 @@ if stairsRect then
 	local x0, z0 = r.x * U, r.y * U
 	local width, run = r.w * U, r.h * U
 	local north = cell(floor2, r.x, r.y - 1) == "f" or cell(floor2, r.x, r.y + r.h) ~= "f"
-	local steps = 11
+	local steps = 22
 	for i = 1, steps do
 		local h = FLOOR2 * i / steps
 		local zA = if north then z0 + run - (i - 1) * run / steps else z0 + (i - 1) * run / steps
@@ -858,7 +961,7 @@ if stairsRect then
 	local top = Vector3.new(x0 + width / 2, FLOOR2, if north then z0 else z0 + run)
 	local mid = (bottom + top) / 2
 	local len = (top - bottom).Magnitude
-	part({ Name = "Ramp", Size = Vector3.new(width, 1, len), CFrame = CFrame.lookAt(mid, top) * CFrame.new(0, -0.5, 0), Transparency = 1, Parent = stairs })
+	part({ Name = "Ramp", Size = Vector3.new(width, 1, len), CFrame = CFrame.lookAt(mid, top), Transparency = 1, Parent = stairs })
 	-- A low rail around the hole upstairs, open at the top of the stairs
 	local rail = Color3.fromRGB(150, 105, 70)
 	local function railPart(a: Vector3, b: Vector3)
@@ -1145,10 +1248,29 @@ local function setStage(s: string)
 end
 
 -- Sleepers: asleep, a snort to warn, then they look around with open eyes
+local function moveHead(s: Sleeper, goal: CFrame, seconds: number)
+	for _, f in s.face do
+		if seconds <= 0 then
+			f.part.CFrame = goal * f.rel
+		else
+			TweenService:Create(f.part, TweenInfo.new(seconds, Enum.EasingStyle.Back), { CFrame = goal * f.rel }):Play()
+		end
+	end
+end
+
 local function setStir(s: Sleeper, phase: string, nextTime: number)
 	s.phase = phase
 	s.next = nextTime
 	s.model:SetAttribute("Stir", phase)
+	if phase == "look" then
+		-- Lift the head and look toward the room, to one side
+		s.side = -s.side
+		moveHead(s, s.rest * CFrame.new(0, 1, 0) * CFrame.Angles(-0.45, 0, s.side * 0.45), 0.5)
+	elseif phase == "awake" then
+		moveHead(s, s.rest * CFrame.new(0, 3, -1.5) * CFrame.Angles(-0.9, 0, 0), 0.5)
+	elseif phase == "sleep" then
+		moveHead(s, s.rest, 0.8)
+	end
 	local looking = phase == "look" or phase == "awake"
 	for _, p in s.open do
 		p.Transparency = if looking then 0 else 1
@@ -1333,7 +1455,7 @@ local function resetRound()
 	end
 	for i, s in sleepers do
 		setStir(s, "sleep", os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + i * 3)
-		s.head.CFrame = s.rest
+		moveHead(s, s.rest, 0)
 	end
 	placeKeys()
 	for _, player in Players:GetPlayers() do
@@ -1357,9 +1479,6 @@ local function freezeAll()
 	end
 end
 
-local function sitUp(s: { head: BasePart, rest: CFrame })
-	TweenService:Create(s.head, TweenInfo.new(0.5, Enum.EasingStyle.Back), { CFrame = s.rest * CFrame.new(0, 3, -1.5) }):Play()
-end
 
 -- Someone woke up: Pianka goes back to bed and the keys go back
 local function wake(s: Sleeper)
@@ -1369,7 +1488,6 @@ local function wake(s: Sleeper)
 	setState("caught")
 	event:FireAllClients("wake", s.name, s.head.Position)
 	setStir(s, "awake", math.huge)
-	sitUp(s)
 	freezeAll()
 	task.delay(Config.CaughtTime, function()
 		if workspace:GetAttribute("State") == "caught" then
@@ -1395,7 +1513,6 @@ local function spotted(eye: Vector3, player: Player)
 	task.delay(Config.SpottedTime * 0.55, function()
 		if workspace:GetAttribute("State") == "caught" and mom then
 			setStir(mom, "awake", math.huge)
-			sitUp(mom)
 		end
 	end)
 	task.delay(Config.SpottedTime, function()
@@ -1416,7 +1533,10 @@ local function watcher(pos: Vector3, t: number): Vector3?
 				end
 			end
 			rayParams.FilterDescendantsInstances = filter
-			if not workspace:Raycast(cam.eye, pos - cam.eye, rayParams) then
+			-- Along the ground, just like the red light on the grass: walls and bushes cast a shadow
+			local from = Vector3.new(cam.eye.X, 1.5, cam.eye.Z)
+			local to = Vector3.new(pos.X, 1.5, pos.Z)
+			if not workspace:Raycast(from, to - from, rayParams) then
 				return cam.eye
 			end
 		end
@@ -1532,11 +1652,12 @@ RunService.Heartbeat:Connect(function(dt: number)
 				for _, b in garageButtons do
 					local bp = b.part.Position
 					if Vector3.new(bp.X - pos.X, 0, bp.Z - pos.Z).Magnitude < 3.4 and math.abs(bp.Y - pos.Y) < 5 then
-						if not b.inside and garage.phase == "closed" then
+						local wasShut = garage.phase == "closed"
+						if not b.inside and wasShut then
 							safeUntil[player] = math.max(safeUntil[player] or 0, now + Config.GarageClipTime)
 						end
 						setGarage("opening")
-						event:FireAllClients("garage", player, if b.inside then "inside" else "outside")
+						event:FireAllClients("garage", player, if b.inside then "inside" elseif wasShut then "outside" else "again")
 						break
 					end
 				end
