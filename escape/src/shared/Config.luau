@@ -10,7 +10,9 @@ return {
 
 	-- Pianka moves like a cat, slow and quiet near sleepers
 	WalkSpeed = 13,
-	SneakSpeed = 6,
+	SneakSpeed = 4,
+	-- In the air she moves a bit faster, so a hop clears small things
+	HopSpeed = 8,
 	JumpHeight = 7.6,
 
 	-- Sleepers: Pianka sneaks within SnoreRange. Now and then they snort, then look around:
@@ -39,7 +41,7 @@ return {
 	LockedClipTime = 7.2,
 	CaughtTime = 4.5,
 	KeyCount = 3,
-	DownstairsKeyChance = 0.35,
+	DownstairsKeyChance = 0,
 	WinRestart = 45,
 	-- The ending plays this long before the score card can start a new night
 	EndingTime = 16,

@@ -183,7 +183,7 @@ end
 local function callHome()
 	if longCall then
 		local s = (longCall :: Sound):Clone()
-		s.Volume = 1.6
+		s.Volume = 4
 		s.Parent = SoundService
 		s:Play()
 		task.delay(8, function()
@@ -201,7 +201,7 @@ local function startMusic()
 	end
 	musicOn = true
 	local calm = music :: Sound
-	calm.Volume = 0.8
+	calm.Volume = 0.4
 	whenLoaded(calm, function()
 		calm.TimePosition = 0
 		calm:Play()
@@ -435,6 +435,7 @@ end
 type Sleeper = { model: Model, head: BasePart, breath: Sound?, mark: TextLabel, phase: string, cone: { BasePart }, drawn: string }
 local sleepers: { Sleeper } = {}
 local MARKS = { sleep = "💤", warn = "❗", look = "👀", awake = "‼️" }
+local SNORE = 5
 local SIGHT_SLICES = 36
 local sightFolder = new("Folder", { Name = "SightCones", Parent = workspace })
 -- Where a sleeper looks: about to look covers both sides, looking is the real view
@@ -515,10 +516,10 @@ local function addSleeper(model: Instance)
 		local s = (sfx :: Sound):Clone()
 		s.Looped = true
 		s.PlaybackSpeed = (model:GetAttribute("Pitch") :: number?) or 1
-		s.Volume = 1.6
+		s.Volume = SNORE
 		s.RollOffMode = Enum.RollOffMode.InverseTapered
-		s.RollOffMinDistance = 7
-		s.RollOffMaxDistance = Config.SnoreRange + 30
+		s.RollOffMinDistance = 14
+		s.RollOffMaxDistance = Config.SnoreRange + 60
 		s.Parent = head
 		breath = s
 		whenLoaded(s, function()
@@ -555,7 +556,7 @@ local function addSleeper(model: Instance)
 			sound(if kid then "HmmKid" else "Hmm", 1.4, 1, head, 90)
 		end
 		if breath then
-			TweenService:Create(breath, TweenInfo.new(0.4), { Volume = if phase == "sleep" then 1.6 else 0 }):Play()
+			TweenService:Create(breath, TweenInfo.new(0.4), { Volume = if phase == "sleep" then SNORE else 0 }):Play()
 		end
 	end)
 end
@@ -1006,6 +1007,20 @@ RunService.RenderStepped:Connect(function(dt: number)
 		if check then
 			sneakAt = os.clock() + 0.1
 			near = false
+			-- What is under her: a bedroom floor means sneaking, the stairs turn the bumpers off
+			sneakRay.FilterDescendantsInstances = { character :: Instance, sightFolder, coneFolder }
+			local below = workspace:Raycast(root.Position, Vector3.new(0, -4, 0), sneakRay)
+			local room = below and below.Instance:GetAttribute("Room")
+			if type(room) == "string" and (string.find(room, "kid", 1, true) or string.find(room, "girl", 1, true) or string.find(room, "mom", 1, true)) then
+				near = true
+			end
+			local stairs = world:FindFirstChild("Stairs", true)
+			local onStairs = below ~= nil and stairs ~= nil and below.Instance:IsDescendantOf(stairs)
+			for _, p in (character :: Instance):GetChildren() do
+				if p:IsA("BasePart") and p.Name == "Bumper" and p.CanCollide == onStairs then
+					p.CanCollide = not onStairs
+				end
+			end
 		end
 		for _, s in sleepers do
 			local hp = s.head.Position
@@ -1028,7 +1043,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 			end
 		end
 		sneaking = near
-		humanoid.WalkSpeed = if clipOn then 0 elseif near then Config.SneakSpeed else Config.WalkSpeed
+		local airborne = humanoid.FloorMaterial == Enum.Material.Air
+		humanoid.WalkSpeed = if clipOn then 0 elseif near and airborne then Config.HopSpeed elseif near then Config.SneakSpeed else Config.WalkSpeed
 		humanoid.JumpHeight = if clipOn then 0 else Config.JumpHeight
 		humanoid.HipHeight = 0.9
 		crouch += ((if catAsleep then 0.9 elseif near then 0.35 else 0) - crouch) * math.min(1, dt * (if catAsleep then 8 else 3))
@@ -1051,10 +1067,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 	end
 	danger += (target - danger) * math.min(1, dt * (if target > danger then 3 else 0.6))
 	if music and musicOn then
-		music.Volume = if tense then 0.8 * (1 - 0.65 * danger) else 0.8
+		music.Volume = if tense then 0.4 * (1 - 0.65 * danger) else 0.4
 	end
 	if tense and musicOn then
-		tense.Volume = 0.9 * danger
+		tense.Volume = 0.5 * danger
 	end
 	-- Keep the tense layer in step with the tune, checked now and then
 	local now = os.clock()
@@ -1882,15 +1898,21 @@ local function showDoorHint()
 	doorHint = bill
 end
 
--- Watch for the first walk to the locked door
+-- Near the stairs or the door downstairs, once each round: the door is locked, the keys are up there
 RunService.Heartbeat:Connect(function()
 	if lockedShown or clipOn or introOn or workspace:GetAttribute("State") ~= "play" or workspace:GetAttribute("Stage") ~= "house" then
 		return
 	end
 	local house = world:FindFirstChild("House")
 	local door = house and house:FindFirstChild("ExitDoor") :: BasePart?
+	local stairs = house and house:FindFirstChild("Stairs")
+	local ramp = stairs and stairs:FindFirstChild("Ramp") :: BasePart?
 	local root = myRoot()
-	if door and root and ((workspace:GetAttribute("Keys") :: number?) or 0) < Config.KeyCount and (root.Position - door.Position).Magnitude < 14 and root.Position.Y < 10 then
+	if not door or not root or root.Position.Y > 10 or ((workspace:GetAttribute("Keys") :: number?) or 0) >= Config.KeyCount then
+		return
+	end
+	local foot = if ramp then ramp.Position - ramp.CFrame.LookVector * (ramp.Size.Z / 2) else door.Position
+	if (root.Position - door.Position).Magnitude < 14 or Vector3.new(root.Position.X - foot.X, 0, root.Position.Z - foot.Z).Magnitude < 12 then
 		task.spawn(lockedClip, door)
 	end
 end)
@@ -1925,6 +1947,7 @@ local function wakeClip(name: string, at: Vector3, cause: string?, culprit: any)
 		return
 	end
 	local since = roundCount
+	local arrived = os.clock()
 	local my = beginClip(3, 1) :: number
 	spike = 1
 	letterbox(true)
@@ -1948,12 +1971,13 @@ local function wakeClip(name: string, at: Vector3, cause: string?, culprit: any)
 			who = s
 		end
 	end
-	while clipId == my and os.clock() - start < Config.CaughtTime - 1 do
+	-- Black before the server puts everyone back to bed, so she is never seen lying back down
+	while clipId == my and os.clock() - arrived < Config.CaughtTime - 0.9 do
 		local t = os.clock() - start
 		camera.CFrame = if who then bedShot(who.head, who.model, t) else CFrame.lookAt(at + Vector3.new(6 - t, 4 + t * 0.4, 7), at + Vector3.new(0, 1, 0))
 		RunService.RenderStepped:Wait()
 	end
-	TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(fade, TweenInfo.new(0.4), { BackgroundTransparency = 0 }):Play()
 	sound("Whoosh", 0.7, 0.7)
 	waitForRound(since, 3)
 	if endClip(my) then
@@ -2173,7 +2197,7 @@ local function spottedClip(eye: Vector3, culprit: any)
 	local cat = if caught then caught.Position else eye - Vector3.new(0, 12, 0)
 	local start = os.clock()
 	local phase = 0
-	while clipId == my and os.clock() - arrived < Config.SpottedTime - 0.1 do
+	while clipId == my and os.clock() - arrived < Config.SpottedTime - 0.9 do
 		local t = os.clock() - start
 		if t < 1.8 then
 			local toward = Vector3.new(cat.X - eye.X, 0, cat.Z - eye.Z)
@@ -2654,26 +2678,6 @@ local function freeClip(root: BasePart)
 	showEndCard()
 end
 
--- A key picture floats over every key nearby, walls hide it
-local function markKey(key: Instance)
-	task.defer(function()
-		local main = key:IsA("Model") and key.PrimaryPart
-		if main then
-			local bill = new("BillboardGui", { Size = UDim2.fromOffset(40, 40), StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0), MaxDistance = 34, Parent = main })
-			new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = if key:GetAttribute("Gate") then "🗝️" else "🔑", Parent = bill })
-		end
-	end)
-end
-task.spawn(function()
-	local keys = world:WaitForChild("Keys", 20)
-	if keys then
-		for _, k in keys:GetChildren() do
-			markKey(k)
-		end
-		keys.ChildAdded:Connect(markKey)
-	end
-end)
-
 -- Keys twinkle now and then so you can find them by ear. Outside, crickets
 local crickets: Sound? = nil
 task.spawn(function()
@@ -2832,6 +2836,8 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 		end
 	elseif kind == "round" then
 		roundCount += 1
+		-- A new round shows the locked door again at the stairs
+		lockedShown = false
 		myTime = nil
 		for _, lock in hiddenLocks do
 			lock.LocalTransparencyModifier = 0

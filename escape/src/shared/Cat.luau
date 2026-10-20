@@ -71,6 +71,19 @@ function Cat.character(): Model
 	root.Transparency = 1
 	root.CanCollide = true
 	root.Parent = model
+	-- Invisible bumpers so her head and back stop at walls instead of going through.
+	-- The game turns them off on the stairs so she does not snag on the steps
+	for _, b in { { size = Vector3.new(1.3, 1.1, 1.7), at = Vector3.new(0, 2.35, -1.7) }, { size = Vector3.new(1.3, 0.9, 1.1), at = Vector3.new(0, 1.85, 0.9) } } do
+		local bumper = Instance.new("Part")
+		bumper.Name = "Bumper"
+		bumper.Size = b.size
+		bumper.CFrame = CFrame.new(b.at)
+		bumper.Transparency = 1
+		bumper.CanCollide = true
+		bumper.CanQuery = false
+		bumper.CanTouch = false
+		bumper.Parent = model
+	end
 	for _, p in model:GetDescendants() do
 		if p:IsA("BasePart") and p ~= root then
 			p.Anchored = false

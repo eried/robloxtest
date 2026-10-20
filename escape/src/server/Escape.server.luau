@@ -135,7 +135,7 @@ local FOOT: { [string]: { number } } = {
 	flowers = { 3, 2 }, shed = { 5, 4 }, trampoline = { 5, 5 }, woodpile = { 3, 1 }, bin = { 1, 1 }, car = { 4, 8 }, houseDoor = { 1, 1 },
 	gate = { 2, 1 }, ratSpawn = { 1, 1 }, ratHole = { 1, 1 }, ratGap = { 2, 1 }, jumpSpot = { 1, 1 }, camera = { 1, 1 },
 	garageButton = { 1, 1 }, garageButtonIn = { 1, 1 }, ps5 = { 1, 1 }, pouf = { 2, 2 }, wardrobe = { 3, 1 }, vanity = { 2, 1 },
-	controller = { 1, 1 }, blocks = { 1, 1 }, lipstick = { 1, 1 }, perfume = { 1, 1 },
+	controller = { 1, 1 }, blocks = { 1, 1 }, lipstick = { 1, 1 }, perfume = { 1, 1 }, basket = { 1, 1 }, boxes = { 1, 1 },
 }
 local function rectOf(it: { t: string, x: number, y: number, r: number }): Rect
 	local f = FOOT[it.t] or { 1, 1 }
@@ -255,7 +255,8 @@ local function buildLevel(lv: Level, baseY: number, top: boolean, parent: Folder
 		for _, r in rects(lv, function(_, x, y)
 			return set[y * lv.w + x] == true and not (top and holeCells[y * lv.w + x])
 		end) do
-			block(r, 0, 0, baseY, baseY + 0.12, { Name = "Floor", Material = s.material, Color = s.color, Parent = parent })
+			local floorPart = block(r, 0, 0, baseY, baseY + 0.12, { Name = "Floor", Material = s.material, Color = s.color, Parent = parent })
+			floorPart:SetAttribute("Room", string.lower(room.name))
 		end
 		-- A ceiling lamp in each named room, dim and blue in bedrooms
 		if room.name ~= "" then
@@ -517,6 +518,23 @@ local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number
 			box(model, "Shell", cf * CFrame.new(x, 2.25, 0.05), Vector3.new(0.22, 3.9, 2.8), white)
 		end
 		box(model, "Light", cf * CFrame.new(0, 3.9, -1.2), Vector3.new(0.72, 0.08, 0.12), Color3.fromRGB(80, 150, 255), Enum.Material.Neon, false)
+	elseif t == "basket" then
+		-- A laundry basket with clothes spilling over the top
+		local c = cf.Position
+		local wicker = box(model, "Basket", CFrame.new(c + Vector3.new(0, 1.4, 0)) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(2.8, 3, 3), Color3.fromRGB(205, 170, 120), Enum.Material.Fabric)
+		;(wicker :: Part).Shape = Enum.PartType.Cylinder
+		for i, color in { Color3.fromRGB(230, 110, 140), Color3.fromRGB(110, 160, 230), Color3.fromRGB(250, 240, 230) } do
+			local cloth = box(model, "Clothes", CFrame.new(c + Vector3.new(-0.5 + i * 0.35, 3, (i % 2) * 0.5 - 0.25)), Vector3.one * 1.2, color, Enum.Material.Fabric, false)
+			;(cloth :: Part).Shape = Enum.PartType.Ball
+		end
+		surface(floorNo, r, baseY + 2.9)
+	elseif t == "boxes" then
+		-- A stack of moving boxes
+		local cardboard = Color3.fromRGB(190, 150, 100)
+		box(model, "Box", cf * CFrame.new(0, 1.2, 0), Vector3.new(3.2, 2.4, 3.2), cardboard, Enum.Material.Cardboard)
+		box(model, "Box", cf * CFrame.new(0.2, 3.3, -0.1) * CFrame.Angles(0, 0.3, 0), Vector3.new(2.6, 1.8, 2.6), cardboard:Lerp(Color3.new(1, 1, 1), 0.15), Enum.Material.Cardboard)
+		box(model, "Tape", cf * CFrame.new(0, 2.42, 0), Vector3.new(0.5, 0.05, 3.2), Color3.fromRGB(220, 200, 150), Enum.Material.SmoothPlastic, false)
+		surface(floorNo, r, baseY + 4.2)
 	elseif t == "pouf" then
 		-- A big soft bean bag
 		local c = cf.Position
@@ -1497,9 +1515,6 @@ local function makeKey(pos: Vector3, index: number): Model
 	light.Range = 14
 	light.Brightness = 1.8
 	light.Parent = center
-	local sparkle = Instance.new("Sparkles")
-	sparkle.SparkleColor = gold
-	sparkle.Parent = center
 	model:SetAttribute("Index", index)
 	return model
 end
