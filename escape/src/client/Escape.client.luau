@@ -255,8 +255,48 @@ end
 -- Clips can be skipped with the button or A, B, X on a controller
 local clipOn = false
 local clipDanger = 0
+local clipId = 0
+local clipRank = 0
+-- Starts a clip unless a more important one is playing, and gives its id
+local function beginClip(rank: number, danger: number): number?
+	if clipOn and rank < clipRank then
+		return nil
+	end
+	clipId += 1
+	clipRank = rank
+	clipOn = true
+	clipDanger = danger
+	camera.CameraType = Enum.CameraType.Scriptable
+	return clipId
+end
+-- Ends the clip if no other clip took over. True when it still owned the screen
+local function endClip(my: number): boolean
+	if clipId ~= my then
+		return false
+	end
+	clipOn = false
+	clipRank = 0
+	letterbox(false)
+	camera.CameraType = Enum.CameraType.Custom
+	return true
+end
+-- The server moves everyone back to bed a moment after a fail: wait for it under the black
+local roundSignal = Instance.new("BindableEvent")
+local function waitForRound(limit: number)
+	local done = false
+	local conn = roundSignal.Event:Once(function()
+		done = true
+	end)
+	local start = os.clock()
+	while not done and os.clock() - start < limit do
+		task.wait(0.05)
+	end
+	conn:Disconnect()
+	task.wait(0.2)
+end
 local skipClip: (() -> ())? = nil
-local function skipButton(): TextButton
+local skipReady = 0
+local function skipButton(after: number?): TextButton
 	local b = new("TextButton", {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 70),
@@ -269,14 +309,25 @@ local function skipButton(): TextButton
 		Parent = gui,
 	})
 	round(b, 14)
-	if usingPad() then
+	skipReady = os.clock() + (after or 0)
+	if after and after > 0 then
+		b.Visible = false
+		task.delay(after, function()
+			if b.Parent then
+				b.Visible = true
+				if usingPad() then
+					GuiService.SelectedObject = b
+				end
+			end
+		end)
+	elseif usingPad() then
 		GuiService.SelectedObject = b
 	end
 	return b
 end
 UserInputService.InputBegan:Connect(function(input)
 	local k = input.KeyCode
-	if skipClip and (k == Enum.KeyCode.ButtonB or k == Enum.KeyCode.ButtonX) then
+	if skipClip and os.clock() >= skipReady and (k == Enum.KeyCode.ButtonB or k == Enum.KeyCode.ButtonX) then
 		skipClip()
 	end
 end)
@@ -400,12 +451,109 @@ task.spawn(function()
 	end
 end)
 
+-- The kid's TV still plays a blocky obby game, no sound
+local function playTvGame(screen: BasePart)
+	local W, H = 304, 224
+	local sg = new("SurfaceGui", { Face = Enum.NormalId.Front, SizingMode = Enum.SurfaceGuiSizingMode.FixedSize, CanvasSize = Vector2.new(W, H), LightInfluence = 0, Brightness = 1.3, Parent = screen })
+	local sky = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(110, 190, 255), BorderSizePixel = 0, ClipsDescendants = true, Parent = sg })
+	new("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(90, 170, 255), Color3.fromRGB(200, 235, 255)), Parent = sky })
+	local sun = new("Frame", { Position = UDim2.fromOffset(240, 18), Size = UDim2.fromOffset(34, 34), BackgroundColor3 = Color3.fromRGB(255, 230, 90), BorderSizePixel = 0, Parent = sky })
+	new("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = sun })
+	local clouds = {}
+	for i = 1, 3 do
+		local cloud = new("Frame", { Position = UDim2.fromOffset(i * 110 - 60, 20 + (i % 2) * 26), Size = UDim2.fromOffset(54, 16), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = sky })
+		new("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = cloud })
+		table.insert(clouds, cloud)
+	end
+	local lava = new("Frame", { Position = UDim2.fromOffset(0, H - 26), Size = UDim2.fromOffset(W, 26), BackgroundColor3 = Color3.fromRGB(255, 90, 30), BorderSizePixel = 0, ZIndex = 3, Parent = sky })
+	local worldFrame = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 2, Parent = sky })
+	-- Platforms with coins, the last one has a flag
+	local COLORS = { Color3.fromRGB(240, 70, 70), Color3.fromRGB(250, 200, 60), Color3.fromRGB(90, 200, 90), Color3.fromRGB(70, 140, 240), Color3.fromRGB(180, 100, 230) }
+	local steps: { { x: number, y: number, w: number } } = {}
+	local coins: { Frame } = {}
+	for i = 0, 9 do
+		local w = if i == 0 or i == 9 then 70 else 34 + (i * 7) % 20
+		local y = if i == 0 then 150 else 120 + ((i * 37) % 60)
+		local x = if i == 0 then 30 else steps[i].x + steps[i].w / 2 + 40 + w / 2 + (i % 3) * 8
+		table.insert(steps, { x = x, y = y, w = w })
+		local plat = new("Frame", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(w, 14), BackgroundColor3 = COLORS[i % #COLORS + 1], BorderSizePixel = 0, ZIndex = 2, Parent = worldFrame })
+		new("Frame", { Position = UDim2.fromOffset(0, 10), Size = UDim2.new(1, 0, 0, 4), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.7, BorderSizePixel = 0, ZIndex = 2, Parent = plat })
+		if i > 0 and i < 9 then
+			local coin = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(x, y - 40), Size = UDim2.fromOffset(12, 12), BackgroundColor3 = Color3.fromRGB(255, 215, 40), BorderSizePixel = 0, ZIndex = 2, Parent = worldFrame })
+			new("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = coin })
+			coins[i + 1] = coin
+		end
+		if i == 9 then
+			new("Frame", { Position = UDim2.fromOffset(x + 14, y - 46), Size = UDim2.fromOffset(3, 46), BackgroundColor3 = Color3.fromRGB(240, 240, 240), BorderSizePixel = 0, ZIndex = 2, Parent = worldFrame })
+			new("Frame", { Position = UDim2.fromOffset(x + 17, y - 46), Size = UDim2.fromOffset(22, 14), BackgroundColor3 = Color3.fromRGB(60, 210, 90), BorderSizePixel = 0, ZIndex = 2, Parent = worldFrame })
+		end
+	end
+	-- The blocky player
+	local guy = new("Frame", { AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.fromOffset(22, 44), BackgroundTransparency = 1, ZIndex = 4, Parent = sky })
+	local function piece(pos: Vector2, size: Vector2, color: Color3): Frame
+		return new("Frame", { Position = UDim2.fromOffset(pos.X, pos.Y), Size = UDim2.fromOffset(size.X, size.Y), BackgroundColor3 = color, BorderSizePixel = 0, ZIndex = 4, Parent = guy })
+	end
+	local yellow = Color3.fromRGB(250, 210, 70)
+	local head = piece(Vector2.new(5, 0), Vector2.new(12, 12), yellow)
+	for _, x in { 3, 7 } do
+		new("Frame", { Position = UDim2.fromOffset(x, 4), Size = UDim2.fromOffset(2, 2), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 5, Parent = head })
+	end
+	new("Frame", { Position = UDim2.fromOffset(3, 8), Size = UDim2.fromOffset(6, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 5, Parent = head })
+	piece(Vector2.new(4, 12), Vector2.new(14, 15), Color3.fromRGB(40, 120, 230))
+	local armL = piece(Vector2.new(0, 12), Vector2.new(4, 14), yellow)
+	local armR = piece(Vector2.new(18, 12), Vector2.new(4, 14), yellow)
+	local legL = piece(Vector2.new(4, 27), Vector2.new(7, 17), Color3.fromRGB(70, 180, 80))
+	local legR = piece(Vector2.new(11, 27), Vector2.new(7, 17), Color3.fromRGB(70, 180, 80))
+	local light = new("SurfaceLight", { Face = Enum.NormalId.Front, Range = 16, Angle = 110, Brightness = 0.7, Color = Color3.fromRGB(140, 190, 255), Parent = screen })
+	local HOP, GUY_X = 0.85, 90
+	local start = os.clock()
+	while screen.Parent do
+		local cam = workspace.CurrentCamera
+		if not cam or (cam.CFrame.Position - screen.Position).Magnitude > 80 then
+			task.wait(0.5)
+			continue
+		end
+		local t = (os.clock() - start) % (HOP * (#steps - 1) + 1.5)
+		local hop = math.min(math.floor(t / HOP), #steps - 1)
+		local k = if hop >= #steps - 1 then 1 else (t - hop * HOP) / HOP
+		local a = steps[hop + 1]
+		local b = steps[math.min(hop + 2, #steps)]
+		local x = a.x + (b.x - a.x) * k
+		local y = a.y + (b.y - a.y) * k - math.sin(k * math.pi) * 46
+		local camX = x - GUY_X
+		worldFrame.Position = UDim2.fromOffset(-camX, 0)
+		guy.Position = UDim2.fromOffset(GUY_X, y)
+		local swing = if k < 1 then math.sin(k * math.pi * 2) * 30 else 0
+		armL.Rotation, armR.Rotation = swing, -swing
+		legL.Rotation, legR.Rotation = -swing * 0.6, swing * 0.6
+		for i, coin in coins do
+			coin.Visible = hop + 1 < i or (hop + 1 == i and k < 0.5) or t < HOP * 0.5
+			coin.Size = UDim2.fromOffset(12 * math.abs(math.cos(os.clock() * 3 + i)), 12)
+		end
+		for i, cloud in clouds do
+			cloud.Position = UDim2.fromOffset((i * 110 - 60 - os.clock() * 6) % (W + 80) - 60, 20 + (i % 2) * 26)
+		end
+		lava.BackgroundColor3 = Color3.fromRGB(255, 80 + math.floor(30 * math.sin(os.clock() * 4)), 30)
+		light.Color = COLORS[hop % #COLORS + 1]:Lerp(Color3.fromRGB(140, 190, 255), 0.6)
+		task.wait(1 / 30)
+	end
+end
+task.spawn(function()
+	task.wait(2)
+	for _, d in world:GetDescendants() do
+		if d:IsA("BasePart") and d.Name == "GameScreen" then
+			task.spawn(playTvGame, d)
+		end
+	end
+end)
+
 -- Backyard cameras turn, blink and light a red cone on the ground
 type Cam = { model: Model, eye: Vector3, yaw: number, phase: number, period: number, cone: { BasePart }, led: BasePart?, reach: { [number]: number } }
 local cams: { Cam } = {}
+local hums: { Sound } = {}
 local coneFolder = new("Folder", { Name = "Cones", Parent = workspace })
 local RED = Color3.fromRGB(255, 60, 60)
-local SLICES = 6
+local SLICES = 10
 local function addCam(model: Instance)
 	if not model:IsA("Model") or model.Name ~= "Cam" then
 		return
@@ -419,7 +567,10 @@ local function addCam(model: Instance)
 		cone[i] = new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = RED, Transparency = 0.8, Size = Vector3.one * 0.1, Parent = coneFolder })
 	end
 	new("SpotLight", { Color = RED, Brightness = 3, Range = Config.CameraRange, Angle = Config.CameraHalf * 2, Face = Enum.NormalId.Front, Parent = head })
-	loopClip(head, SFX.Servo, 0.5, 32, 0.9 + math.random() * 0.2)
+	local hum = loopClip(head, SFX.Servo, 0, 32, 0.9 + math.random() * 0.2)
+	if hum then
+		table.insert(hums, hum)
+	end
 	table.insert(cams, {
 		model = model,
 		eye = head.Position,
@@ -504,8 +655,16 @@ RunService.RenderStepped:Connect(function()
 					w.Transparency = 1
 				end
 			end
+			for _, h in hums do
+				h.Volume = 0
+			end
 		end
 		return
+	end
+	if not conesShown then
+		for _, h in hums do
+			h.Volume = 0.5
+		end
 	end
 	if os.clock() < conesAt then
 		return
@@ -561,7 +720,8 @@ RunService.RenderStepped:Connect(function()
 		if out and root then
 			local d = (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(c.eye.X, 0, c.eye.Z)).Magnitude
 			camNear = math.max(camNear, math.clamp(1.3 - d / Config.CameraRange, 0, 1) * 0.5)
-			if Watch.inCone(c.eye, look, root.Position) and not workspace:Raycast(c.eye, root.Position - c.eye, seenRay) then
+			local low = Vector3.new(c.eye.X, 1.5, c.eye.Z)
+			if Watch.inCone(c.eye, look, root.Position) and not workspace:Raycast(low, Vector3.new(root.Position.X, 1.5, root.Position.Z) - low, seenRay) then
 				mine = true
 			end
 		end
@@ -873,8 +1033,19 @@ local function dreamBubble(): (Frame, (number) -> (), { Frame })
 	block(Vector3.new(1.2, 4, 2.4), CFrame.new(-11.9, 9.5, -5), Color3.fromRGB(255, 220, 150), false, true)
 	local hinge = CFrame.new(-12, 3, -1.8)
 	local door = block(Vector3.new(0.4, 6, 3.6), hinge * CFrame.new(0, 0, 1.8), Color3.fromRGB(110, 60, 40))
-	for i = 0, 5 do
-		block(Vector3.one * 0.7, CFrame.new(20 + i * 1.3, 0.3, -1.5 + (i % 2) * 0.6), Color3.fromRGB(255, 120 + i * 20, 170), true)
+	-- Little flowers by Milenkitka: a stem, a yellow middle and five petals
+	for i = 0, 6 do
+		local base = Vector3.new(19.5 + i * 1.4, 0, -2.2 + (i % 2) * 0.9)
+		local h = 1.1 + (i % 3) * 0.25
+		block(Vector3.new(0.12, h, 0.12), CFrame.new(base + Vector3.new(0, h / 2, 0)), Color3.fromRGB(70, 150, 70))
+		block(Vector3.new(0.5, 0.08, 0.25), CFrame.new(base + Vector3.new(0.2, h * 0.4, 0)) * CFrame.Angles(0, 0, 0.5), Color3.fromRGB(80, 170, 80))
+		local top = base + Vector3.new(0, h, 0)
+		local petal = ({ Color3.fromRGB(255, 120, 170), Color3.fromRGB(255, 200, 80), Color3.fromRGB(190, 140, 255), Color3.fromRGB(255, 255, 255) })[i % 4 + 1]
+		for j = 0, 4 do
+			local a = j / 5 * math.pi * 2
+			block(Vector3.new(0.34, 0.1, 0.34), CFrame.new(top + Vector3.new(math.cos(a) * 0.24, 0, math.sin(a) * 0.24)) * CFrame.Angles(math.rad(70), a, 0), petal, true)
+		end
+		block(Vector3.one * 0.2, CFrame.new(top + Vector3.new(0, 0.05, 0)), Color3.fromRGB(255, 220, 60), true)
 	end
 	local cat = Cat.build(CFrame.new(-10, 0, 0), 1)
 	cat.model.Parent = wm
@@ -906,6 +1077,21 @@ local function dreamBubble(): (Frame, (number) -> (), { Frame })
 		end
 	end
 	poseMom(0, 0, 0)
+	-- Where she holds Pianka: in front of her chest, leaning in as she kneels
+	local function momHold(kneel: number): CFrame
+		return momBase * CFrame.new(0, -kneel * 1.3, 0) * CFrame.Angles(-kneel * 0.25, 0, 0) * CFrame.new(0, 3.45, -1.6)
+	end
+	-- Little 3D hearts that pop around the hug
+	local pops: { { at: number, angle: number, size: number, parts: { BasePart } } } = {}
+	local heartColors = { Color3.fromRGB(255, 90, 140), Color3.fromRGB(255, 60, 90), Color3.fromRGB(255, 150, 200) }
+	for i = 0, 15 do
+		local color = heartColors[i % 3 + 1]
+		local hp = { block(Vector3.one, CFrame.identity, color, true, true), block(Vector3.one, CFrame.identity, color, true, true), block(Vector3.one, CFrame.identity, color, false, true) }
+		for _, p in hp do
+			p.Transparency = 1
+		end
+		table.insert(pops, { at = 10.1 + i * 0.2, angle = -0.45 + ((i * 0.618) % 1) * (math.pi + 0.9), size = rnd:NextNumber(0.55, 0.95), parts = hp })
+	end
 	local hearts: { TextLabel } = {}
 	local function heartBurst()
 		for _ = 1, 7 do
@@ -953,14 +1139,19 @@ local function dreamBubble(): (Frame, (number) -> (), { Frame })
 		local wiggle = if t >= 4.4 and t < 5.4 then math.sin(t * 30) * 0.08 else 0
 		local bob = if (t > 2 and t < 4.3) or (t > 6.6 and t < 9) then math.abs(math.sin(t * 9)) * 0.25 else 0
 		local catCf = CFrame.lookAt(Vector3.new(catX, catY + bob, 0), Vector3.new(catX + 1, catY + bob, 0)) * CFrame.Angles(0, wiggle, 0)
-		if t >= 9.6 then
-			-- Lifted into the hug
-			local k = math.clamp((t - 9.6) / 0.6, 0, 1)
-			local at = Vector3.new(21.5, 0, 0):Lerp(Vector3.new(24.4, 1.6, 1.2), k)
-			catCf = CFrame.lookAt(at, Vector3.new(26, at.Y, 0))
-		end
+		-- Milenkitka: arms up with joy, kneels down and hugs
+		local joy = math.clamp((t - 9.1) / 0.4, 0, 1)
+		local kneel = math.clamp((t - 9.7) / 0.7, 0, 1)
+		poseMom(kneel, joy, kneel)
 		-- The model pivots on the body, so lift it to stand on the grass
-		cat.model:PivotTo(catCf * CFrame.new(0, 1.4, 0))
+		local catPivot = catCf * CFrame.new(0, 1.4, 0)
+		if t >= 9.6 then
+			-- Lifted into her arms, turned to lie across her chest
+			local k = math.clamp((t - 9.6) / 0.6, 0, 1)
+			local held = momHold(kneel) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(0.15, 0, 0)
+			catPivot = catPivot:Lerp(held, k * k * (3 - 2 * k))
+		end
+		cat.model:PivotTo(catPivot)
 		-- The mouse runs in, gets caught, is carried and dropped at her feet
 		local mouseCf: CFrame
 		local lift = CFrame.new(0, 0.45, 0)
@@ -994,10 +1185,6 @@ local function dreamBubble(): (Frame, (number) -> (), { Frame })
 			sound("Mouse", 0.8, 1.2)
 			sound("Key", 0.5, 1.3)
 		end
-		-- Milenkitka: arms up with joy, kneels down and hugs
-		local joy = math.clamp((t - 9.1) / 0.4, 0, 1)
-		local kneel = math.clamp((t - 9.7) / 0.7, 0, 1)
-		poseMom(kneel, joy, kneel)
 		if once("aww", 9.2, t) then
 			sound("Aww", 1.4)
 			sound("Hearts", 0.9)
@@ -1021,6 +1208,31 @@ local function dreamBubble(): (Frame, (number) -> (), { Frame })
 		else
 			cam.CFrame = CFrame.lookAt(Vector3.new(camX, 5.5, 16), Vector3.new(camX, 2, 0))
 		end
+		-- Hearts pop up big, settle, float away and shrink
+		local camPos = cam.CFrame.Position
+		local right = cam.CFrame.RightVector
+		for i, h in pops do
+			local age = t - h.at
+			local shown = age >= 0 and age < 1.7
+			for _, p in h.parts do
+				p.Transparency = if shown then 0 else 1
+			end
+			if shown then
+				local grow = if age < 0.14 then age / 0.14 * 1.35 elseif age < 0.3 then 1.35 - (age - 0.14) / 0.16 * 0.35 else 1 - math.max(0, age - 1.2) / 0.5
+				local sz = math.max(0.05, h.size * grow)
+				local center = Vector3.new(25.2, 4.3 + age * 0.9, 0.5) + right * math.cos(h.angle) * 3.1 + Vector3.new(0, math.sin(h.angle) * 2.3, 0) + (camPos - Vector3.new(25.2, 4.3, 0.5)).Unit * 1.2
+				local face = CFrame.lookAt(center, camPos) * CFrame.Angles(0, 0, math.sin(age * 6 + i) * 0.2)
+				h.parts[1].Size = Vector3.one * sz
+				h.parts[1].CFrame = face * CFrame.new(-0.36 * sz, 0.15 * sz, 0)
+				h.parts[2].Size = Vector3.one * sz
+				h.parts[2].CFrame = face * CFrame.new(0.36 * sz, 0.15 * sz, 0)
+				h.parts[3].Size = Vector3.new(0.95 * sz, 0.95 * sz, 0.3 * sz)
+				h.parts[3].CFrame = face * CFrame.new(0, -0.22 * sz, 0) * CFrame.Angles(0, 0, math.rad(45))
+			end
+			if once("pop" .. i, h.at, t) then
+				sound("Pop", 0.45, 1.1 + (i % 4) * 0.12)
+			end
+		end
 		-- The trail of little bubbles breathes
 		for i, dot in trail do
 			dot.Rotation = math.sin(t * 2 + i) * 8
@@ -1033,12 +1245,11 @@ end
 local introOn = false
 local function intro()
 	introOn = true
-	clipOn = true
+	local my = beginClip(4, 0) :: number
 	local bed = (workspace:GetAttribute("CatBed") :: Vector3?) or Vector3.zero
-	camera.CameraType = Enum.CameraType.Scriptable
 	letterbox(true)
 	keyBar.Visible = false
-	local skip = skipButton()
+	local skip = skipButton(3.2)
 	local done = false
 	skip.Activated:Connect(function()
 		done = true
@@ -1063,7 +1274,7 @@ local function intro()
 	local start = os.clock()
 	local popped = false
 	local LENGTH = 13.2
-	while not done and os.clock() - start < LENGTH do
+	while not done and clipId == my and os.clock() - start < LENGTH do
 		local t = os.clock() - start
 		local a = t * 0.12
 		-- The camera shifted so the sleeping cat sits down left, under the little bubbles
@@ -1103,11 +1314,9 @@ local function intro()
 	-- Awake: a yawn, a look at the door
 	meow(Config.Mew, 1, 0.85)
 	TweenService:Create(fade, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
-	letterbox(false)
 	keyBar.Visible = true
-	camera.CameraType = Enum.CameraType.Custom
 	introOn = false
-	clipOn = false
+	endClip(my)
 	startMusic()
 end
 
@@ -1165,9 +1374,11 @@ local function lockedClip(door: BasePart)
 		doorHint:Destroy()
 		doorHint = nil
 	end
-	clipOn = true
-	clipDanger = 0.25
-	camera.CameraType = Enum.CameraType.Scriptable
+	local my = beginClip(1, 0.25)
+	if not my then
+		lockedShown = false
+		return
+	end
 	letterbox(true)
 	local inside = door.Position + Vector3.new(0, 4, -18)
 	local start = os.clock()
@@ -1204,7 +1415,7 @@ local function lockedClip(door: BasePart)
 			end
 		end
 	end
-	local skip = skipButton()
+	local skip = skipButton(3.2)
 	local done = false
 	skip.Activated:Connect(function()
 		done = true
@@ -1213,7 +1424,7 @@ local function lockedClip(door: BasePart)
 		done = true
 	end
 	local FLY = 2.2
-	while not done and os.clock() - start < Config.LockedClipTime do
+	while not done and clipId == my and os.clock() - start < Config.LockedClipTime do
 		local t = os.clock() - start
 		if not cues.rattle then
 			cues.rattle = true
@@ -1233,9 +1444,10 @@ local function lockedClip(door: BasePart)
 		if t >= 2.6 and not cues.fly then
 			cues.fly = true
 			sound("KeyFly", 1.2)
-			for i, lock in locks do
-				local to = targets[i] or (lock.Position + Vector3.new((i - 2) * 30, 40, -40))
-				table.insert(ghosts, { model = ghostKey(lock.Position), path = ghostPath(lock.Position, to), landed = false })
+			for i, to in targets do
+				local lock = locks[math.min(i, #locks)]
+				local from = if lock then lock.Position else door.Position
+				table.insert(ghosts, { model = ghostKey(from), path = ghostPath(from, to), landed = false })
 			end
 		end
 		local leadPos: Vector3? = nil
@@ -1281,9 +1493,9 @@ local function lockedClip(door: BasePart)
 	end
 	skipClip = nil
 	skip:Destroy()
-	letterbox(false)
-	camera.CameraType = Enum.CameraType.Custom
-	clipOn = false
+	if not endClip(my) then
+		return
+	end
 	-- The empty key slots wiggle: find them
 	for _, slot in slots do
 		TweenService:Create(slot, TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 5, true), { Rotation = 15 }):Play()
@@ -1320,15 +1532,23 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- Someone woke up
-local function wakeClip(name: string, at: Vector3)
+local function wakeClip(name: string, at: Vector3, cause: string?)
 	if introOn then
 		return
 	end
-	clipOn = true
-	clipDanger = 1
+	local my = beginClip(3, 1) :: number
 	spike = 1
-	camera.CameraType = Enum.CameraType.Scriptable
 	letterbox(true)
+	-- First a second on Pianka: the squeak she stepped on, or the eyes that saw her move
+	local root = myRoot()
+	if root then
+		popIcon(root, if cause == "toy" then "💥" else "👀", 1.6, 90)
+		local first = os.clock()
+		while clipId == my and os.clock() - first < 1 do
+			camera.CFrame = CFrame.lookAt(root.Position + Vector3.new(0, 6, 9), root.Position + Vector3.new(0, 1, 0))
+			RunService.RenderStepped:Wait()
+		end
+	end
 	local start = os.clock()
 	sound("Snort", 1.6)
 	task.delay(0.6, function()
@@ -1340,18 +1560,17 @@ local function wakeClip(name: string, at: Vector3)
 			popIcon(s.head, "‼️", 2.5, 80)
 		end
 	end
-	while os.clock() - start < Config.CaughtTime - 1 do
+	while clipId == my and os.clock() - start < Config.CaughtTime - 1 do
 		local t = os.clock() - start
 		camera.CFrame = CFrame.lookAt(at + Vector3.new(6 - t, 4 + t * 0.4, 7), at + Vector3.new(0, 1, 0))
 		RunService.RenderStepped:Wait()
 	end
 	TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 0 }):Play()
 	sound("Whoosh", 0.7, 0.7)
-	task.wait(0.9)
-	letterbox(false)
-	camera.CameraType = Enum.CameraType.Custom
-	clipOn = false
-	TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+	waitForRound(3)
+	if endClip(my) then
+		TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+	end
 end
 
 -- Out of the house: Pianka spots the cameras and meows a warning
@@ -1360,9 +1579,10 @@ local function exitClip()
 	if introOn or not root then
 		return
 	end
-	clipOn = true
-	clipDanger = 0.35
-	camera.CameraType = Enum.CameraType.Scriptable
+	local my = beginClip(2, 0.35)
+	if not my then
+		return
+	end
 	letterbox(true)
 	-- The closest cameras she can see from the door
 	local from = root.Position + Vector3.new(0, 2, 0)
@@ -1414,7 +1634,7 @@ local function exitClip()
 	local start = os.clock()
 	local PAN = 4.6
 	local length = Config.ExitClipTime - 0.4
-	while os.clock() - start < length do
+	while clipId == my and os.clock() - start < length do
 		local t = os.clock() - start
 		local cat = root.Position
 		if t < PAN then
@@ -1491,9 +1711,7 @@ local function exitClip()
 	for _, g in ghosts do
 		g.model:Destroy()
 	end
-	letterbox(false)
-	camera.CameraType = Enum.CameraType.Custom
-	clipOn = false
+	endClip(my)
 end
 
 -- The garage button: a quick look at the door rolling up, then hurry
@@ -1503,20 +1721,20 @@ local function garageClip()
 	if introOn or not door or not root then
 		return
 	end
-	clipOn = true
-	clipDanger = 0.3
-	camera.CameraType = Enum.CameraType.Scriptable
+	local my = beginClip(1, 0.3)
+	if not my then
+		return
+	end
 	local from = root.Position
 	local start = os.clock()
-	while os.clock() - start < Config.GarageClipTime - 0.1 do
+	while clipId == my and os.clock() - start < Config.GarageClipTime - 0.1 do
 		local t = (os.clock() - start) / Config.GarageClipTime
 		local side = Vector3.new(from.X - door.Position.X, 0, from.Z - door.Position.Z)
 		side = if side.Magnitude > 0.1 then side.Unit else Vector3.new(0, 0, 1)
 		camera.CFrame = CFrame.lookAt(door.Position + side * (26 - t * 6) + Vector3.new(0, 9, 0), door.Position + Vector3.new(0, 2, 0))
 		RunService.RenderStepped:Wait()
 	end
-	camera.CameraType = Enum.CameraType.Custom
-	clipOn = false
+	endClip(my)
 end
 
 -- A camera saw Pianka: mom's phone lights up and buzzes, she wakes up
@@ -1524,11 +1742,24 @@ local function spottedClip(eye: Vector3)
 	if introOn then
 		return
 	end
-	clipOn = true
-	clipDanger = 1
+	local my = beginClip(3, 1) :: number
 	spike = 1
-	camera.CameraType = Enum.CameraType.Scriptable
 	letterbox(true)
+	-- Click! A white flash on Pianka in the red light
+	local caught = myRoot()
+	if caught then
+		sound("Click", 1.4)
+		fade.BackgroundColor3 = Color3.new(1, 1, 1)
+		fade.BackgroundTransparency = 0.1
+		TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+		popIcon(caught, "📹", 1.6, 90)
+		local first = os.clock()
+		while clipId == my and os.clock() - first < 0.9 do
+			camera.CFrame = CFrame.lookAt(caught.Position + Vector3.new(0, 7, 10), caught.Position + Vector3.new(0, 1, 0))
+			RunService.RenderStepped:Wait()
+		end
+		fade.BackgroundColor3 = Color3.new(0, 0, 0)
+	end
 	sound("Alert", 1)
 	local momBed = world:FindFirstChild("bedMom", true)
 	local head = momBed and momBed:FindFirstChild("Head") :: BasePart?
@@ -1537,7 +1768,7 @@ local function spottedClip(eye: Vector3)
 	local cat = if root then root.Position else eye - Vector3.new(0, 12, 0)
 	local start = os.clock()
 	local phase = 0
-	while os.clock() - start < Config.SpottedTime - 1 do
+	while clipId == my and os.clock() - start < Config.SpottedTime - 1 do
 		local t = os.clock() - start
 		if t < 1.8 then
 			local toward = Vector3.new(cat.X - eye.X, 0, cat.Z - eye.Z)
@@ -1573,15 +1804,14 @@ local function spottedClip(eye: Vector3)
 	end
 	TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 0 }):Play()
 	sound("Whoosh", 0.7, 0.7)
-	task.wait(0.9)
+	waitForRound(3)
 	if screen then
 		screen.Material = Enum.Material.Glass
 		screen.Color = Color3.fromRGB(12, 14, 20)
 	end
-	letterbox(false)
-	camera.CameraType = Enum.CameraType.Custom
-	clipOn = false
-	TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+	if endClip(my) then
+		TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+	end
 end
 
 -- All the keys: the locks fall off and the door swings open
@@ -1591,9 +1821,10 @@ local function doorClip()
 	if introOn or not door then
 		return
 	end
-	clipOn = true
-	clipDanger = 0
-	camera.CameraType = Enum.CameraType.Scriptable
+	local my = beginClip(1, 0)
+	if not my then
+		return
+	end
 	local at = door.Position
 	sound("AllKeys", 1)
 	task.delay(0.8, function()
@@ -1603,13 +1834,12 @@ local function doorClip()
 		sound("Creak", 1)
 	end)
 	local start = os.clock()
-	while os.clock() - start < 2.6 do
+	while clipId == my and os.clock() - start < 2.6 do
 		local t = os.clock() - start
 		camera.CFrame = CFrame.lookAt(at + Vector3.new(4 - t, 5, -16 + t), at)
 		RunService.RenderStepped:Wait()
 	end
-	camera.CameraType = Enum.CameraType.Custom
-	clipOn = false
+	endClip(my)
 end
 
 -- Free! Out in the night a mouse runs across the road. To be continued...
@@ -1617,9 +1847,10 @@ local function freeClip(root: BasePart)
 	if introOn then
 		return
 	end
-	clipOn = true
-	clipDanger = 0
-	camera.CameraType = Enum.CameraType.Scriptable
+	local my = beginClip(2, 0)
+	if not my then
+		return
+	end
 	letterbox(true)
 	local at = root.Position
 	local ahead = Vector3.new(0, 0, 1)
@@ -1629,7 +1860,7 @@ local function freeClip(root: BasePart)
 	local mouse = buildMouse(holder)
 	local start = os.clock()
 	local cues: { [string]: boolean } = {}
-	while os.clock() - start < 7 do
+	while clipId == my and os.clock() - start < 7 do
 		local t = os.clock() - start
 		camera.CFrame = CFrame.lookAt(at - ahead * 10 + Vector3.new(0, 5 + t * 0.6, 0), at + ahead * 22 + Vector3.new(0, 1, 0))
 		local k = math.clamp((t - 1.5) / 2.5, 0, 1)
@@ -1651,10 +1882,9 @@ local function freeClip(root: BasePart)
 		RunService.RenderStepped:Wait()
 	end
 	holder:Destroy()
-	letterbox(false)
-	camera.CameraType = Enum.CameraType.Custom
-	clipOn = false
-	TweenService:Create(fade, TweenInfo.new(1), { BackgroundTransparency = 1 }):Play()
+	if endClip(my) then
+		TweenService:Create(fade, TweenInfo.new(1), { BackgroundTransparency = 1 }):Play()
+	end
 end
 
 -- Keys twinkle now and then so you can find them by ear. Outside, crickets
@@ -1682,7 +1912,7 @@ task.spawn(function()
 	end
 end)
 
-event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
+event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 	if kind == "key" or kind == "gateKey" then
 		sound("Key", 1)
 		local root = if typeof(a) == "Instance" and a:IsA("Player") and a.Character then a.Character:FindFirstChild("HumanoidRootPart") :: BasePart? else nil
@@ -1704,9 +1934,20 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
 		local main = model.PrimaryPart
 		spike = 1
 		if main then
-			local clip = if b == "ballTrack" then "Track" elseif math.random() < 0.5 then "Squeak" else "Squeak2"
+			local info = Config.Toys[b] or Config.Toys.squeaky
+			local clip = if b == "squeaky" and math.random() < 0.5 then "Squeak2" else info.sound
 			sound(clip, 2, 0.9 + math.random() * 0.2, main, 140)
 			popIcon(main, "💥", 0.9, 54)
+			-- The controller's light flashes while it buzzes
+			local lightBar = model:FindFirstChild("Light") :: BasePart?
+			if lightBar then
+				task.spawn(function()
+					for i = 1, 8 do
+						lightBar.Color = if i % 2 == 0 then Color3.fromRGB(80, 150, 255) else Color3.fromRGB(255, 255, 255)
+						task.wait(0.1)
+					end
+				end)
+			end
 			for _, p in model:GetDescendants() do
 				if p:IsA("BasePart") and p.Name == "Ball" then
 					local center = main.Position
@@ -1725,9 +1966,16 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
 			local pivot = model:GetPivot()
 			task.spawn(function()
 				local start = os.clock()
-				while os.clock() - start < 0.5 and model.Parent do
-					local k = (os.clock() - start) / 0.5
-					model:PivotTo(pivot * CFrame.new(0, math.abs(math.sin(k * math.pi * 2)) * 0.8 * (1 - k), 0))
+				local small = Config.Toys[b] and Config.Toys[b].small
+				local length = if small then 0.9 else 0.5
+				while os.clock() - start < length and model.Parent do
+					local k = (os.clock() - start) / length
+					if small then
+						-- Small things shake and rattle on the floor
+						model:PivotTo(pivot * CFrame.new(math.sin(k * 60) * 0.12 * (1 - k), math.abs(math.sin(k * 40)) * 0.15 * (1 - k), 0) * CFrame.Angles(0, math.sin(k * 30) * 0.3 * (1 - k), 0))
+					else
+						model:PivotTo(pivot * CFrame.new(0, math.abs(math.sin(k * math.pi * 2)) * 0.8 * (1 - k), 0))
+					end
 					RunService.Heartbeat:Wait()
 				end
 				model:PivotTo(pivot)
@@ -1741,7 +1989,7 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
 		local calls = Config.Calls
 		voice(calls[math.random(1, #calls)], 0.55)
 	elseif kind == "wake" then
-		task.spawn(wakeClip, tostring(a), b)
+		task.spawn(wakeClip, tostring(a), b, select(1, ...))
 	elseif kind == "escaped" then
 		if a == player then
 			task.spawn(exitClip)
@@ -1766,6 +2014,7 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
 			task.spawn(freeClip, root)
 		end
 	elseif kind == "round" then
+		roundSignal:Fire()
 		showKeys()
 		meow(Config.Mew, 0.7, 0.8)
 	end

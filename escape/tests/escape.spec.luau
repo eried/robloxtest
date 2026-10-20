@@ -227,6 +227,10 @@ if kid then
 			break
 		end
 	end
+	-- Stand where he looks
+	local up = kid:FindFirstChild("Head").CFrame.UpVector
+	local facing = Vector3.new(up.X, 0, up.Z).Unit
+	spot = Vector3.new(head.X, Config.Floor2 + 1.4, head.Z) + facing * 9
 	for i = 1, 20 do
 		teleport(ana, spot + Vector3.new(if i % 2 == 0 then 1.5 else -1.5, 0, 0))
 		Engine.step(DT)
@@ -238,6 +242,35 @@ if kid then
 	run(Config.CaughtTime + 1.5)
 	check(workspace:GetAttribute("State") == "play" and kid:GetAttribute("Stir") == "sleep", "the round did not reset after the kid woke")
 end
+
+-- Small things on the floor: jumping over them is quiet, stepping on one wakes someone
+local small = {}
+for _, t in toys do
+	if Config.Toys[t:GetAttribute("Toy")].small then
+		small[t:GetAttribute("Toy")] = t
+	end
+end
+check(small.controller ~= nil and small.blocks ~= nil, "no controllers or toy blocks in the kid's room")
+check(small.lipstick ~= nil and small.perfume ~= nil, "no lipsticks or perfume in mom's room")
+if small.controller then
+	local c = small.controller.PrimaryPart.Position
+	teleport(ana, Vector3.new(c.X, Config.Floor2 + 5, c.Z))
+	run(0.2)
+	check(workspace:GetAttribute("State") == "play", "jumping over the controller made noise")
+	teleport(ana, Vector3.new(c.X, Config.Floor2 + 1.4, c.Z))
+	run(0.3)
+	check(workspace:GetAttribute("State") == "caught", "stepping on the controller woke nobody")
+	run(Config.CaughtTime + 1.5)
+end
+
+-- The kid's TV still plays the game
+local screen = nil
+for _, d in world:GetDescendants() do
+	if d.Name == "GameScreen" then
+		screen = d
+	end
+end
+check(screen ~= nil and screen:FindFirstChildOfClass("SurfaceGui") ~= nil, "the kid's TV shows no game")
 
 -- The stairs are solid from the side
 check((counts.StairSide or 0) > 10 and (counts.StairEnd or 0) == 1, "the stairs can be walked into from the side")
@@ -282,6 +315,22 @@ end
 check(inBackRoom, "no gate key in the garage back room")
 local gate = world:FindFirstChild("Yard"):FindFirstChild("Gate")
 check(gate ~= nil and gate.CanCollide == true, "the gate is not locked")
+-- Nothing gets over the fence or the gate: invisible walls go up high above them
+local caps = {}
+for _, d in world:FindFirstChild("Yard"):GetChildren() do
+	if d.Name == "Boundary" then
+		table.insert(caps, d)
+	end
+end
+local function capOverGate(): any
+	for _, c in caps do
+		if math.abs(c.Position.X - gate.Position.X) < 1 and math.abs(c.Position.Z - gate.Position.Z) < 1 then
+			return c
+		end
+	end
+	return nil
+end
+check(#caps >= 4 and capOverGate() ~= nil and capOverGate().CanCollide and capOverGate().Size.Y > 60, "the fence or gate can be jumped over")
 local cams = {}
 for _, m in world:FindFirstChild("Yard"):FindFirstChild("Cameras"):GetChildren() do
 	if m.Name == "Cam" then
@@ -342,7 +391,7 @@ for _, k in keys() do
 end
 check(workspace:GetAttribute("GateKeys") == Config.GateKeyCount, "could not collect the gate keys, got " .. tostring(workspace:GetAttribute("GateKeys")))
 run(3)
-check(gate.CanCollide == false, "the gate did not open")
+check(gate.CanCollide == false and not capOverGate().CanCollide, "the gate did not open")
 local through = gate.Position + Vector3.new(0, 1.4, 12)
 teleport(ana, through)
 run(0.5)

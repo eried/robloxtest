@@ -171,7 +171,7 @@ for _, name in {
 	"ChildRemoved", "DescendantAdded", "DescendantRemoving", "Equipped", "Unequipped", "PromptTriggered", "MessageOut",
 	"AncestryChanged", "Destroying", "HealthChanged", "Running", "StateChanged", "Hit", "PromptShown", "PromptHidden",
 	"TriggerEnded", "MouseEnter", "MouseLeave", "FocusLost", "Deactivated", "Loaded", "LastInputTypeChanged",
-	"CharacterAppearanceLoaded", "WindowFocused", "WindowFocusReleased", "PromptGamePassPurchaseFinished", "JumpRequest",
+	"CharacterAppearanceLoaded", "Event", "WindowFocused", "WindowFocusReleased", "PromptGamePassPurchaseFinished", "JumpRequest",
 } do
 	EVENTS[name] = true
 end
@@ -716,6 +716,12 @@ CLASS_METHODS.Sound = {
 Engine.server = { name = "server", isClient = false, modules = {} }
 Engine.clients = {} :: { any }
 local serverCtx = Engine.server
+
+CLASS_METHODS.BindableEvent = {
+	Fire = function(self: any, ...)
+		event(self, "Event"):Fire(...)
+	end,
+}
 
 CLASS_METHODS.RemoteEvent = {
 	FireServer = function(self: any, ...)

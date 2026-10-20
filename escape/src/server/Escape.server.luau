@@ -134,7 +134,8 @@ local FOOT: { [string]: { number } } = {
 	washer = { 2, 2 }, toilet = { 1, 2 }, bathtub = { 2, 4 }, other = { 2, 2 }, tree = { 2, 2 }, bush = { 2, 2 }, rock = { 1, 1 },
 	flowers = { 3, 2 }, shed = { 5, 4 }, trampoline = { 5, 5 }, woodpile = { 3, 1 }, bin = { 1, 1 }, car = { 4, 8 }, houseDoor = { 1, 1 },
 	gate = { 2, 1 }, ratSpawn = { 1, 1 }, ratHole = { 1, 1 }, ratGap = { 2, 1 }, jumpSpot = { 1, 1 }, camera = { 1, 1 },
-	garageButton = { 1, 1 }, garageButtonIn = { 1, 1 },
+	garageButton = { 1, 1 }, garageButtonIn = { 1, 1 }, ps5 = { 1, 1 }, pouf = { 2, 2 }, wardrobe = { 3, 1 }, vanity = { 2, 1 },
+	controller = { 1, 1 }, blocks = { 1, 1 }, lipstick = { 1, 1 }, perfume = { 1, 1 },
 }
 local function rectOf(it: { t: string, x: number, y: number, r: number }): Rect
 	local f = FOOT[it.t] or { 1, 1 }
@@ -467,14 +468,15 @@ end
 
 local TOY_COLORS = { Color3.fromRGB(255, 210, 60), Color3.fromRGB(255, 120, 160), Color3.fromRGB(120, 200, 255), Color3.fromRGB(150, 230, 120) }
 local kitchenCount = 0
-local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number, parent: Instance, tvSpot: Vector3?)
+local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number, parent: Instance, partner: Vector3?)
 	local r = rectOf(it)
 	local room = roomName(floorNo, it.x, it.y)
 	local t = it.t
 	local front = facing(lv, r, false)
-	if t == "sofa" and tvSpot then
+	-- A sofa and a TV in the same room face each other
+	if partner then
 		local c = Vector3.new((r.x + r.w / 2) * U, 0, (r.y + r.h / 2) * U)
-		local d = Vector3.new(tvSpot.X - c.X, 0, tvSpot.Z - c.Z)
+		local d = Vector3.new(partner.X - c.X, 0, partner.Z - c.Z)
 		front = if math.abs(d.X) > math.abs(d.Z) then Vector3.new(math.sign(d.X), 0, 0) else Vector3.new(0, 0, math.sign(d.Z))
 	end
 	local cf, width, depth = frame(r, baseY, front)
@@ -502,8 +504,68 @@ local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number
 		surface(floorNo, r, baseY + 6.25)
 	elseif t == "tv" then
 		box(model, "Stand", cf * CFrame.new(0, 1.75, 0), Vector3.new(width, 3.5, depth), WOOD_DARK, Enum.Material.Wood)
-		box(model, "Screen", cf * CFrame.new(0, 6.6, depth / 2 - 0.5), Vector3.new(width * 0.95, 5.6, 0.35), Color3.fromRGB(18, 20, 26), Enum.Material.Glass)
+		-- The kid fell asleep playing: his TV still shows the game
+		local kids = string.find(room, "kid", 1, true) ~= nil
+		box(model, if kids then "GameScreen" else "Screen", cf * CFrame.new(0, 6.6, depth / 2 - 0.5), Vector3.new(width * 0.95, 5.6, 0.35), Color3.fromRGB(18, 20, 26), Enum.Material.Glass)
 		surface(floorNo, r, baseY + 3.5)
+	elseif t == "ps5" then
+		local white = Color3.fromRGB(245, 246, 250)
+		local black = Color3.fromRGB(22, 22, 28)
+		box(model, "Stand", cf * CFrame.new(0, 0.15, 0), Vector3.new(1.6, 0.3, 1.6), black)
+		box(model, "Core", cf * CFrame.new(0, 2.1, 0), Vector3.new(0.7, 3.6, 2.5), black)
+		for _, x in { -0.48, 0.48 } do
+			box(model, "Shell", cf * CFrame.new(x, 2.25, 0.05), Vector3.new(0.22, 3.9, 2.8), white)
+		end
+		box(model, "Light", cf * CFrame.new(0, 3.9, -1.2), Vector3.new(0.72, 0.08, 0.12), Color3.fromRGB(80, 150, 255), Enum.Material.Neon, false)
+	elseif t == "pouf" then
+		-- A big soft bean bag
+		local c = cf.Position
+		local bag = box(model, "Pouf", CFrame.new(c + Vector3.new(0, 1.5, 0)), Vector3.new(width - 1.2, 3, depth - 1.2), Color3.fromRGB(255, 150, 60), Enum.Material.Fabric)
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = bag
+		local dent = box(model, "Dent", CFrame.new(c + Vector3.new(0, 2.85, 0)) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.2, 2.6, 2.6), Color3.fromRGB(230, 120, 45), Enum.Material.Fabric, false)
+		;(dent :: Part).Shape = Enum.PartType.Cylinder
+		surface(floorNo, r, baseY + 3)
+	elseif t == "wardrobe" then
+		-- Clothes inside, one door left open
+		local h = 12.5
+		box(model, "Back", cf * CFrame.new(0, h / 2, depth / 2 - 0.3), Vector3.new(width - 0.6, h, 0.4), WOOD_DARK, Enum.Material.Wood)
+		for _, x in { -1, 1 } do
+			box(model, "Side", cf * CFrame.new(x * (width / 2 - 0.5), h / 2, 0.3), Vector3.new(0.4, h, depth - 1.2), WOOD_DARK, Enum.Material.Wood)
+		end
+		box(model, "Top", cf * CFrame.new(0, h - 0.2, 0.3), Vector3.new(width - 0.6, 0.4, depth - 1.2), WOOD_DARK, Enum.Material.Wood)
+		box(model, "Bottom", cf * CFrame.new(0, 0.5, 0.3), Vector3.new(width - 0.6, 1, depth - 1.2), WOOD_DARK, Enum.Material.Wood)
+		box(model, "Inside", cf * CFrame.new(0, h / 2, depth / 2 - 0.55), Vector3.new(width - 1.4, h - 1.2, 0.1), Color3.fromRGB(70, 50, 40), Enum.Material.Wood, false)
+		box(model, "Rod", cf * CFrame.new(0, h - 2, 0.4), Vector3.new(width - 1.4, 0.2, 0.2), Color3.fromRGB(190, 190, 195), Enum.Material.Metal, false)
+		local clothes = { Color3.fromRGB(220, 90, 120), Color3.fromRGB(90, 140, 220), Color3.fromRGB(250, 220, 120), Color3.fromRGB(120, 200, 160), Color3.fromRGB(180, 120, 220), Color3.fromRGB(240, 240, 240) }
+		for i, color in clothes do
+			local x = -width / 2 + 1.3 + (i - 1) * (width - 2.6) / (#clothes - 1)
+			local long = if i % 2 == 0 then 6.5 else 4.5
+			box(model, "Clothes", cf * CFrame.new(x, h - 2.3 - long / 2, 0.4) * CFrame.Angles(0, 0.1 * (i % 3 - 1), 0), Vector3.new(1.4, long, 0.35), color, Enum.Material.Fabric, false)
+		end
+		local half = (width - 0.6) / 2
+		box(model, "Door", cf * CFrame.new(-half / 2, h / 2 + 0.2, -depth / 2 + 0.75), Vector3.new(half - 0.1, h - 0.6, 0.3), WOOD_LIGHT, Enum.Material.Wood)
+		box(model, "Handle", cf * CFrame.new(-0.6, h / 2, -depth / 2 + 0.55), Vector3.new(0.2, 1.2, 0.2), Color3.fromRGB(200, 170, 90), Enum.Material.Metal, false)
+		local hinge = cf * CFrame.new(half, 0, -depth / 2 + 0.75) * CFrame.Angles(0, math.rad(-55), 0)
+		box(model, "Door", hinge * CFrame.new(-half / 2, h / 2 + 0.2, 0), Vector3.new(half - 0.1, h - 0.6, 0.3), WOOD_LIGHT, Enum.Material.Wood, false)
+		box(model, "Handle", hinge * CFrame.new(-half + 0.6, h / 2, -0.2), Vector3.new(0.2, 1.2, 0.2), Color3.fromRGB(200, 170, 90), Enum.Material.Metal, false)
+	elseif t == "vanity" then
+		-- Her make-up table with a mirror and a stool
+		box(model, "Top", cf * CFrame.new(0, 5, 0.3), Vector3.new(width - 0.4, 0.4, depth - 0.8), WHITE, Enum.Material.Wood)
+		for _, x in { -1, 1 } do
+			box(model, "Drawers", cf * CFrame.new(x * (width / 2 - 1.3), 2.4, 0.3), Vector3.new(2.2, 4.8, depth - 1), WHITE, Enum.Material.Wood)
+		end
+		box(model, "MirrorFrame", cf * CFrame.new(0, 9.5, depth / 2 - 0.25), Vector3.new(5.4, 7, 0.3), Color3.fromRGB(215, 180, 110), Enum.Material.Wood, false)
+		local mirror = box(model, "Mirror", cf * CFrame.new(0, 9.5, depth / 2 - 0.45), Vector3.new(4.8, 6.4, 0.1), Color3.fromRGB(190, 215, 235), Enum.Material.Glass, false)
+		mirror.Reflectance = 0.4
+		for i, color in { Color3.fromRGB(255, 140, 190), Color3.fromRGB(200, 60, 80), Color3.fromRGB(255, 220, 150), Color3.fromRGB(170, 120, 230) } do
+			box(model, "Bottle", cf * CFrame.new(-2.4 + i * 1.0, 5.2 + 0.4 + (i % 2) * 0.3, 0.6), Vector3.new(0.5, 0.8 + (i % 2) * 0.6, 0.5), color, Enum.Material.Glass, false)
+		end
+		local stool = box(model, "Stool", cf * CFrame.new(0, 3, -depth / 2 - 1.6) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.8, 2.8, 2.8), Color3.fromRGB(240, 170, 200), Enum.Material.Fabric)
+		;(stool :: Part).Shape = Enum.PartType.Cylinder
+		box(model, "StoolLeg", cf * CFrame.new(0, 1.3, -depth / 2 - 1.6), Vector3.new(0.4, 2.6, 0.4), Color3.fromRGB(200, 170, 90), Enum.Material.Metal, false)
+		surface(floorNo, r, baseY + 5.2)
 	elseif t == "washer" then
 		box(model, "Body", cf * CFrame.new(0, 3.5, 0), Vector3.new(width - 0.4, 7, depth - 0.4), WHITE)
 		local door = box(model, "Door", cf * CFrame.new(0, 3.6, -depth / 2 + 0.15) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.3, 3.4, 3.4), Color3.fromRGB(90, 110, 130), Enum.Material.Glass, false)
@@ -592,9 +654,57 @@ local function buildToy(it: any, floorNo: number, baseY: number, parent: Instanc
 	model:SetAttribute("Toy", it.t)
 	model.Parent = parent
 	local c = cf.Position
-	if it.t == "squeaky" then
+	local spin = CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
+	local base = CFrame.new(c) * spin
+	if it.t == "controller" then
+		-- A game controller left on the floor
+		local white = Color3.fromRGB(245, 246, 250)
+		local body = box(model, "Body", base * CFrame.new(0, 0.3, 0), Vector3.new(1.9, 0.45, 1.0), white, Enum.Material.SmoothPlastic, false)
+		for _, x in { -0.75, 0.75 } do
+			local grip = box(model, "Grip", base * CFrame.new(x, 0.32, 0.45), Vector3.one * 0.75, white, Enum.Material.SmoothPlastic, false)
+			;(grip :: Part).Shape = Enum.PartType.Ball
+			local stick = box(model, "Stick", base * CFrame.new(x * 0.45, 0.6, 0.15) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.2, 0.3, 0.3), Color3.fromRGB(25, 25, 30), Enum.Material.SmoothPlastic, false)
+			;(stick :: Part).Shape = Enum.PartType.Cylinder
+		end
+		box(model, "Pad", base * CFrame.new(0, 0.54, -0.15), Vector3.new(0.75, 0.05, 0.45), Color3.fromRGB(25, 25, 30), Enum.Material.SmoothPlastic, false)
+		box(model, "Light", base * CFrame.new(0, 0.54, -0.42), Vector3.new(0.6, 0.06, 0.08), Color3.fromRGB(80, 150, 255), Enum.Material.Neon, false)
+		model.PrimaryPart = body
+	elseif it.t == "blocks" then
+		-- Toy bricks spilled on the floor
+		local first: BasePart? = nil
+		for i, off in { Vector3.new(-0.5, 0.3, 0.2), Vector3.new(0.6, 0.3, -0.3), Vector3.new(0.1, 0.9, 0.1) } do
+			local color = TOY_COLORS[(i + it.x) % #TOY_COLORS + 1]
+			local brick = box(model, "Brick", base * CFrame.new(off) * CFrame.Angles(0, i * 0.7, 0), Vector3.new(1.2, 0.6, 0.6), color, Enum.Material.SmoothPlastic, false)
+			for _, sx in { -0.3, 0.3 } do
+				local knob = box(model, "Knob", brick.CFrame * CFrame.new(sx, 0.38, 0) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.16, 0.3, 0.3), color, Enum.Material.SmoothPlastic, false)
+				;(knob :: Part).Shape = Enum.PartType.Cylinder
+			end
+			first = first or brick
+		end
+		model.PrimaryPart = first
+	elseif it.t == "lipstick" then
+		-- A few lipsticks rolled off the make-up table
+		local first: BasePart? = nil
+		local tips = { Color3.fromRGB(210, 30, 70), Color3.fromRGB(255, 110, 150), Color3.fromRGB(170, 40, 120) }
+		for i, off in { Vector3.new(-0.5, 0.2, 0), Vector3.new(0.45, 0.2, 0.55), Vector3.new(0.3, 0.2, -0.6) } do
+			local roll = base * CFrame.new(off) * CFrame.Angles(0, i * 1.1, 0)
+			local tube = box(model, "Tube", roll * CFrame.Angles(0, math.rad(90), 0), Vector3.new(1.0, 0.36, 0.36), Color3.fromRGB(230, 190, 90), Enum.Material.Metal, false)
+			;(tube :: Part).Shape = Enum.PartType.Cylinder
+			local tip = box(model, "Tip", roll * CFrame.new(0, 0, -0.62) * CFrame.Angles(0, math.rad(90), 0), Vector3.new(0.3, 0.3, 0.3), tips[i], Enum.Material.SmoothPlastic, false)
+			;(tip :: Part).Shape = Enum.PartType.Cylinder
+			first = first or tube
+		end
+		model.PrimaryPart = first
+	elseif it.t == "perfume" then
+		-- A glass perfume bottle
+		local bottle = box(model, "Bottle", base * CFrame.new(0, 0.6, 0), Vector3.new(0.9, 1.2, 0.55), Color3.fromRGB(255, 160, 210), Enum.Material.Glass, false)
+		bottle.Transparency = 0.25
+		box(model, "Neck", base * CFrame.new(0, 1.3, 0), Vector3.new(0.3, 0.25, 0.3), Color3.fromRGB(230, 190, 90), Enum.Material.Metal, false)
+		local cap = box(model, "Cap", base * CFrame.new(0, 1.6, 0), Vector3.one * 0.45, Color3.fromRGB(230, 190, 90), Enum.Material.Metal, false)
+		;(cap :: Part).Shape = Enum.PartType.Ball
+		model.PrimaryPart = bottle
+	elseif it.t == "squeaky" then
 		local color = TOY_COLORS[rng:NextInteger(1, #TOY_COLORS)]
-		local spin = CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
 		local body = box(model, "Body", CFrame.new(c + Vector3.new(0, 1.15, 0)) * spin, Vector3.new(2.4, 2.1, 2.8), color, Enum.Material.Plastic, false)
 		;(body :: Part).Shape = Enum.PartType.Ball
 		local head = box(model, "Head", CFrame.new(c + Vector3.new(0, 2.6, 0)) * spin * CFrame.new(0, 0, -0.9), Vector3.one * 1.5, color, Enum.Material.Plastic, false)
@@ -606,7 +716,7 @@ local function buildToy(it: any, floorNo: number, baseY: number, parent: Instanc
 		end
 		model.PrimaryPart = body
 	else
-		local base = box(model, "Base", CFrame.new(c + Vector3.new(0, 0.2, 0)), Vector3.new(r.w * U - 0.6, 0.4, r.h * U - 0.6), Color3.fromRGB(240, 240, 245), Enum.Material.Plastic, false)
+		local plate = box(model, "Base", CFrame.new(c + Vector3.new(0, 0.2, 0)), Vector3.new(r.w * U - 0.6, 0.4, r.h * U - 0.6), Color3.fromRGB(240, 240, 245), Enum.Material.Plastic, false)
 		local ring = r.w * U / 2 - 0.9
 		for i = 0, 15 do
 			local a = i / 16 * math.pi * 2
@@ -614,30 +724,41 @@ local function buildToy(it: any, floorNo: number, baseY: number, parent: Instanc
 		end
 		local ball = box(model, "Ball", CFrame.new(c + Vector3.new(ring, 1.4, 0)), Vector3.one * 1.1, Color3.fromRGB(255, 80, 80), Enum.Material.Plastic, false)
 		;(ball :: Part).Shape = Enum.PartType.Ball
-		model.PrimaryPart = base
+		model.PrimaryPart = plate
+	end
+	-- Upstairs, where a squeak wakes someone, a red ring warns around the toy
+	if floorNo == 2 then
+		local radius = Config.Toys[it.t].radius + 0.3
+		local ring = box(model, "DangerRing", CFrame.new(c + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.08, radius * 2, radius * 2), Color3.fromRGB(255, 70, 70), Enum.Material.Neon, false)
+		;(ring :: Part).Shape = Enum.PartType.Cylinder
+		ring.Transparency = 0.75
+		ring.CastShadow = false
+		ring.CanQuery = false
 	end
 	table.insert(toys, { kind = it.t, model = model, pos = c, floor = floorNo, ready = 0 })
 end
 
 local function furnish(lv: Level, floorNo: number, baseY: number, parent: Folder)
-	local tvSpot: Vector3? = nil
+	-- Each room's TV and sofa, so they can face each other
+	local spots: { [string]: Vector3 } = {}
 	for _, it in lv.items do
-		if it.t == "tv" then
+		if it.t == "tv" or it.t == "sofa" then
 			local r = rectOf(it)
-			tvSpot = Vector3.new((r.x + r.w / 2) * U, baseY, (r.y + r.h / 2) * U)
+			spots[it.t .. roomName(floorNo, it.x, it.y)] = Vector3.new((r.x + r.w / 2) * U, baseY, (r.y + r.h / 2) * U)
 		end
 	end
 	for _, it in lv.items do
 		local t = it.t
 		if t == "bedKid" or t == "bedGirl" or t == "bedMom" or t == "bedEmpty" then
 			buildBed(lv, it, floorNo, baseY, parent)
-		elseif t == "squeaky" or t == "ballTrack" then
+		elseif Config.Toys[t] then
 			buildToy(it, floorNo, baseY, parent)
 		elseif t == "key" then
 			local r = rectOf(it)
 			table.insert(keySpots, { floor = floorNo, pos = Vector3.new((r.x + 0.5) * U, baseY, (r.y + 0.5) * U) })
 		elseif t ~= "stairsUp" and t ~= "stairsDown" and t ~= "exit" then
-			buildFurniture(lv, it, floorNo, baseY, parent, if t == "sofa" then tvSpot else nil)
+			local room = roomName(floorNo, it.x, it.y)
+			buildFurniture(lv, it, floorNo, baseY, parent, if t == "sofa" then spots["tv" .. room] elseif t == "tv" then spots["sofa" .. room] else nil)
 		end
 	end
 end
@@ -769,8 +890,14 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 	for _, it in lv.items do
 		if it.t == "sofa" then
 			table.insert(sofas, rectOf(it))
-		elseif it.t == "tv" then
+		elseif it.t == "tv" and sofas[1] == nil then
 			table.insert(tvs, rectOf(it))
+		end
+	end
+	-- The TV that shares a room with the first sofa
+	for _, it in lv.items do
+		if it.t == "tv" and sofas[1] and roomName(floorNo, it.x, it.y) == roomName(floorNo, sofas[1].x, sofas[1].y) then
+			table.insert(tvs, 1, rectOf(it))
 		end
 	end
 	local function rectCenter(r: Rect): Vector3
@@ -901,7 +1028,7 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 			for _, side in { 1, -1 } do
 				local spot = (cf * CFrame.new(side * (width / 2 + 1.6), 0, depth / 2 - 1.8)).Position
 				local cx, cy = math.floor(spot.X / U), math.floor(spot.Z / U)
-				if free(cx, cy) then
+				if free(cx, cy) and not nearDoor(cx, cy) then
 					local ncf = CFrame.lookAt(spot, spot + front)
 					part({ Name = "Nightstand", Size = Vector3.new(2.6, 3.4, 2.6), CFrame = ncf * CFrame.new(0, 1.7, 0), Color = WOOD_DARK, Material = Enum.Material.Wood, Parent = deco })
 					part({ Name = "LampBase", Size = Vector3.new(0.5, 1.2, 0.5), CFrame = ncf * CFrame.new(0, 4, 0), Color = Color3.fromRGB(200, 190, 170), Parent = deco })
@@ -1027,6 +1154,7 @@ end
 local cameras: { { eye: Vector3, yaw: number, phase: number, period: number } } = {}
 local yardKeySpots: { { pos: Vector3, garage: boolean } } = {}
 local gate: BasePart? = nil
+local gateCap: BasePart? = nil
 local gateClosedCf = CFrame.identity
 local gateSlide = Vector3.zero
 local gateLine = math.huge
@@ -1055,6 +1183,8 @@ do
 	end
 	for _, r in yardRects("x") do
 		block(r, YX, YZ, 0, 10, { Name = "Fence", Material = Enum.Material.WoodPlanks, Color = Color3.fromRGB(140, 105, 70), Parent = yf })
+		-- No jumping over the fence from anything: an invisible wall above it
+		block(r, YX, YZ, 10, 90, { Name = "Boundary", Transparency = 1, CanQuery = false, CanTouch = false, CastShadow = false, Parent = yf })
 	end
 	for _, r in yardRects("h") do
 		block(r, YX, YZ, 0, 10, { Name = "Hedge", Material = Enum.Material.Grass, Color = Color3.fromRGB(55, 105, 50), Parent = yf })
@@ -1123,7 +1253,14 @@ do
 		end
 		gate = g
 		gateClosedCf = g.CFrame
-		gateSlide = if across then Vector3.new(r.w * U, 0, 0) else Vector3.new(0, 0, r.h * U)
+		gateCap = block(r, YX, YZ, 10, 90, { Name = "Boundary", Transparency = 1, CanQuery = false, CanTouch = false, CastShadow = false, Parent = yf })
+		-- A road outside the gate, with a dashed line
+		local roadZ = YZ + (r.y + r.h) * U + 26
+		part({ Name = "Road", Size = Vector3.new(yard.w * U + 200, 0.2, 16), CFrame = CFrame.new(YX + yard.w * U / 2, 0.05, roadZ), Material = Enum.Material.Asphalt, Color = Color3.fromRGB(55, 55, 60), Parent = yf })
+		for i = 0, 18 do
+			part({ Name = "RoadLine", Size = Vector3.new(6, 0.22, 0.6), CFrame = CFrame.new(YX - 90 + i * 24, 0.06, roadZ), Material = Enum.Material.Neon, Color = Color3.fromRGB(240, 230, 200), CanCollide = false, Parent = yf })
+		end
+		gateSlide = Vector3.new(0, -9.9, 0)
 		gateLine = YZ + (r.y + r.h) * U
 	end
 	for _, r in rects(yard, function(c, x, y)
@@ -1366,23 +1503,29 @@ local function take(picks: { any }, list: { any })
 end
 
 -- Three keys: mostly upstairs where people sleep, sometimes one downstairs as a bonus
-local function placeKeys()
+-- Keys go back to the same spots after a fail, new spots only after a win
+local housePicks: { any }? = nil
+local gatePicks: { any }? = nil
+local function placeKeys(reroll: boolean?)
 	keyFolder:ClearAllChildren()
 	table.clear(keyModels)
 	keysFound = 0
 	workspace:SetAttribute("Keys", 0)
-	local up, down = {}, {}
-	for _, s in keySpots do
-		table.insert(if s.floor == 2 then up else down, s)
+	if reroll or not housePicks then
+		local up, down = {}, {}
+		for _, s in keySpots do
+			table.insert(if s.floor == 2 then up else down, s)
+		end
+		local fresh = {}
+		if #down > 0 and rng:NextNumber() < Config.DownstairsKeyChance then
+			take(fresh, down)
+		end
+		while #fresh < Config.KeyCount and (#up > 0 or #down > 0) do
+			take(fresh, if #up > 0 then up else down)
+		end
+		housePicks = fresh
 	end
-	local picks = {}
-	if #down > 0 and rng:NextNumber() < Config.DownstairsKeyChance then
-		take(picks, down)
-	end
-	while #picks < Config.KeyCount and (#up > 0 or #down > 0) do
-		take(picks, if #up > 0 then up else down)
-	end
-	for i, s in picks do
+	for i, s in housePicks :: { any } do
 		local y = keyHeight(s.floor, s.pos) + 1.6
 		table.insert(keyModels, makeKey(Vector3.new(s.pos.X, y, s.pos.Z), i))
 	end
@@ -1392,16 +1535,19 @@ end
 local function placeGateKeys()
 	gateFound = 0
 	workspace:SetAttribute("GateKeys", 0)
-	local garage, other = {}, {}
-	for _, s in yardKeySpots do
-		table.insert(if s.garage then garage else other, s)
+	if not gatePicks then
+		local garage, other = {}, {}
+		for _, s in yardKeySpots do
+			table.insert(if s.garage then garage else other, s)
+		end
+		local fresh = {}
+		take(fresh, garage)
+		while #fresh < Config.GateKeyCount and (#other > 0 or #garage > 0) do
+			take(fresh, if #other > 0 then other else garage)
+		end
+		gatePicks = fresh
 	end
-	local picks = {}
-	take(picks, garage)
-	while #picks < Config.GateKeyCount and (#other > 0 or #garage > 0) do
-		take(picks, if #other > 0 then other else garage)
-	end
-	for i, s in picks do
+	for i, s in gatePicks :: { any } do
 		local key = makeKey(s.pos + Vector3.new(0, 1.6, 0), i)
 		key:SetAttribute("Gate", true)
 		table.insert(keyModels, key)
@@ -1415,6 +1561,9 @@ local function openGate()
 	end
 	gateOpen = true
 	g.CanCollide = false
+	if gateCap then
+		gateCap.CanCollide = false
+	end
 	TweenService:Create(g, TweenInfo.new(2.5, Enum.EasingStyle.Sine), { CFrame = gateClosedCf + gateSlide }):Play()
 end
 
@@ -1433,7 +1582,10 @@ local function openDoor()
 	end
 end
 
-local function resetRound()
+local function resetRound(reroll: boolean?)
+	if reroll then
+		gatePicks = nil
+	end
 	setState("play")
 	setStage("house")
 	garage.open = 0
@@ -1448,6 +1600,9 @@ local function resetRound()
 		gate.CFrame = gateClosedCf
 		gate.CanCollide = true
 	end
+	if gateCap then
+		gateCap.CanCollide = true
+	end
 	if exitDoor then
 		doorOpen = false
 		exitDoor.CFrame = doorClosedCf
@@ -1457,7 +1612,7 @@ local function resetRound()
 		setStir(s, "sleep", os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + i * 3)
 		moveHead(s, s.rest, 0)
 	end
-	placeKeys()
+	placeKeys(reroll)
 	for _, player in Players:GetPlayers() do
 		player:SetAttribute("Out", nil)
 		player:SetAttribute("Seen", nil)
@@ -1481,12 +1636,12 @@ end
 
 
 -- Someone woke up: Pianka goes back to bed and the keys go back
-local function wake(s: Sleeper)
+local function wake(s: Sleeper, cause: string)
 	if state ~= "play" then
 		return
 	end
 	setState("caught")
-	event:FireAllClients("wake", s.name, s.head.Position)
+	event:FireAllClients("wake", s.name, s.head.Position, cause)
 	setStir(s, "awake", math.huge)
 	freezeAll()
 	task.delay(Config.CaughtTime, function()
@@ -1559,7 +1714,7 @@ local function noise(pos: Vector3, floorNo: number)
 			end
 		end
 		if best then
-			wake(best)
+			wake(best, "toy")
 		end
 	else
 		tease += 1
@@ -1571,24 +1726,41 @@ local function floorOf(y: number): number
 	return if y > FLOOR2 - 3 then 2 else 1
 end
 
+-- After a win the end card can start the next night a little sooner
+local wonAt = 0
+event.OnServerEvent:Connect(function(_, kind: any)
+	if kind == "again" and state == "won" and os.clock() - wonAt > 5 then
+		resetRound(true)
+	end
+end)
+
 local last: { [Player]: Vector3 } = {}
 local speeds: { [Player]: number } = {}
 local sightParams = RaycastParams.new()
 sightParams.FilterType = Enum.RaycastFilterType.Exclude
 local function seesMoving(s: Sleeper): boolean
-	local eye = s.head.Position + Vector3.new(0, 1.5, 0)
+	local face = s.head.CFrame.UpVector
+	local facing = Vector3.new(face.X, 0, face.Z)
+	facing = if facing.Magnitude > 0.05 then facing.Unit else Vector3.zero
+	local floorY = if s.floor == 2 then FLOOR2 else 0
+	local from = Vector3.new(s.head.Position.X, floorY + 1.5, s.head.Position.Z)
 	for _, player in Players:GetPlayers() do
 		local r = root(player)
-		if r and floorOf(r.Position.Y) == s.floor and (speeds[player] or 0) > Config.MoveTolerance and (r.Position - eye).Magnitude < Config.StirRange then
-			local filter: { Instance } = { s.model, keyFolder }
-			for _, p in Players:GetPlayers() do
-				if p.Character then
-					table.insert(filter, p.Character)
+		if r and floorOf(r.Position.Y) == s.floor and (speeds[player] or 0) > Config.MoveTolerance then
+			local to = Vector3.new(r.Position.X, floorY + 1.5, r.Position.Z)
+			local d = to - from
+			local inFront = facing == Vector3.zero or (d.Magnitude > 0.1 and d.Unit:Dot(facing) >= math.cos(math.rad(Config.SightHalf)))
+			if d.Magnitude < Config.StirRange and inFront then
+				local filter: { Instance } = { s.model, keyFolder }
+				for _, p in Players:GetPlayers() do
+					if p.Character then
+						table.insert(filter, p.Character)
+					end
 				end
-			end
-			sightParams.FilterDescendantsInstances = filter
-			if not workspace:Raycast(eye, r.Position - eye, sightParams) then
-				return true
+				sightParams.FilterDescendantsInstances = filter
+				if not workspace:Raycast(from, d, sightParams) then
+					return true
+				end
 			end
 		end
 	end
@@ -1614,7 +1786,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 			for _, toy in toys do
 				if toy.floor == fl and now >= toy.ready then
 					local d = (toy.pos - Vector3.new(pos.X, toy.pos.Y, pos.Z)).Magnitude
-					if d < Config.Toys[toy.kind].radius and math.abs(pos.Y - toy.pos.Y) < 4 then
+					local info = Config.Toys[toy.kind]
+					if d < info.radius and pos.Y - toy.pos.Y > -2 and pos.Y - toy.pos.Y < (if info.small then Config.StepHeight else 4) then
 						toy.ready = now + 1.4
 						event:FireAllClients("toy", toy.model, toy.kind)
 						noise(toy.pos, toy.floor)
@@ -1676,7 +1849,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 			if player:GetAttribute("Out") then
 				local eye = if now >= (safeUntil[player] or 0) then watcher(pos, workspace:GetServerTimeNow()) else nil
 				local s = seen[player] or 0
-				s = if eye then s + dt / Config.SpotTime else math.max(0, s - dt / Config.SpotTime * 0.6)
+				s = if eye then s + dt / Config.SpotTime else math.max(0, s - dt / Config.SpotTime)
 				seen[player] = s
 				local shown = math.floor(math.min(s, 1) * 10) / 10
 				if player:GetAttribute("Seen") ~= shown then
@@ -1690,10 +1863,11 @@ RunService.Heartbeat:Connect(function(dt: number)
 			-- Through the open gate: free
 			if gateOpen and player:GetAttribute("Out") and pos.Z > gateLine + 2 then
 				setState("won")
+				wonAt = now
 				event:FireAllClients("free", player)
 				task.delay(Config.WinRestart, function()
 					if workspace:GetAttribute("State") == "won" then
-						resetRound()
+						resetRound(true)
 					end
 				end)
 				break
@@ -1714,7 +1888,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 			setStir(s, "look", now + Config.StirTime)
 		elseif s.phase == "look" then
 			if seesMoving(s) then
-				wake(s)
+				wake(s, "look")
 				break
 			end
 			if now >= s.next then

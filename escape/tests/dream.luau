@@ -1,4 +1,4 @@
--- Dumps the dream bubble scene at a few moments for a render: lune run tests/dream.luau out.json
+-- Dumps the dream bubble scene for a render: lune run tests/dream.luau out.json [step]
 local fs = require("@lune/fs")
 local process = require("@lune/process")
 local roblox = require("@lune/roblox")
@@ -8,8 +8,20 @@ Engine.build()
 Engine.startServer()
 local ana = Engine.addPlayer("Ana")
 local DT = 1 / 30
+local arg = process.args[2] or ""
+local every = if string.find(arg, ",") then 0 else tonumber(arg) or 0
 local frames = {}
-local wanted = { 1.6, 2.6, 4.0, 4.9, 5.8, 7.5, 9.4, 10.6 }
+local wanted = if every > 0 then {} else { 1.6, 2.6, 4.0, 4.9, 5.8, 7.5, 9.4, 10.6 }
+if string.find(arg, ",") then
+	wanted = {}
+	for v in string.gmatch(arg, "[^,]+") do
+		table.insert(wanted, tonumber(v) :: number)
+	end
+elseif every > 0 then
+	for t = 0, 13, every do
+		table.insert(wanted, t)
+	end
+end
 local start = nil
 for _ = 1, 30 * 30 do
 	Engine.step(DT)

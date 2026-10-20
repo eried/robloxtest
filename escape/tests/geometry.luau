@@ -24,6 +24,7 @@ for _, p in Engine.workspace:GetDescendants() do
 			cyl = p.Shape == roblox.Enum.PartType.Cylinder,
 			neon = p.Material == roblox.Enum.Material.Neon,
 			wedge = p.ClassName == "WedgePart",
+			mesh = p:FindFirstChildOfClass("SpecialMesh") ~= nil,
 			a = 1 - p.Transparency,
 		})
 	end

@@ -650,6 +650,59 @@ def click():
     return norm(np.sin(2 * np.pi * 1800 * t) * np.exp(-t * 120) + np.sin(2 * np.pi * 900 * t) * np.exp(-t * 60) * 0.5, 0.8)
 
 
+def rumble():
+    """A game controller stepped on: a button click, then it buzzes against the floor."""
+    g = np.random.default_rng(61)
+    parts = [(0.0, click() * 0.6, 1.0)]
+    for t0, d in ((0.05, 0.42), (0.55, 0.3)):
+        n = int(d * SR)
+        t = np.arange(n) / SR
+        motor = np.sin(2 * np.pi * 78 * t) * 0.5 + np.sign(np.sin(2 * np.pi * 156 * t)) * 0.2
+        knock = lowpass(g.standard_normal(n), 2) * (np.sin(2 * np.pi * 36 * t) > 0.3) * 0.5
+        parts.append((t0, lowpass((motor + knock) * env(n, 0.01, 0.06), 3), 1.0))
+    return norm(mix(parts, 0.95)[: int(0.95 * SR)], 0.85)
+
+
+def plastic_tap(seed, f0):
+    g = np.random.default_rng(seed)
+    m = int(0.09 * SR)
+    k = np.arange(m) / SR
+    tone = sum(a * np.sin(2 * np.pi * f0 * r * k) for r, a in ((1, 0.5), (1.52, 0.35), (2.31, 0.2)))
+    return (tone + g.standard_normal(m) * 0.6 * np.exp(-k * 300)) * np.exp(-k * 70)
+
+
+def clack():
+    """Toy blocks knocked over: hollow plastic taps tumbling."""
+    parts = []
+    for i, (t0, f0, gain) in enumerate(((0.0, 1700, 1.0), (0.07, 2100, 0.8), (0.16, 1500, 0.9), (0.27, 2400, 0.6), (0.41, 1900, 0.45), (0.58, 2200, 0.3))):
+        parts.append((t0, plastic_tap(70 + i, f0), gain))
+    return norm(reverb(mix(parts, 0.8)[: int(0.8 * SR)], 0.15, 6, 0.4))
+
+
+def clatter():
+    """Lipsticks knocked over: little metal tubes tapping and rolling away."""
+    g = np.random.default_rng(81)
+    parts = []
+    for i, t0 in enumerate((0.0, 0.05, 0.13, 0.22, 0.34, 0.5)):
+        parts.append((t0, metal_hit(2300 + 260 * (i % 3), 45, 90 + i, 0.15), 1.0 - i * 0.12))
+    n = int(1.0 * SR)
+    t = np.arange(n) / SR
+    roll = band(g.standard_normal(n), 2500, 6000) * 0.12 * (0.6 + 0.4 * np.sin(2 * np.pi * 14 * t)) * np.exp(-t * 3) * np.minimum(t / 0.15, 1)
+    parts.append((0.1, roll, 1.0))
+    return norm(reverb(mix(parts, 1.1)[: int(1.1 * SR)], 0.15, 5, 0.5))
+
+
+def clink():
+    """A perfume bottle tipping over: two glassy clinks and a wobble."""
+    parts = []
+    for t0, f, gain in ((0.0, 2650, 1.0), (0.22, 2900, 0.7), (0.34, 2800, 0.35), (0.42, 2750, 0.2)):
+        m = int(0.9 * SR)
+        k = np.arange(m) / SR
+        tone = sum(a * np.sin(2 * np.pi * f * r * k) * np.exp(-k * d) for r, a, d in ((1, 0.6, 7), (1.58, 0.3, 10), (2.61, 0.25, 14), (3.9, 0.1, 20)))
+        parts.append((t0, tone, gain))
+    return norm(reverb(mix(parts, 1.3)[: int(1.3 * SR)], 0.25, 4, 0.7))
+
+
 def voice(name, semis=0.0, tempo=1.0, wet=0.15):
     x = load_wav(os.path.join(ROOT, "sounds", "voice", name + ".wav"), semis, tempo)
     return norm(reverb(x, wet, 4, 0.6))
@@ -685,6 +738,7 @@ def main():
         ("Hearts", hearts()), ("Paw1", paw(1)), ("Paw2", paw(2)), ("Land", land()), ("Clock", clock()), ("Creak", creak()),
         ("Whoosh", whoosh()), ("Beep", beep()), ("Alert", alert()), ("Buzz", buzz()), ("Ding", ding()), ("Gate", gate_motor()),
         ("Sigh", sigh()), ("Crickets", crickets()), ("Servo", servo()), ("Click", click()),
+        ("Rumble", rumble()), ("Clack", clack()), ("Clatter", clatter()), ("Clink", clink()),
     ]
     table, chunks, pos = {}, [np.zeros(int(0.3 * SR))], 0.3
     for name, x in clips:

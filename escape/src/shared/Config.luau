@@ -20,24 +20,31 @@ return {
 	StirWarn = 1.3,
 	StirTime = 2.6,
 	StirRange = 44,
+	SightHalf = 70,
 	MoveTolerance = 2.5,
+	-- Small things on the floor can be jumped over, only a step on them makes noise
 	Toys = {
-		squeaky = { radius = 3.0 },
-		ballTrack = { radius = 4.2 },
+		squeaky = { radius = 3.0, sound = "Squeak" },
+		ballTrack = { radius = 4.2, sound = "Track" },
+		controller = { radius = 1.4, sound = "Rumble", small = true },
+		blocks = { radius = 1.3, sound = "Clack", small = true },
+		lipstick = { radius = 1.3, sound = "Clatter", small = true },
+		perfume = { radius = 1.3, sound = "Clink", small = true },
 	},
+	StepHeight = 2.7,
 	TeaseEvery = 3,
 	LockedClipTime = 7.2,
 	CaughtTime = 4.5,
 	KeyCount = 3,
 	DownstairsKeyChance = 0.35,
-	WinRestart = 14,
+	WinRestart = 20,
 
 	-- Backyard cameras: how far and wide they see, how they sweep, how fast they catch you
 	CameraRange = 60,
 	CameraHalf = 26,
 	CameraSweep = 38,
 	CameraPeriod = 9,
-	SpotTime = 1.0,
+	SpotTime = 1.6,
 	SpottedTime = 7,
 	ExitClipTime = 10,
 	GateKeyCount = 3,
@@ -48,7 +55,7 @@ return {
 	GarageClipTime = 1.6,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 70579815142976,
+	SfxId = 0,
 	Sfx = {
 		Breath = { 0.3, 4.42 },
 		BreathLight = { 5.02, 3.42 },
@@ -87,6 +94,10 @@ return {
 		Crickets = { 64.186, 6.0 },
 		Servo = { 70.486, 2.0 },
 		Click = { 72.786, 0.12 },
+		Rumble = { 73.206, 0.95 },
+		Clack = { 74.456, 1.2 },
+		Clatter = { 75.956, 1.6 },
+		Clink = { 77.856, 2.0 },
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
 	MusicId = 104015424025242,
