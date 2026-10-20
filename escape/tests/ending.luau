@@ -12,6 +12,7 @@ for _ = 1, 30 * 16 do
 	Engine.step(DT)
 end
 local remote = Engine.game:GetService("ReplicatedStorage"):FindFirstChildOfClass("RemoteEvent")
+Engine.workspace:SetAttribute("State", "won")
 remote:FireAllClients("free", ana)
 remote:FireAllClients("scores", { { id = ana.UserId, time = 201.5 } }, { { name = "Ana", time = 201.5, id = ana.UserId }, { name = "Bo", time = 260, id = 2 } })
 local wanted = {}

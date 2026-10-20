@@ -270,6 +270,7 @@ local function beginClip(rank: number, danger: number): number?
 	return clipId
 end
 -- Ends the clip if no other clip took over. True when it still owned the screen
+local afterClip: (() -> ())? = nil
 local function endClip(my: number): boolean
 	if clipId ~= my then
 		return false
@@ -278,28 +279,26 @@ local function endClip(my: number): boolean
 	clipRank = 0
 	letterbox(false)
 	camera.CameraType = Enum.CameraType.Custom
+	if afterClip then
+		task.defer(afterClip :: () -> ())
+	end
 	return true
 end
 -- The server moves everyone back to bed a moment after a fail: wait for it under the black
-local roundSignal = Instance.new("BindableEvent")
-local function waitForRound(limit: number)
-	local done = false
-	local conn = roundSignal.Event:Once(function()
-		done = true
-	end)
+local roundCount = 0
+local function waitForRound(since: number, limit: number)
 	local start = os.clock()
-	while not done and os.clock() - start < limit do
+	while roundCount <= since and os.clock() - start < limit do
 		task.wait(0.05)
 	end
-	conn:Disconnect()
 	task.wait(0.2)
 end
 local skipClip: (() -> ())? = nil
 local skipReady = 0
 local function skipButton(after: number?): TextButton
 	local b = new("TextButton", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 70),
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -20, 1, -190),
 		Size = UDim2.fromOffset(64, 48),
 		BackgroundColor3 = Color3.fromRGB(28, 26, 40),
 		BackgroundTransparency = 0.2,
@@ -327,7 +326,7 @@ local function skipButton(after: number?): TextButton
 end
 UserInputService.InputBegan:Connect(function(input)
 	local k = input.KeyCode
-	if skipClip and os.clock() >= skipReady and (k == Enum.KeyCode.ButtonB or k == Enum.KeyCode.ButtonX) then
+	if skipClip and os.clock() >= skipReady and (k == Enum.KeyCode.ButtonB or k == Enum.KeyCode.ButtonX or k == Enum.KeyCode.Space or k == Enum.KeyCode.Return or k == Enum.KeyCode.E) then
 		skipClip()
 	end
 end)
@@ -359,7 +358,7 @@ end
 -- Keys in the bar: 🔑 for the house, 🗝️ for the gate
 local lastCount, lastYard = 0, false
 local function showKeys()
-	local yard = workspace:GetAttribute("Stage") == "yard"
+	local yard = player:GetAttribute("Out") == true
 	local n = (workspace:GetAttribute(if yard then "GateKeys" else "Keys") :: number?) or 0
 	local total = if yard then Config.GateKeyCount else Config.KeyCount
 	if yard == lastYard and n < lastCount then
@@ -378,6 +377,7 @@ end
 for _, name in { "Keys", "GateKeys", "Stage" } do
 	workspace:GetAttributeChangedSignal(name):Connect(showKeys)
 end
+player:GetAttributeChangedSignal("Out"):Connect(showKeys)
 showKeys()
 
 -- A found key flies from the world into its slot
@@ -402,28 +402,48 @@ local function flyKey(from: Vector3, index: number, gateKey: boolean)
 end
 
 -- Sleepers breathe. A snort means they are about to look around: freeze!
-type Sleeper = { model: Model, head: BasePart, breath: Sound?, mark: TextLabel, phase: string, cone: { BasePart }, reach: { [number]: number } }
+type Sleeper = { model: Model, head: BasePart, breath: Sound?, mark: TextLabel, phase: string, cone: { BasePart }, drawn: string }
 local sleepers: { Sleeper } = {}
 local MARKS = { sleep = "💤", warn = "❗", look = "👀", awake = "‼️" }
-local SIGHT_SLICES = 12
+local SIGHT_SLICES = 36
 local sightFolder = new("Folder", { Name = "SightCones", Parent = workspace })
 -- Where a sleeper looks: about to look covers both sides, looking is the real view
-local function sightDir(head: BasePart, phase: string): (Vector3, number)
-	local v = if phase == "look" then head.CFrame.UpVector else head.CFrame.LookVector
+local function sightDir(model: Instance, head: BasePart, phase: string): (Vector3, number)
+	local facing = model:GetAttribute("Facing")
+	local v = if phase == "look" and typeof(facing) == "Vector3" then facing else head.CFrame.LookVector
 	local flat = Vector3.new(v.X, 0, v.Z)
 	if flat.Magnitude < 0.05 then
 		return Vector3.zero, 0
 	end
 	return flat.Unit, math.rad(if phase == "look" then Config.SightHalf else math.min(Config.SightHalf + 48, 170))
 end
-local function seesMe(head: BasePart, phase: string): boolean
+local function seesMe(model: Instance, head: BasePart, phase: string): boolean
 	local root = myRoot()
 	if not root or math.abs(root.Position.Y - head.Position.Y) > 12 then
 		return false
 	end
 	local d = Vector3.new(root.Position.X - head.Position.X, 0, root.Position.Z - head.Position.Z)
-	local dir, half = sightDir(head, phase)
-	return d.Magnitude < Config.StirRange and (dir == Vector3.zero or d.Magnitude < 1 or d.Unit:Dot(dir) >= math.cos(half))
+	local dir, half = sightDir(model, head, phase)
+	if d.Magnitude >= Config.StirRange or (dir ~= Vector3.zero and d.Magnitude >= 1 and d.Unit:Dot(dir) < math.cos(half)) then
+		return false
+	end
+	-- Walls in between: the same low line of sight as the server
+	local floorY = if head.Position.Y > Config.Floor2 - 3 then Config.Floor2 else 0
+	local from = Vector3.new(head.Position.X, floorY + 1.5, head.Position.Z)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local skip: { Instance } = { model }
+	for _, other in Players:GetPlayers() do
+		if other.Character then
+			table.insert(skip, other.Character)
+		end
+	end
+	local keys = world:FindFirstChild("Keys")
+	if keys then
+		table.insert(skip, keys)
+	end
+	params.FilterDescendantsInstances = skip
+	return workspace:Raycast(from, Vector3.new(root.Position.X, floorY + 1.5, root.Position.Z) - from, params) == nil
 end
 -- A big ❗ and a red flash at the screen edges when someone who can see you is about to look
 local warnIcon = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 84), Size = UDim2.fromOffset(90, 90), BackgroundTransparency = 1, TextScaled = true, Text = "❗", TextTransparency = 1, ZIndex = 30, Parent = gui })
@@ -486,7 +506,7 @@ local function addSleeper(model: Instance)
 	for i = 1, SIGHT_SLICES * 2 do
 		cone[i] = new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 215, 70), Transparency = 1, Size = Vector3.one * 0.1, Parent = sightFolder })
 	end
-	local entry: Sleeper = { model = model, head = head, breath = breath, mark = mark, phase = "sleep", cone = cone, reach = {} }
+	local entry: Sleeper = { model = model, head = head, breath = breath, mark = mark, phase = "sleep", cone = cone, drawn = "" }
 	table.insert(sleepers, entry)
 	model:GetAttributeChangedSignal("Stir"):Connect(function()
 		local phase = (model:GetAttribute("Stir") :: string?) or "sleep"
@@ -498,7 +518,7 @@ local function addSleeper(model: Instance)
 		local kid = model:GetAttribute("Sleeper") ~= "Milenkitka"
 		if phase == "warn" then
 			sound("Snort", 1.5, if kid then 1.2 else 1, head, 90)
-			if not clipOn and seesMe(head, "warn") then
+			if not clipOn and seesMe(model, head, "warn") then
 				warnFlash()
 			end
 		elseif phase == "look" then
@@ -511,6 +531,14 @@ local function addSleeper(model: Instance)
 end
 for _, d in world:GetDescendants() do
 	task.spawn(addSleeper, d)
+end
+afterClip = function()
+	for _, sl in sleepers do
+		if (sl.phase == "warn" or sl.phase == "look") and seesMe(sl.model, sl.head, sl.phase) then
+			warnFlash()
+			break
+		end
+	end
 end
 
 -- The wall clock ticks in the living room downstairs
@@ -651,7 +679,7 @@ local function addCam(model: Instance)
 	for i = 1, SLICES * 2 do
 		cone[i] = new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = RED, Transparency = 0.8, Size = Vector3.one * 0.1, Parent = coneFolder })
 	end
-	new("SpotLight", { Color = RED, Brightness = 3, Range = Config.CameraRange, Angle = Config.CameraHalf * 2, Face = Enum.NormalId.Front, Parent = head })
+	new("SpotLight", { Color = RED, Brightness = 3, Range = if UserInputService.TouchEnabled then 36 else Config.CameraRange, Angle = Config.CameraHalf * 2, Face = Enum.NormalId.Front, Shadows = false, Parent = head })
 	local hum = loopClip(head, SFX.Servo, 0, 32, 0.9 + math.random() * 0.2)
 	if hum then
 		table.insert(hums, hum)
@@ -729,7 +757,7 @@ local seenRay = RaycastParams.new()
 seenRay.FilterType = Enum.RaycastFilterType.Exclude
 RunService.RenderStepped:Connect(function()
 	-- Only in the yard, and 30 times a second is plenty
-	local inYard = workspace:GetAttribute("Stage") == "yard" or player:GetAttribute("Out") == true
+	local inYard = player:GetAttribute("Out") == true
 	if not inYard then
 		camNear = 0
 		meter.Visible = false
@@ -775,6 +803,15 @@ RunService.RenderStepped:Connect(function()
 	seenRay.FilterDescendantsInstances = filter
 	camNear = 0
 	for _, c in cams do
+		-- Cameras far away are not drawn
+		if root and Vector3.new(c.eye.X - root.Position.X, 0, c.eye.Z - root.Position.Z).Magnitude > 120 then
+			if c.cone[1].Transparency ~= 1 then
+				for _, w in c.cone do
+					w.Transparency = 1
+				end
+			end
+			continue
+		end
 		local look = Watch.look(c.yaw, c.phase, t, c.period)
 		c.model:PivotTo(CFrame.lookAt(c.eye, c.eye + look * 10 - Vector3.new(0, 4, 0)))
 		if c.led then
@@ -856,15 +893,22 @@ RunService.RenderStepped:Connect(function()
 	end
 	for _, sl in sleepers do
 		local stirring = sl.phase == "warn" or sl.phase == "look"
-		local dir, half = sightDir(sl.head, sl.phase)
+		local dir, half = sightDir(sl.model, sl.head, sl.phase)
 		if not stirring or dir == Vector3.zero then
-			if sl.cone[1].Transparency ~= 1 then
+			if sl.drawn ~= "" then
+				sl.drawn = ""
 				for _, w in sl.cone do
 					w.Transparency = 1
 				end
 			end
 			continue
 		end
+		-- The view only changes with the phase: draw it once
+		local key = sl.phase .. tostring(dir)
+		if sl.drawn == key then
+			continue
+		end
+		sl.drawn = key
 		local hp = sl.head.Position
 		local floorY = if hp.Y > Config.Floor2 - 3 then Config.Floor2 else 0
 		local from = Vector3.new(hp.X, floorY + 1.5, hp.Z)
@@ -876,21 +920,15 @@ RunService.RenderStepped:Connect(function()
 		local points = {}
 		for i = 0, SIGHT_SLICES do
 			local a = yaw - half + i * half * 2 / SIGHT_SLICES
-			-- Walls never move: how far the view reaches is worked out once every 3 degrees
-			local step = math.floor(math.deg(a) / 3 + 0.5)
-			local length = sl.reach[step]
-			if not length then
-				local d = math.rad(step * 3)
-				local hit = workspace:Raycast(from, Vector3.new(math.sin(d), 0, -math.cos(d)) * Config.StirRange, sightRay)
-				length = if hit then math.max(1.5, (Vector3.new(hit.Position.X, 0, hit.Position.Z) - Vector3.new(from.X, 0, from.Z)).Magnitude) else Config.StirRange
-				sl.reach[step] = length
-			end
-			points[i + 1] = apex + Vector3.new(math.sin(a), 0, -math.cos(a)) * (length :: number)
+			local ray = Vector3.new(math.sin(a), 0, -math.cos(a))
+			local hit = workspace:Raycast(from, ray * Config.StirRange, sightRay)
+			local length = if hit then math.max(1.5, (Vector3.new(hit.Position.X, 0, hit.Position.Z) - Vector3.new(from.X, 0, from.Z)).Magnitude) else Config.StirRange
+			points[i + 1] = apex + ray * length
 		end
 		for i = 1, SIGHT_SLICES do
 			triangle(apex, points[i], points[i + 1], sl.cone[i * 2 - 1], sl.cone[i * 2])
 		end
-		local alpha = if sl.phase == "look" then 0.6 else 0.82 + 0.06 * math.sin(os.clock() * 12)
+		local alpha = if sl.phase == "look" then 0.6 else 0.84
 		for _, w in sl.cone do
 			w.Transparency = alpha
 		end
@@ -912,31 +950,49 @@ local syncAt = 0
 local crouch = 0
 -- During the dream Pianka lies curled up: low, legs tucked in, eyes shut
 local catAsleep = false
+-- Sneaking: worked out 10 times a second
+local sneaking = false
+local sneakAt = 0
+local sneakRay = RaycastParams.new()
+sneakRay.FilterType = Enum.RaycastFilterType.Exclude
 local asleepShown = false
 local stride = 0
 local lastPaw = 0
-local bases: { [Weld]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+type Rig = { joints: { { weld: Weld, base: CFrame, swing: number, wag: boolean } }, moving: number, low: number }
+local rigs: { [Model]: Rig } = setmetatable({}, { __mode = "k" }) :: any
 local keyBases: { [Model]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
 RunService.RenderStepped:Connect(function(dt: number)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = myRoot()
-	local near, alarm = false, 0
+	local alarm = 0
+	local near = sneaking
 	if humanoid and root then
 		local up = root.Position.Y > floor2 - 3
+		local check = os.clock() >= sneakAt
+		if check then
+			sneakAt = os.clock() + 0.1
+			near = false
+		end
 		for _, s in sleepers do
 			local hp = s.head.Position
 			if (hp.Y > floor2 - 3) == up then
 				local d = (Vector3.new(hp.X, 0, hp.Z) - Vector3.new(root.Position.X, 0, root.Position.Z)).Magnitude
 				if d < Config.SnoreRange then
-					near = true
 					alarm = math.max(alarm, 0.3)
+					if check and not near then
+						local floorY = if up then floor2 else 0
+						local from = Vector3.new(hp.X, floorY + 1.5, hp.Z)
+						sneakRay.FilterDescendantsInstances = { s.model, character :: Instance, sightFolder, coneFolder }
+						near = workspace:Raycast(from, Vector3.new(root.Position.X, floorY + 1.5, root.Position.Z) - from, sneakRay) == nil
+					end
 				end
 				if d < Config.StirRange + 10 then
 					alarm = math.max(alarm, if s.phase == "look" then 1 elseif s.phase == "warn" then 0.75 else 0)
 				end
 			end
 		end
+		sneaking = near
 		humanoid.WalkSpeed = if clipOn then 0 elseif near then Config.SneakSpeed else Config.WalkSpeed
 		humanoid.JumpHeight = if clipOn then 0 else Config.JumpHeight
 		humanoid.HipHeight = 0.9
@@ -990,22 +1046,35 @@ RunService.RenderStepped:Connect(function(dt: number)
 		local c = other.Character
 		local r = c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if c and r then
+			local rig = rigs[c]
+			if not rig then
+				local joints = {}
+				for _, p in c:GetChildren() do
+					local weld = p:FindFirstChildOfClass("Weld")
+					if weld and p:IsA("BasePart") then
+						local swing = p:GetAttribute("Swing")
+						table.insert(joints, { weld = weld, base = weld.C0, swing = if type(swing) == "number" then swing else 0, wag = p:GetAttribute("Wag") == true })
+					end
+				end
+				rig = { joints = joints, moving = -1, low = -1 }
+				rigs[c] = rig
+			end
 			local v = r.AssemblyLinearVelocity
 			local moving = math.clamp(Vector3.new(v.X, 0, v.Z).Magnitude / 10, 0, 1)
-			for _, p in c:GetChildren() do
-				local weld = p:FindFirstChildOfClass("Weld")
-				if weld and p:IsA("BasePart") then
-					local base = bases[weld] or weld.C0
-					bases[weld] = base
-					local swing = p:GetAttribute("Swing")
-					local low = if other == player then CFrame.new(0, -crouch, 0) else CFrame.identity
-					if type(swing) == "number" then
-						weld.C0 = base * CFrame.new(0, 0.4, 0) * CFrame.Angles(math.sin(t * 14) * 0.7 * moving * swing, 0, 0) * CFrame.new(0, -0.4, 0)
-					elseif p:GetAttribute("Wag") then
-						weld.C0 = low * base * CFrame.Angles(0, math.sin(t * 3) * 0.35, 0)
-					elseif crouch > 0.01 or low ~= CFrame.identity then
-						weld.C0 = low * base
+			local low = if other == player then crouch else 0
+			local walking = moving > 0.01 or rig.moving > 0.01
+			local lowering = math.abs(low - rig.low) > 0.002
+			rig.moving, rig.low = moving, low
+			local lowCf = CFrame.new(0, -low, 0)
+			for _, j in rig.joints do
+				if j.swing ~= 0 then
+					if walking then
+						j.weld.C0 = j.base * CFrame.new(0, 0.4, 0) * CFrame.Angles(math.sin(t * 14) * 0.7 * moving * j.swing, 0, 0) * CFrame.new(0, -0.4, 0)
 					end
+				elseif j.wag then
+					j.weld.C0 = lowCf * j.base * CFrame.Angles(0, math.sin(t * 3) * 0.35, 0)
+				elseif lowering then
+					j.weld.C0 = lowCf * j.base
 				end
 			end
 		end
@@ -1485,6 +1554,15 @@ local function dreamBubble(): (Frame, (number) -> (), { Frame })
 	return bubble, update, trail
 end
 
+-- A camera spot looking at a point from a few studs away, kept out of walls
+local function viewOf(target: Vector3, from: Vector3, skip: Instance?): Vector3
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character :: Instance, coneFolder, sightFolder, skip or coneFolder }
+	local hit = workspace:Raycast(target, from - target, params)
+	return if hit then hit.Position + (target - hit.Position).Unit * 1 else from
+end
+
 -- Pianka asleep in her bed, dreaming. Then she wakes up and wants to go out
 local introOn = false
 local function intro()
@@ -1528,9 +1606,10 @@ local function intro()
 	local LENGTH = 13.2
 	while not done and clipId == my and os.clock() - start < LENGTH do
 		local t = os.clock() - start
-		local a = t * 0.12
+		local a = t * 0.06
 		-- The camera shifted so the sleeping cat sits down left, under the little bubbles
-		camera.CFrame = CFrame.lookAt(bed + Vector3.new(math.sin(a) * 10, 5 - t * 0.1, math.cos(a) * 10), bed + Vector3.new(0, 0.5, 0)) * CFrame.new(3.4, 1.8, 0)
+		local want = CFrame.lookAt(bed + Vector3.new(math.sin(a) * 10, 5 - t * 0.1, math.cos(a) * 10), bed + Vector3.new(0, 0.5, 0)) * CFrame.new(3.4, 1.8, 0)
+		camera.CFrame = CFrame.new(viewOf(bed + Vector3.new(0, 2.5, 0), want.Position)) * want.Rotation
 		local head, onScreen = camera:WorldToViewportPoint(bed + Vector3.new(0, 1.6, 0))
 		local size = camera.ViewportSize
 		if onScreen and size and size.X > 0 then
@@ -1613,14 +1692,6 @@ local function ghostKey(at: Vector3): Model
 	m.PrimaryPart = p
 	m.Parent = workspace
 	return m
-end
--- A camera spot looking at a point from a few studs away, kept out of walls
-local function viewOf(target: Vector3, from: Vector3): Vector3
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { player.Character :: Instance, coneFolder }
-	local hit = workspace:Raycast(target, from - target, params)
-	return if hit then hit.Position + (target - hit.Position).Unit * 1 else from
 end
 
 -- The front door is locked: it rattles, three locks clunk, three keys fly off to where they hide
@@ -1762,7 +1833,7 @@ end
 
 -- After the dream a door picture pulses on the front door until Pianka tries it
 local function showDoorHint()
-	if lockedShown or doorHint then
+	if lockedShown or doorHint or workspace:GetAttribute("Stage") ~= "house" or ((workspace:GetAttribute("Keys") :: number?) or 0) >= Config.KeyCount then
 		return
 	end
 	local house = world:FindFirstChild("House")
@@ -1790,20 +1861,45 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- Someone woke up
-local function wakeClip(name: string, at: Vector3, cause: string?)
+-- The cat that made it happen, or ours
+local function culpritRoot(culprit: any): BasePart?
+	if typeof(culprit) == "Instance" and culprit:IsA("Player") and culprit.Character then
+		local r = culprit.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if r then
+			return r
+		end
+	end
+	return myRoot()
+end
+-- A shot of a sleeper's face from the foot of the bed, kept inside the room
+local function bedShot(head: BasePart, model: Instance, k: number): CFrame
+	local bed = model:FindFirstChild("Frame") :: BasePart?
+	local frame = if bed then bed.CFrame else head.CFrame
+	local at = head.Position
+	local want = at + frame.LookVector * (7 - k * 0.6) + frame.RightVector * 3 + Vector3.new(0, 4 + k * 0.3, 0)
+	return CFrame.lookAt(viewOf(at + Vector3.new(0, 1, 0), want, model), at + Vector3.new(0, 0.5, 0))
+end
+-- Looking at Pianka from behind and above, pulled in front of walls
+local function catShot(root: BasePart): CFrame
+	local at = root.Position + Vector3.new(0, 1, 0)
+	return CFrame.lookAt(viewOf(at, root.Position - root.CFrame.LookVector * 9 + Vector3.new(0, 6, 0)), at)
+end
+
+local function wakeClip(name: string, at: Vector3, cause: string?, culprit: any)
 	if introOn then
 		return
 	end
+	local since = roundCount
 	local my = beginClip(3, 1) :: number
 	spike = 1
 	letterbox(true)
-	-- First a second on Pianka: the squeak she stepped on, or the eyes that saw her move
-	local root = myRoot()
+	-- First a second on the cat that did it: the squeak she stepped on, or the eyes that saw her move
+	local root = culpritRoot(culprit)
 	if root then
 		popIcon(root, if cause == "toy" then "💥" else "👀", 1.6, 90)
 		local first = os.clock()
 		while clipId == my and os.clock() - first < 1 do
-			camera.CFrame = CFrame.lookAt(root.Position + Vector3.new(0, 6, 9), root.Position + Vector3.new(0, 1, 0))
+			camera.CFrame = catShot(root)
 			RunService.RenderStepped:Wait()
 		end
 	end
@@ -1813,19 +1909,21 @@ local function wakeClip(name: string, at: Vector3, cause: string?)
 		local calls = Config.Calls
 		voice(calls[math.random(1, #calls)], 1.8)
 	end)
+	local who: Sleeper? = nil
 	for _, s in sleepers do
 		if s.model:GetAttribute("Sleeper") == name then
 			popIcon(s.head, "‼️", 2.5, 80)
+			who = s
 		end
 	end
 	while clipId == my and os.clock() - start < Config.CaughtTime - 1 do
 		local t = os.clock() - start
-		camera.CFrame = CFrame.lookAt(at + Vector3.new(6 - t, 4 + t * 0.4, 7), at + Vector3.new(0, 1, 0))
+		camera.CFrame = if who then bedShot(who.head, who.model, t) else CFrame.lookAt(at + Vector3.new(6 - t, 4 + t * 0.4, 7), at + Vector3.new(0, 1, 0))
 		RunService.RenderStepped:Wait()
 	end
 	TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 0 }):Play()
 	sound("Whoosh", 0.7, 0.7)
-	waitForRound(3)
+	waitForRound(since, 3)
 	if endClip(my) then
 		TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
 	end
@@ -1984,6 +2082,7 @@ local function exitClip()
 	skipClip = nil
 	skip:Destroy()
 	endClip(my)
+	event:FireServer("exitDone")
 end
 
 -- The garage button: a quick look at the door rolling up, then hurry
@@ -2010,15 +2109,18 @@ local function garageClip()
 end
 
 -- A camera saw Pianka: mom's phone lights up and buzzes, she wakes up
-local function spottedClip(eye: Vector3)
+local function spottedClip(eye: Vector3, culprit: any)
 	if introOn then
 		return
 	end
+	local since = roundCount
+	-- Cues follow the server's clock from the moment the alarm came
+	local arrived = os.clock()
 	local my = beginClip(3, 1) :: number
 	spike = 1
 	letterbox(true)
-	-- Click! A white flash on Pianka in the red light
-	local caught = myRoot()
+	-- Click! A white flash on the cat in the red light
+	local caught = culpritRoot(culprit)
 	if caught then
 		sound("Click", 1.4)
 		fade.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -2027,7 +2129,7 @@ local function spottedClip(eye: Vector3)
 		popIcon(caught, "📹", 1.6, 90)
 		local first = os.clock()
 		while clipId == my and os.clock() - first < 0.9 do
-			camera.CFrame = CFrame.lookAt(caught.Position + Vector3.new(0, 7, 10), caught.Position + Vector3.new(0, 1, 0))
+			camera.CFrame = catShot(caught)
 			RunService.RenderStepped:Wait()
 		end
 		fade.BackgroundColor3 = Color3.new(0, 0, 0)
@@ -2036,11 +2138,10 @@ local function spottedClip(eye: Vector3)
 	local momBed = world:FindFirstChild("bedMom", true)
 	local head = momBed and momBed:FindFirstChild("Head") :: BasePart?
 	local screen = momBed and momBed:FindFirstChild("PhoneScreen") :: BasePart?
-	local root = myRoot()
-	local cat = if root then root.Position else eye - Vector3.new(0, 12, 0)
+	local cat = if caught then caught.Position else eye - Vector3.new(0, 12, 0)
 	local start = os.clock()
 	local phase = 0
-	while clipId == my and os.clock() - start < Config.SpottedTime - 1 do
+	while clipId == my and os.clock() - arrived < Config.SpottedTime - 0.1 do
 		local t = os.clock() - start
 		if t < 1.8 then
 			local toward = Vector3.new(cat.X - eye.X, 0, cat.Z - eye.Z)
@@ -2059,10 +2160,8 @@ local function spottedClip(eye: Vector3)
 				sound("Buzz", 1.2)
 				sound("Ding", 0.9)
 			end
-			local at = head.Position
-			local k = t - 1.8
-			camera.CFrame = CFrame.lookAt(at + Vector3.new(7 - k * 0.6, 4 + k * 0.3, 6), at + Vector3.new(0, -0.5, 0))
-			if phase == 1 and t > Config.SpottedTime * 0.55 then
+			camera.CFrame = bedShot(head, momBed :: Instance, t - 1.8)
+			if phase == 1 and os.clock() - arrived > Config.SpottedTime * 0.55 then
 				phase = 2
 				sound("Snort", 1.4)
 				popIcon(head, "‼️", 2, 80)
@@ -2076,7 +2175,7 @@ local function spottedClip(eye: Vector3)
 	end
 	TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 0 }):Play()
 	sound("Whoosh", 0.7, 0.7)
-	waitForRound(3)
+	waitForRound(since, 3)
 	if screen then
 		screen.Material = Enum.Material.Glass
 		screen.Color = Color3.fromRGB(12, 14, 20)
@@ -2215,6 +2314,9 @@ local function fillCard(card: Frame)
 	end
 end
 local function showEndCard()
+	if workspace:GetAttribute("State") ~= "won" then
+		return
+	end
 	if endCard then
 		fillCard(endCard)
 		return
@@ -2248,6 +2350,24 @@ local function project(cam: Camera, size: Vector2, at: Vector3): UDim2
 	local f = 1 / math.tan(math.rad(cam.FieldOfView) / 2)
 	local aspect = size.X / math.max(size.Y, 1)
 	return UDim2.fromScale(0.5 + rel.X / -rel.Z * f / aspect * 0.5, 0.5 - rel.Y / -rel.Z * f * 0.5)
+end
+
+-- After the first win the ending can be skipped
+local winsSeen = 0
+local endingSkipped = false
+local function endingSkip(): TextButton?
+	if winsSeen < 2 then
+		return nil
+	end
+	local skip = skipButton(1)
+	skip.ZIndex = 26
+	skip.Activated:Connect(function()
+		endingSkipped = true
+	end)
+	skipClip = function()
+		endingSkipped = true
+	end
+	return skip
 end
 
 -- Home at dawn, like the dream: Pianka brings the mouse, Milenkitka screams and runs
@@ -2295,7 +2415,8 @@ local function homeClip()
 	end
 	local LENGTH = 11
 	local start = os.clock()
-	while clipId == my and os.clock() - start < LENGTH do
+	local skip = endingSkip()
+	while clipId == my and not endingSkipped and os.clock() - start < LENGTH do
 		local t = os.clock() - start
 		-- Pianka trots in from the garden with the mouse and drops it at the door
 		local catX = if t < 3.2 then 24 - (t / 3.2) * 27 else -3
@@ -2384,6 +2505,10 @@ local function homeClip()
 	if box then
 		(box :: Sound):Destroy()
 	end
+	if skip then
+		skipClip = nil
+		skip:Destroy()
+	end
 	fade.BackgroundTransparency = 0
 	screen:Destroy()
 	letterbox(false)
@@ -2420,7 +2545,10 @@ local function freeClip(root: BasePart)
 	local start = os.clock()
 	local cues: { [string]: boolean } = {}
 	local caughtAt = at + ahead * 26
-	while clipId == my and os.clock() - start < 6.6 do
+	winsSeen += 1
+	endingSkipped = false
+	local skip = endingSkip()
+	while clipId == my and not endingSkipped and os.clock() - start < 6.6 do
 		local t = os.clock() - start
 		local k = math.clamp((t - 1.5) / 2.5, 0, 1)
 		local pos = at + ahead * 26 + side * (-24 + k * 48)
@@ -2482,10 +2610,18 @@ local function freeClip(root: BasePart)
 	for _, p in hidden do
 		p.LocalTransparencyModifier = 0
 	end
+	if skip then
+		skipClip = nil
+		skip:Destroy()
+	end
 	if not endClip(my) then
 		return
 	end
-	homeClip()
+	if endingSkipped then
+		fade.BackgroundTransparency = 1
+	else
+		homeClip()
+	end
 	showEndCard()
 end
 
@@ -2613,7 +2749,7 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 			task.spawn(exitClip)
 		end
 	elseif kind == "spotted" then
-		task.spawn(spottedClip, b)
+		task.spawn(spottedClip, b, a)
 	elseif kind == "garage" then
 		local door = yardPart("GarageDoor")
 		sound("Click", 1.2)
@@ -2646,7 +2782,7 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 			fillCard(endCard)
 		end
 	elseif kind == "round" then
-		roundSignal:Fire()
+		roundCount += 1
 		myTime = nil
 		for _, lock in hiddenLocks do
 			lock.LocalTransparencyModifier = 0
@@ -2672,6 +2808,17 @@ task.spawn(function()
 		player.CharacterAdded:Wait()
 	end
 	task.wait(1)
+	local house = world:FindFirstChild("House")
+	for _, holder in { house and house:FindFirstChild("ExitDoor"), yardPart("Gate") } :: { Instance? } do
+		if holder and holder:IsA("BasePart") and not holder.CanCollide then
+			for _, lock in holder:GetChildren() do
+				if lock:IsA("BasePart") and lock.Name == "Lock" then
+					lock.LocalTransparencyModifier = 1
+					table.insert(hiddenLocks, lock)
+				end
+			end
+		end
+	end
 	intro()
 	showDoorHint()
 end)

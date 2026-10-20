@@ -26,12 +26,13 @@ return {
 	Toys = {
 		squeaky = { radius = 3.0, sound = "Squeak" },
 		ballTrack = { radius = 4.2, sound = "Track" },
-		controller = { radius = 1.4, sound = "Rumble", small = true },
-		blocks = { radius = 1.3, sound = "Clack", small = true },
-		lipstick = { radius = 1.3, sound = "Clatter", small = true },
-		perfume = { radius = 1.3, sound = "Clink", small = true },
+		controller = { radius = 1.1, sound = "Rumble", small = true },
+		blocks = { radius = 1.0, sound = "Clack", small = true },
+		lipstick = { radius = 1.0, sound = "Clatter", small = true },
+		perfume = { radius = 1.0, sound = "Clink", small = true },
 	},
-	StepHeight = 2.7,
+	-- Pianka stands with her middle 1.4 above the floor: a bit higher means she is in the air
+	StepHeight = 1.8,
 	TeaseEvery = 3,
 	LockedClipTime = 7.2,
 	CaughtTime = 4.5,
@@ -39,10 +40,10 @@ return {
 	DownstairsKeyChance = 0.35,
 	WinRestart = 45,
 	-- The ending plays this long before the score card can start a new night
-	EndingTime = 18,
+	EndingTime = 16,
 	-- Speed stars: under these many seconds for 3 and 2 stars
 	Stars = { 240, 420 },
-	MinRunTime = 30,
+	MinRunTime = 120,
 
 	-- Backyard cameras: how far and wide they see, how they sweep, how fast they catch you
 	CameraRange = 60,

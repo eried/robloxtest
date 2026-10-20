@@ -18,7 +18,7 @@ Pianka sleeps in her bed and dreams: out of the door, a mouse caught, and Milenk
 ## The backyard (stage 2)
 
 - Out of the door Pianka sees the cameras and meows a warning.
-- 8 cameras sweep the yard with red light cones, each at its own speed. Walls, bushes and the car block their view.
+- 9 cameras sweep the yard with red light cones, each at its own speed. Walls, bushes and the car block their view.
 - Gate keys hide where two cameras cross, so sometimes both look at the same spot.
 - A moment in the light and Milenkitka's phone buzzes: she wakes up and everything starts over from the cat bed.
 - One gate key is always in the little back room of the garage. The garage button out in the yard is watched by cameras. Press it, the door rolls up, then it closes slowly: hurry. A button inside opens it again.

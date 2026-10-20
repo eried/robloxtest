@@ -380,7 +380,7 @@ local function surface(floorNo: number, r: Rect, top: number)
 	table.insert(surfaces, { floor = floorNo, rect = r, top = top })
 end
 
-type Sleeper = { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, phase: string, next: number, shut: { BasePart }, open: { BasePart }, face: { { part: BasePart, rel: CFrame } }, side: number }
+type Sleeper = { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, phase: string, next: number, since: number, facing: Vector3, shut: { BasePart }, open: { BasePart }, face: { { part: BasePart, rel: CFrame } }, side: number }
 local sleepers: { Sleeper } = {}
 local toys: { { kind: string, model: Model, pos: Vector3, floor: number, ready: number } } = {}
 local keySpots: { { floor: number, pos: Vector3 } } = {}
@@ -462,7 +462,7 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 		model:SetAttribute("Pitch", look.pitch)
 		model:SetAttribute("Stir", "sleep")
 		local first = os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + #sleepers * 3
-		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, shut = shut, open = open, face = face, side = 1 })
+		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, since = 0, facing = Vector3.zero, shut = shut, open = open, face = face, side = 1 })
 	end
 end
 
@@ -780,6 +780,18 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 			end
 		end
 	end
+	-- The vanity's stool stands in front of it
+	for _, it in lv.items do
+		if it.t == "vanity" then
+			local r = rectOf(it)
+			local front = facing(lv, r, false)
+			for i = r.x, r.x + r.w - 1 do
+				for j = r.y, r.y + r.h - 1 do
+					taken[(j + math.round(front.Z)) * lv.w + i + math.round(front.X)] = true
+				end
+			end
+		end
+	end
 	local function free(x: number, y: number): boolean
 		return cell(lv, x, y) == "f" and not taken[y * lv.w + x] and not (floorNo == 2 and holeCells[y * lv.w + x])
 	end
@@ -969,9 +981,6 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 					local chest = Color3.fromRGB(240, 170, 60)
 					part({ Name = "ToyChest", Size = Vector3.new(3.4, 2.6, 2.6), CFrame = CFrame.new(base + Vector3.new(0, 1.3, 0)), Color = chest, Material = Enum.Material.Wood, Parent = deco })
 					part({ Name = "Lid", Size = Vector3.new(3.6, 0.4, 2.8), CFrame = CFrame.new(base + Vector3.new(0, 2.8, 0)), Color = chest:Lerp(Color3.new(1, 0.4, 0.4), 0.4), Material = Enum.Material.Wood, Parent = deco })
-					for i, c in TOY_COLORS do
-						part({ Name = "Block", Size = Vector3.one * 0.9, CFrame = CFrame.new(base + Vector3.new(-1.6 + i * 0.75, 0.45, 1.9)) * CFrame.Angles(0, i, 0), Color = c, CanCollide = false, Parent = deco })
-					end
 					taken[y * lv.w + x] = true
 					break
 				end
@@ -1363,9 +1372,8 @@ starter.Parent = StarterPlayer
 
 -- Round state, shared by everyone in the server
 local state: string = "play"
--- When each player's run started, and when they joined
-local runStart: { [Player]: number } = {}
-local joinedAt: { [Player]: number } = {}
+-- When each player's run started, when they joined, and if they saw the night from the start
+local Runs = { start = {} :: { [Player]: number }, joined = {} :: { [Player]: number }, fresh = {} :: { [Player]: boolean } }
 local function setState(s: string)
 	state = s
 	workspace:SetAttribute("State", s)
@@ -1401,16 +1409,21 @@ end
 local function setStir(s: Sleeper, phase: string, nextTime: number)
 	s.phase = phase
 	s.next = nextTime
-	s.model:SetAttribute("Stir", phase)
+	s.since = os.clock()
 	if phase == "look" then
-		-- Lift the head and look toward the room, to one side
+		-- Lift the head and look toward the room, to one side. The view is where the head ends up
 		s.side = -s.side
-		moveHead(s, s.rest * CFrame.new(0, 1, 0) * CFrame.Angles(-0.45, 0, s.side * 0.45), 0.5)
+		local goal = s.rest * CFrame.new(0, 1, 0) * CFrame.Angles(-0.45, 0, s.side * 0.45)
+		local up = goal.UpVector
+		s.facing = Vector3.new(up.X, 0, up.Z).Unit
+		s.model:SetAttribute("Facing", s.facing)
+		moveHead(s, goal, 0.5)
 	elseif phase == "awake" then
 		moveHead(s, s.rest * CFrame.new(0, 3, -1.5) * CFrame.Angles(-0.9, 0, 0), 0.5)
 	elseif phase == "sleep" then
 		moveHead(s, s.rest, 0.8)
 	end
+	s.model:SetAttribute("Stir", phase)
 	local looking = phase == "look" or phase == "awake"
 	for _, p in s.open do
 		p.Transparency = if looking then 0 else 1
@@ -1570,6 +1583,18 @@ local function openGate()
 	TweenService:Create(g, TweenInfo.new(2.5, Enum.EasingStyle.Sine), { CFrame = gateClosedCf + gateSlide }):Play()
 end
 
+-- While a clip shows the door or the gate, sleepers settle and nobody can be caught
+local function calmSleepers(seconds: number)
+	local now = os.clock()
+	for _, s in sleepers do
+		if s.phase == "sleep" then
+			s.next = math.max(s.next, now + seconds)
+		elseif s.phase == "warn" or s.phase == "look" then
+			setStir(s, "sleep", now + seconds + rng:NextNumber(1, 3))
+		end
+	end
+end
+
 local doorOpen = false
 local doorClosedCf = if exitDoor then exitDoor.CFrame else CFrame.identity
 local function openDoor()
@@ -1591,8 +1616,12 @@ local function resetRound(reroll: boolean?)
 	end
 	if reroll and state == "won" then
 		for _, p in Players:GetPlayers() do
-			runStart[p] = os.clock()
+			Runs.start[p] = os.clock()
 		end
+	end
+	-- After any reset everyone starts from nothing
+	for _, p in Players:GetPlayers() do
+		Runs.fresh[p] = true
 	end
 	setState("play")
 	setStage("house")
@@ -1644,12 +1673,12 @@ end
 
 
 -- Someone woke up: Pianka goes back to bed and the keys go back
-local function wake(s: Sleeper, cause: string)
+local function wake(s: Sleeper, cause: string, culprit: Player?)
 	if state ~= "play" then
 		return
 	end
 	setState("caught")
-	event:FireAllClients("wake", s.name, s.head.Position, cause)
+	event:FireAllClients("wake", s.name, s.head.Position, cause, culprit)
 	setStir(s, "awake", math.huge)
 	freezeAll()
 	task.delay(Config.CaughtTime, function()
@@ -1708,7 +1737,7 @@ local function watcher(pos: Vector3, t: number): Vector3?
 end
 
 -- One squeak upstairs wakes the closest sleeper. Downstairs only gets a grumble, and every few a call
-local function noise(pos: Vector3, floorNo: number)
+local function noise(pos: Vector3, floorNo: number, culprit: Player?)
 	if state ~= "play" then
 		return
 	end
@@ -1722,7 +1751,7 @@ local function noise(pos: Vector3, floorNo: number)
 			end
 		end
 		if best then
-			wake(best, "toy")
+			wake(best, "toy", culprit)
 		end
 	else
 		tease += 1
@@ -1734,29 +1763,22 @@ local function floorOf(y: number): number
 	return if y > FLOOR2 - 3 then 2 else 1
 end
 
--- Speed: each run starts when the dream ends, wake ups and alarms cost time
-local DataStoreService = game:GetService("DataStoreService")
-local bestStore: any = nil
+-- Speed: each run starts when the dream ends, wake ups and alarms cost time.
+-- Best times live in an ordered data store and show in the player list
+local Best = { store = nil :: any, names = {} :: { [number]: string }, top = {} :: { { name: string, time: number, id: number } } }
 pcall(function()
-	bestStore = DataStoreService:GetOrderedDataStore("EscapeBestTimes")
+	Best.store = game:GetService("DataStoreService"):GetOrderedDataStore("EscapeBestTimes")
 end)
-local names: { [number]: string } = {}
-local top: { { name: string, time: number, id: number } } = {}
-local function nameOf(id: number): string
-	if not names[id] then
+function Best.nameOf(id: number): string
+	if not Best.names[id] then
 		local ok, n = pcall(function()
 			return Players:GetNameFromUserIdAsync(id)
 		end)
-		names[id] = if ok and type(n) == "string" then n else "?"
+		Best.names[id] = if ok and type(n) == "string" then n else "?"
 	end
-	return names[id]
+	return Best.names[id]
 end
-local function clockText(seconds: number): string
-	local s = math.floor(seconds + 0.5)
-	return string.format("%d:%02d", s // 60, s % 60)
-end
--- The best time shows in the player list
-local function showBest(player: Player, tenths: number?)
+function Best.show(player: Player, tenths: number?)
 	local stats = player:FindFirstChild("leaderstats")
 	if not stats then
 		local f = Instance.new("Folder")
@@ -1773,11 +1795,12 @@ local function showBest(player: Player, tenths: number?)
 		best = v
 	end
 	if tenths and best then
-		best.Value = clockText(tenths / 10)
+		local sec = math.floor(tenths / 10 + 0.5)
+		best.Value = string.format("%d:%02d", sec // 60, sec % 60)
 	end
 end
-local function loadTop()
-	local store = bestStore
+function Best.load()
+	local store = Best.store
 	if not store then
 		return
 	end
@@ -1790,13 +1813,13 @@ local function loadTop()
 	local list = {}
 	for _, entry in (pages :: any):GetCurrentPage() do
 		local id = tonumber(entry.key) or 0
-		table.insert(list, { name = nameOf(id), time = entry.value / 10, id = id })
+		table.insert(list, { name = Best.nameOf(id), time = entry.value / 10, id = id })
 	end
-	top = list
+	Best.top = list
 end
 -- Only the best time is kept, and nothing silly short
-local function saveTime(player: Player, seconds: number)
-	local store = bestStore
+function Best.save(player: Player, seconds: number)
+	local store = Best.store
 	if not store or player.UserId <= 0 or seconds < Config.MinRunTime then
 		return
 	end
@@ -1810,7 +1833,7 @@ local function saveTime(player: Player, seconds: number)
 		end)
 	end)
 	if ok and type(saved) == "number" then
-		showBest(player, saved)
+		Best.show(player, saved)
 	end
 end
 
@@ -1819,20 +1842,24 @@ local wonAt = 0
 event.OnServerEvent:Connect(function(player: Player, kind: any)
 	if kind == "again" and state == "won" and os.clock() - wonAt > Config.EndingTime then
 		resetRound(true)
-	elseif kind == "start" and joinedAt[player] and os.clock() - joinedAt[player] < 30 then
+	elseif kind == "exitDone" and (safeUntil[player] or 0) > os.clock() + 0.5 then
+		safeUntil[player] = os.clock() + 0.5
+	elseif kind == "start" and Runs.joined[player] and os.clock() - Runs.joined[player] < 30 then
 		-- The dream is over: the clock starts now
-		runStart[player] = math.max(runStart[player] or 0, os.clock())
+		Runs.start[player] = math.max(Runs.start[player] or 0, os.clock())
 	end
 end)
 
 local last: { [Player]: Vector3 } = {}
+local sampleAt: { [Player]: number } = {}
 local speeds: { [Player]: number } = {}
 local sightParams = RaycastParams.new()
 sightParams.FilterType = Enum.RaycastFilterType.Exclude
-local function seesMoving(s: Sleeper): boolean
-	local face = s.head.CFrame.UpVector
-	local facing = Vector3.new(face.X, 0, face.Z)
-	facing = if facing.Magnitude > 0.05 then facing.Unit else Vector3.zero
+local function seesMoving(s: Sleeper): Player?
+	if os.clock() - s.since < 0.3 then
+		return nil
+	end
+	local facing = s.facing
 	local floorY = if s.floor == 2 then FLOOR2 else 0
 	local from = Vector3.new(s.head.Position.X, floorY + 1.5, s.head.Position.Z)
 	for _, player in Players:GetPlayers() do
@@ -1840,7 +1867,7 @@ local function seesMoving(s: Sleeper): boolean
 		if r and floorOf(r.Position.Y) == s.floor and (speeds[player] or 0) > Config.MoveTolerance then
 			local to = Vector3.new(r.Position.X, floorY + 1.5, r.Position.Z)
 			local d = to - from
-			local inFront = facing == Vector3.zero or (d.Magnitude > 0.1 and d.Unit:Dot(facing) >= math.cos(math.rad(Config.SightHalf)))
+			local inFront = d.Magnitude < 0.1 or d.Unit:Dot(facing) >= math.cos(math.rad(Config.SightHalf))
 			if d.Magnitude < Config.StirRange and inFront then
 				local filter: { Instance } = { s.model, keyFolder }
 				for _, p in Players:GetPlayers() do
@@ -1850,12 +1877,12 @@ local function seesMoving(s: Sleeper): boolean
 				end
 				sightParams.FilterDescendantsInstances = filter
 				if not workspace:Raycast(from, d, sightParams) then
-					return true
+					return player
 				end
 			end
 		end
 	end
-	return false
+	return nil
 end
 
 RunService.Heartbeat:Connect(function(dt: number)
@@ -1867,11 +1894,15 @@ RunService.Heartbeat:Connect(function(dt: number)
 				continue
 			end
 			local pos = r.Position
-			local prev = last[player]
-			last[player] = pos
 			local fl = floorOf(pos.Y)
-			if prev and dt > 0 then
-				speeds[player] = Vector3.new(pos.X - prev.X, 0, pos.Z - prev.Z).Magnitude / dt
+			-- How fast Pianka moves, judged over 0.3 s so network bursts do not count
+			local prev = last[player]
+			if not prev or now - (sampleAt[player] or 0) >= 0.3 then
+				if prev then
+					speeds[player] = Vector3.new(pos.X - prev.X, 0, pos.Z - prev.Z).Magnitude / math.max(now - (sampleAt[player] or now), 1 / 60)
+				end
+				last[player] = pos
+				sampleAt[player] = now
 			end
 			-- Toys squeak when you bump them
 			for _, toy in toys do
@@ -1881,7 +1912,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 					if d < info.radius and pos.Y - toy.pos.Y > -2 and pos.Y - toy.pos.Y < (if info.small then Config.StepHeight else 4) then
 						toy.ready = now + 1.4
 						event:FireAllClients("toy", toy.model, toy.kind)
-						noise(toy.pos, toy.floor)
+						noise(toy.pos, toy.floor, player)
 					end
 				end
 			end
@@ -1897,6 +1928,11 @@ RunService.Heartbeat:Connect(function(dt: number)
 						workspace:SetAttribute("GateKeys", gateFound)
 						event:FireAllClients("gateKey", player, gateFound)
 						if gateFound >= Config.GateKeyCount then
+							for _, p in Players:GetPlayers() do
+								if p:GetAttribute("Out") then
+									safeUntil[p] = math.max(safeUntil[p] or 0, now + 2.6)
+								end
+							end
 							openGate()
 							event:FireAllClients("gateOpen", player)
 						end
@@ -1906,6 +1942,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 						event:FireAllClients("key", player, keysFound)
 						if keysFound >= Config.KeyCount then
 							openDoor()
+							calmSleepers(3.5)
 							event:FireAllClients("allKeys", player)
 						end
 					end
@@ -1956,20 +1993,22 @@ RunService.Heartbeat:Connect(function(dt: number)
 				setState("won")
 				wonAt = now
 				event:FireAllClients("free", player)
-				-- Everyone's time, saved and ranked
+				-- Times for the cats that played the whole night and are out, saved and ranked
 				local times = {}
 				for _, p in Players:GetPlayers() do
-					table.insert(times, { id = p.UserId, time = now - (runStart[p] or now) })
+					if Runs.fresh[p] and p:GetAttribute("Out") then
+						table.insert(times, { id = p.UserId, time = now - (Runs.start[p] or now) })
+					end
 				end
 				task.spawn(function()
 					for _, entry in times do
 						local p = Players:GetPlayerByUserId(entry.id)
 						if p then
-							saveTime(p, entry.time)
+							Best.save(p, entry.time)
 						end
 					end
-					loadTop()
-					event:FireAllClients("scores", times, top)
+					Best.load()
+					event:FireAllClients("scores", times, Best.top)
 				end)
 				task.delay(Config.WinRestart, function()
 					if workspace:GetAttribute("State") == "won" then
@@ -1993,8 +2032,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 		elseif s.phase == "warn" and now >= s.next then
 			setStir(s, "look", now + Config.StirTime)
 		elseif s.phase == "look" then
-			if seesMoving(s) then
-				wake(s, "look")
+			local mover = seesMoving(s)
+			if mover then
+				wake(s, "look", mover)
 				break
 			end
 			if now >= s.next then
@@ -2005,21 +2045,29 @@ RunService.Heartbeat:Connect(function(dt: number)
 end)
 
 local function joined(player: Player)
-	joinedAt[player] = os.clock()
-	runStart[player] = os.clock()
-	showBest(player, nil)
+	Runs.joined[player] = os.clock()
+	Runs.start[player] = os.clock()
+	Runs.fresh[player] = ((workspace:GetAttribute("Keys") :: number?) or 0) == 0 and stage == "house"
+	Best.show(player, nil)
 	task.spawn(function()
-		local store = bestStore
+		local store = Best.store
 		if store and player.UserId > 0 then
 			local ok, best = pcall(function()
 				return store:GetAsync(tostring(player.UserId))
 			end)
 			if ok and type(best) == "number" then
-				showBest(player, best)
+				Best.show(player, best)
 			end
 		end
 	end)
 	local function spawned(character: Model)
+		seen[player] = nil
+		safeUntil[player] = nil
+		for _, p in character:GetDescendants() do
+			if p:IsA("BasePart") then
+				p.CollisionGroup = "Cats"
+			end
+		end
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 		humanoid.WalkSpeed = Config.WalkSpeed
 		humanoid.UseJumpPower = false
@@ -2040,13 +2088,20 @@ local function joined(player: Player)
 		task.spawn(spawned, player.Character)
 	end
 end
+pcall(function()
+	local physics = game:GetService("PhysicsService")
+	physics:RegisterCollisionGroup("Cats")
+	physics:CollisionGroupSetCollidable("Cats", "Cats", false)
+end)
 Players.PlayerAdded:Connect(joined)
 for _, player in Players:GetPlayers() do
 	task.spawn(joined, player)
 end
 Players.PlayerRemoving:Connect(function(player: Player)
-	runStart[player] = nil
-	joinedAt[player] = nil
+	Runs.start[player] = nil
+	Runs.joined[player] = nil
+	Runs.fresh[player] = nil
+	sampleAt[player] = nil
 	last[player] = nil
 	speeds[player] = nil
 	seen[player] = nil
@@ -2054,6 +2109,7 @@ Players.PlayerRemoving:Connect(function(player: Player)
 end)
 
 placeKeys()
+setState("play")
 setStage("house")
 setGarage("closed")
 workspace:SetAttribute("CatBed", catBed)

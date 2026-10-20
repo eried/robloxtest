@@ -230,6 +230,7 @@ return {
 			{ t = "key", x = 55, y = 24, r = 0 },
 			{ t = "garageButton", x = 12, y = 24, r = 0 },
 			{ t = "garageButtonIn", x = 12, y = 14, r = 0 },
+			{ t = "camera", x = 12, y = 51, r = 3 },
 		},
 		labels = {
 			{ text = "House", x = 32, y = 24 },

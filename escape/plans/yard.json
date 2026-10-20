@@ -206,6 +206,13 @@
       "t": "garageButtonIn",
       "x": 12,
       "y": 14
+    },
+    {
+      "id": "c88",
+      "r": 3,
+      "t": "camera",
+      "x": 12,
+      "y": 51
     }
   ],
   "labels": [

@@ -13,6 +13,8 @@ Engine.patch = function(name: string, module: any)
 		module.MusicId = 98
 		module.TenseId = 97
 		module.DreamId = 96
+		-- The bots escape fast
+		module.MinRunTime = 30
 	end
 end
 Engine.startServer()
@@ -163,7 +165,8 @@ if mom then
 	end
 	check(closest ~= nil, "no toy upstairs")
 	if closest then
-		teleport(bo, closest.PrimaryPart.Position + Vector3.new(0, 1.4, 0))
+		local at = closest.PrimaryPart.Position
+		teleport(bo, Vector3.new(at.X, Config.Floor2 + 1.4, at.Z))
 		run(0.3)
 		woke = workspace:GetAttribute("State") == "caught" and root(bo).Anchored
 		run(Config.CaughtTime + 1)
@@ -231,8 +234,10 @@ if kid then
 	local up = kid:FindFirstChild("Head").CFrame.UpVector
 	local facing = Vector3.new(up.X, 0, up.Z).Unit
 	spot = Vector3.new(head.X, Config.Floor2 + 1.4, head.Z) + facing * 9
-	for i = 1, 20 do
-		teleport(ana, spot + Vector3.new(if i % 2 == 0 then 1.5 else -1.5, 0, 0))
+	-- Wait out the moment the head turns, then creep toward him
+	run(0.4)
+	for i = 1, 30 do
+		teleport(ana, spot - facing * i * 0.22)
 		Engine.step(DT)
 		if workspace:GetAttribute("State") == "caught" then
 			break
@@ -337,7 +342,7 @@ for _, m in world:FindFirstChild("Yard"):FindFirstChild("Cameras"):GetChildren()
 		table.insert(cams, m)
 	end
 end
-check(#cams == 8, "expected 8 cameras, found " .. #cams)
+check(#cams == 9, "expected 9 cameras, found " .. #cams)
 
 -- Right after the door Pianka is safe, the exit clip plays
 run(Config.ExitClipTime + 1)
