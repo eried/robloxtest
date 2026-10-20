@@ -40,7 +40,7 @@ return {
 	GateKeyCount = 3,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 0,
+	SfxId = 87433688092439,
 	Sfx = {
 		SnoreDeep = { 0.3, 3.42 },
 		SnoreLight = { 4.02, 3.42 },
