@@ -110,7 +110,7 @@ return {
 		Scratch = { 83.536, 0.45 },
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
-	MusicId = 0,
+	MusicId = 76864357160068,
 	TenseId = 120718840884184,
 	DreamId = 113091535685140,
 
