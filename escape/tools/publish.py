@@ -13,6 +13,8 @@ roblox.CONFIG = "escape/src/shared/Config.luau"
 roblox.AUDIO = [
     ("SfxId", "escape/sounds/PiankaEscapeSfx.mp3", "Pianka Escape sounds"),
     ("MusicId", "escape/music/PiankaSneak.mp3", "Pianka Escape sneaky music"),
+    ("TenseId", "escape/music/PiankaTense.mp3", "Pianka Escape tense music"),
+    ("DreamId", "escape/music/PiankaDream.mp3", "Pianka Escape dream music box"),
 ]
 PLACE_FILE = "escape/PiankaEscape.rbxlx"
 

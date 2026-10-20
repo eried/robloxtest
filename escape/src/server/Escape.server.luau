@@ -371,7 +371,8 @@ local function surface(floorNo: number, r: Rect, top: number)
 	table.insert(surfaces, { floor = floorNo, rect = r, top = top })
 end
 
-local sleepers: { { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, sleep: number, sent: number } } = {}
+type Sleeper = { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, phase: string, next: number, shut: { BasePart }, open: { BasePart } }
+local sleepers: { Sleeper } = {}
 local toys: { { kind: string, model: Model, pos: Vector3, floor: number, ready: number } } = {}
 local keySpots: { { floor: number, pos: Vector3 } } = {}
 local catBed: Vector3 = Vector3.new(HOUSE_W / 2, 1, HOUSE_D / 2)
@@ -380,7 +381,7 @@ local WOOD_DARK = Color3.fromRGB(120, 80, 50)
 local WOOD_LIGHT = Color3.fromRGB(190, 145, 95)
 local WHITE = Color3.fromRGB(240, 240, 238)
 
-local function buildSleeper(model: Model, cf: CFrame, width: number, depth: number, look: any, kind: string): BasePart
+local function buildSleeper(model: Model, cf: CFrame, width: number, depth: number, look: any, kind: string): (BasePart, { BasePart }, { BasePart })
 	-- Lying on the back, head on the pillow at the headboard end
 	local adult = kind == "bedMom"
 	local headSize = if adult then 3.4 else 3.0
@@ -395,12 +396,22 @@ local function buildSleeper(model: Model, cf: CFrame, width: number, depth: numb
 	elseif kind == "bedGirl" then
 		box(model, "LongHair", headCf * CFrame.new(0, -1.1, 1.6), Vector3.new(headSize + 0.6, 0.4, 2.6), look.hair, Enum.Material.SmoothPlastic, false)
 	end
+	-- Closed eyes while asleep, open eyes when they look around
+	local shut, open = {}, {}
 	for _, x in { -0.55, 0.55 } do
-		box(model, "Eye", headCf * CFrame.new(x, headSize / 2 - 0.05, -0.35), Vector3.new(0.5, 0.1, 0.12), Color3.fromRGB(60, 40, 40), Enum.Material.SmoothPlastic, false)
+		table.insert(shut, box(model, "Eye", headCf * CFrame.new(x, headSize / 2 - 0.05, -0.35), Vector3.new(0.5, 0.1, 0.12), Color3.fromRGB(60, 40, 40), Enum.Material.SmoothPlastic, false))
+		local white = box(model, "EyeOpen", headCf * CFrame.new(x, headSize / 2 - 0.12, -0.4), Vector3.one * 0.62, Color3.fromRGB(250, 250, 250), Enum.Material.SmoothPlastic, false)
+		;(white :: Part).Shape = Enum.PartType.Ball
+		local pupil = box(model, "EyeOpen", headCf * CFrame.new(x, headSize / 2 + 0.12, -0.45), Vector3.one * 0.3, Color3.fromRGB(30, 25, 25), Enum.Material.SmoothPlastic, false)
+		;(pupil :: Part).Shape = Enum.PartType.Ball
+		for _, p in { white, pupil } do
+			p.Transparency = 1
+			table.insert(open, p)
+		end
 	end
 	local bodyLen = math.max(6, depth - 6.5)
 	box(model, "Body", cf * CFrame.new(0, 5.6, depth / 2 - 4.6 - bodyLen / 2), Vector3.new(math.min(width - 1.2, if adult then 6 else 4.6), 2.6, bodyLen), look.blanket, Enum.Material.Fabric, false)
-	return head
+	return head, shut, open
 end
 
 local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, parent: Instance)
@@ -424,12 +435,13 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 		box(model, "PhoneScreen", cf * CFrame.new(width / 2 - 1.4, 4.68, depth / 2 - 2.4), Vector3.new(0.85, 0.05, 1.6), Color3.fromRGB(12, 14, 20), Enum.Material.Glass, false)
 	end
 	if look then
-		local head = buildSleeper(model, cf, width, depth, look, it.t)
+		local head, shut, open = buildSleeper(model, cf, width, depth, look, it.t)
 		model:SetAttribute("Sleeper", look.name)
 		model:SetAttribute("Snore", look.snore)
 		model:SetAttribute("Pitch", look.pitch)
-		model:SetAttribute("Sleep", 0)
-		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, sleep = 0, sent = 0 })
+		model:SetAttribute("Stir", "sleep")
+		local first = os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + #sleepers * 3
+		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, shut = shut, open = open })
 	end
 end
 
@@ -591,7 +603,14 @@ if stairsRect then
 		local zA = if north then z0 + run - (i - 1) * run / steps else z0 + (i - 1) * run / steps
 		local zB = if north then z0 + run - i * run / steps else z0 + i * run / steps
 		part({ Name = "Step", Size = Vector3.new(width, h, math.abs(zB - zA)), CFrame = CFrame.new(x0 + width / 2, h / 2, (zA + zB) / 2), Material = Enum.Material.WoodPlanks, Color = WOOD_LIGHT, CanCollide = false, Parent = stairs })
+		-- Invisible sides so nobody walks into the stairs from the side
+		for _, sx in { x0 - 0.25, x0 + width + 0.25 } do
+			part({ Name = "StairSide", Size = Vector3.new(0.5, h, math.abs(zB - zA)), CFrame = CFrame.new(sx, h / 2, (zA + zB) / 2), Transparency = 1, Parent = stairs })
+		end
 	end
+	-- And the tall end under the top of the stairs
+	local zEnd = if north then z0 - 0.25 else z0 + run + 0.25
+	part({ Name = "StairEnd", Size = Vector3.new(width + 1, FLOOR2, 0.5), CFrame = CFrame.new(x0 + width / 2, FLOOR2 / 2, zEnd), Transparency = 1, Parent = stairs })
 	local bottom = Vector3.new(x0 + width / 2, 0, if north then z0 + run else z0)
 	local top = Vector3.new(x0 + width / 2, FLOOR2, if north then z0 else z0 + run)
 	local mid = (bottom + top) / 2
@@ -880,6 +899,20 @@ local function setStage(s: string)
 	workspace:SetAttribute("Stage", s)
 end
 
+-- Sleepers: asleep, a snort to warn, then they look around with open eyes
+local function setStir(s: Sleeper, phase: string, nextTime: number)
+	s.phase = phase
+	s.next = nextTime
+	s.model:SetAttribute("Stir", phase)
+	local looking = phase == "look" or phase == "awake"
+	for _, p in s.open do
+		p.Transparency = if looking then 0 else 1
+	end
+	for _, p in s.shut do
+		p.Transparency = if looking then 1 else 0
+	end
+end
+
 -- The garage door: closed, opening, hold, closing
 local garage = { open = 0, phase = "closed", hold = 0 }
 local GREEN, AMBER = Color3.fromRGB(80, 230, 100), Color3.fromRGB(255, 180, 60)
@@ -1053,9 +1086,8 @@ local function resetRound()
 		exitDoor.CFrame = doorClosedCf
 		exitDoor.CanCollide = true
 	end
-	for _, s in sleepers do
-		s.sleep = 0
-		s.model:SetAttribute("Sleep", 0)
+	for i, s in sleepers do
+		setStir(s, "sleep", os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + i * 3)
 		s.head.CFrame = s.rest
 	end
 	placeKeys()
@@ -1085,12 +1117,13 @@ local function sitUp(s: { head: BasePart, rest: CFrame })
 end
 
 -- Someone woke up: Pianka goes back to bed and the keys go back
-local function wake(s: { name: string, head: BasePart, rest: CFrame })
+local function wake(s: Sleeper)
 	if state ~= "play" then
 		return
 	end
 	setState("caught")
 	event:FireAllClients("wake", s.name, s.head.Position)
+	setStir(s, "awake", math.huge)
 	sitUp(s)
 	freezeAll()
 	task.delay(Config.CaughtTime, function()
@@ -1116,6 +1149,7 @@ local function spotted(eye: Vector3, player: Player)
 	freezeAll()
 	task.delay(Config.SpottedTime * 0.55, function()
 		if workspace:GetAttribute("State") == "caught" and mom then
+			setStir(mom, "awake", math.huge)
 			sitUp(mom)
 		end
 	end)
@@ -1145,23 +1179,26 @@ local function watcher(pos: Vector3, t: number): Vector3?
 	return nil
 end
 
-local function noise(pos: Vector3, loud: number, floorNo: number)
+-- One squeak upstairs wakes the closest sleeper. Downstairs only gets a grumble, and every few a call
+local function noise(pos: Vector3, floorNo: number)
 	if state ~= "play" then
 		return
 	end
-	if floorNo == 1 then
-		tease += 1
-		if tease % Config.TeaseEvery == 0 then
-			event:FireAllClients("tease")
-		end
-	end
-	for _, s in sleepers do
-		if s.floor == floorNo then
+	if floorNo == 2 then
+		local best: Sleeper? = nil
+		local bestD = math.huge
+		for _, s in sleepers do
 			local d = (Vector3.new(s.head.Position.X, 0, s.head.Position.Z) - Vector3.new(pos.X, 0, pos.Z)).Magnitude
-			if d < Config.HearRange then
-				s.sleep = math.min(100, s.sleep + loud * (1 - d / Config.HearRange))
+			if s.floor == 2 and d < bestD then
+				best, bestD = s, d
 			end
 		end
+		if best then
+			wake(best)
+		end
+	else
+		tease += 1
+		event:FireAllClients(if tease % Config.TeaseEvery == 0 then "tease" else "grumble")
 	end
 end
 
@@ -1170,6 +1207,29 @@ local function floorOf(y: number): number
 end
 
 local last: { [Player]: Vector3 } = {}
+local speeds: { [Player]: number } = {}
+local sightParams = RaycastParams.new()
+sightParams.FilterType = Enum.RaycastFilterType.Exclude
+local function seesMoving(s: Sleeper): boolean
+	local eye = s.head.Position + Vector3.new(0, 1.5, 0)
+	for _, player in Players:GetPlayers() do
+		local r = root(player)
+		if r and floorOf(r.Position.Y) == s.floor and (speeds[player] or 0) > Config.MoveTolerance and (r.Position - eye).Magnitude < Config.StirRange then
+			local filter: { Instance } = { s.model, keyFolder }
+			for _, p in Players:GetPlayers() do
+				if p.Character then
+					table.insert(filter, p.Character)
+				end
+			end
+			sightParams.FilterDescendantsInstances = filter
+			if not workspace:Raycast(eye, r.Position - eye, sightParams) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 RunService.Heartbeat:Connect(function(dt: number)
 	local now = os.clock()
 	if state == "play" then
@@ -1182,19 +1242,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 			local prev = last[player]
 			last[player] = pos
 			local fl = floorOf(pos.Y)
-			-- Running near a sleeper wakes them slowly
 			if prev and dt > 0 then
-				local speed = Vector3.new(pos.X - prev.X, 0, pos.Z - prev.Z).Magnitude / dt
-				if speed > Config.SneakSpeed + 3 and speed < 60 then
-					for _, s in sleepers do
-						if s.floor == fl then
-							local d = (Vector3.new(s.head.Position.X, 0, s.head.Position.Z) - Vector3.new(pos.X, 0, pos.Z)).Magnitude
-							if d < Config.SnoreRange then
-								s.sleep = math.min(100, s.sleep + Config.RunNoise * dt * (1 - d / Config.SnoreRange))
-							end
-						end
-					end
-				end
+				speeds[player] = Vector3.new(pos.X - prev.X, 0, pos.Z - prev.Z).Magnitude / dt
 			end
 			-- Toys squeak when you bump them
 			for _, toy in toys do
@@ -1203,7 +1252,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 					if d < Config.Toys[toy.kind].radius and math.abs(pos.Y - toy.pos.Y) < 4 then
 						toy.ready = now + 1.4
 						event:FireAllClients("toy", toy.model, toy.kind)
-						noise(toy.pos, Config.Toys[toy.kind].loud, toy.floor)
+						noise(toy.pos, toy.floor)
 					end
 				end
 			end
@@ -1288,19 +1337,23 @@ RunService.Heartbeat:Connect(function(dt: number)
 	if state == "play" then
 		stepGarage(dt)
 	end
-	-- Too much noise wakes a sleeper, otherwise they calm down over time
+	-- Sleepers stir now and then. While they look around, moving where they can see wakes them
 	for _, s in sleepers do
-		if state == "play" then
-			if s.sleep >= 100 then
-				wake(s)
-			else
-				s.sleep = math.max(0, s.sleep - Config.SleepCalm * dt)
-			end
+		if state ~= "play" then
+			break
 		end
-		local shown = math.floor(s.sleep)
-		if shown ~= s.sent then
-			s.sent = shown
-			s.model:SetAttribute("Sleep", shown)
+		if s.phase == "sleep" and now >= s.next then
+			setStir(s, "warn", now + Config.StirWarn)
+		elseif s.phase == "warn" and now >= s.next then
+			setStir(s, "look", now + Config.StirTime)
+		elseif s.phase == "look" then
+			if seesMoving(s) then
+				wake(s)
+				break
+			end
+			if now >= s.next then
+				setStir(s, "sleep", now + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]))
+			end
 		end
 	end
 end)
@@ -1325,6 +1378,7 @@ Players.PlayerAdded:Connect(function(player: Player)
 end)
 Players.PlayerRemoving:Connect(function(player: Player)
 	last[player] = nil
+	speeds[player] = nil
 	seen[player] = nil
 	safeUntil[player] = nil
 end)

@@ -211,6 +211,7 @@ local function defaults(class: string): { [string]: any }
 	elseif class == "Sound" then
 		p.Playing = false
 		p.IsPlaying = false
+		p.IsLoaded = true
 		p.TimeLength = 10
 		p.Volume = 0.5
 		p.TimePosition = 0
@@ -822,6 +823,15 @@ CLASS_METHODS.DataModel = {
 	end,
 	BindToClose = function(self: any, f: any)
 		Engine.onClose = f
+	end,
+}
+
+CLASS_METHODS.Camera = {
+	WorldToViewportPoint = function()
+		return V3.new(400, 300, 10), true
+	end,
+	WorldToScreenPoint = function()
+		return V3.new(400, 300, 10), true
 	end,
 }
 

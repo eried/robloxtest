@@ -11,6 +11,8 @@ Engine.patch = function(name: string, module: any)
 	if name == "Config" then
 		module.SfxId = 99
 		module.MusicId = 98
+		module.TenseId = 97
+		module.DreamId = 96
 	end
 end
 Engine.startServer()
@@ -148,6 +150,7 @@ for _, s in sleepers do
 		mom = s
 	end
 end
+-- One squeak upstairs is enough: the closest sleeper wakes up at once
 local woke = false
 if mom then
 	local head = mom:FindFirstChild("Head")
@@ -158,34 +161,37 @@ if mom then
 			closest, best = t, d
 		end
 	end
-	check(closest ~= nil, "no toy upstairs near mom")
-	for _ = 1, 40 do
-		if not closest then
-			break
-		end
+	check(closest ~= nil, "no toy upstairs")
+	if closest then
 		teleport(bo, closest.PrimaryPart.Position + Vector3.new(0, 1.4, 0))
 		run(0.3)
-		teleport(bo, closest.PrimaryPart.Position + Vector3.new(12, 1.4, 0))
-		run(1.2)
-		if (mom:GetAttribute("Sleep") or 0) == 0 and workspace:GetAttribute("Keys") == 0 then
-			woke = true
-			break
-		end
-		if root(bo) and root(bo).Anchored then
-			woke = true
-			run(Config.CaughtTime + 1)
-			break
-		end
+		woke = workspace:GetAttribute("State") == "caught" and root(bo).Anchored
+		run(Config.CaughtTime + 1)
 	end
 end
-check(woke, "squeaky toys never woke anyone up")
+check(woke, "one squeak upstairs did not wake anyone")
 run(1)
 check(workspace:GetAttribute("Keys") == 0, "keys were not taken back after a wake up")
 check(#keys() == 3, "keys were not put back after a wake up")
 check(nearBed(ana) and nearBed(bo), "players were not sent back to bed after a wake up")
 check(not root(bo).Anchored, "players stay frozen after a wake up")
 
--- Running next to a sleeper makes noise, sneaking does not
+-- Downstairs a squeak only gets a grumble from upstairs
+local downToy = nil
+for _, t in toys do
+	if t.PrimaryPart.Position.Y < Config.Floor2 - 3 then
+		downToy = t
+	end
+end
+if downToy then
+	teleport(bo, downToy.PrimaryPart.Position + Vector3.new(0, 1.4, 0))
+	run(0.3)
+	check(workspace:GetAttribute("State") == "play", "a squeak downstairs woke someone")
+	teleport(bo, bed + Vector3.new(3, 0, 0))
+	run(0.5)
+end
+
+-- Sleepers stir: a snort, then they look around. Standing still is safe, moving wakes them
 local kid = nil
 for _, s in sleepers do
 	if s:GetAttribute("Sleeper") == "Patrick" then
@@ -194,15 +200,47 @@ for _, s in sleepers do
 end
 if kid then
 	local head = kid:FindFirstChild("Head").Position
-	local base = Vector3.new(head.X + 8, Config.Floor2 + 1.4, head.Z)
-	for i = 1, 30 do
-		teleport(ana, base + Vector3.new(if i % 2 == 0 then 1.2 else -1.2, 0, 0))
+	local spot = Vector3.new(head.X - 10, Config.Floor2 + 1.4, head.Z)
+	local phases: { [string]: boolean } = {}
+	teleport(ana, spot)
+	for _ = 1, math.ceil((Config.StirEvery[2] + 12) / DT) do
 		Engine.step(DT)
+		phases[kid:GetAttribute("Stir")] = true
+		if kid:GetAttribute("Stir") == "look" then
+			break
+		end
 	end
-	check((kid:GetAttribute("Sleep") or 0) > 5, "running next to a sleeper made no noise")
-	teleport(ana, bed + Vector3.new(3, 0, 0))
-	run(Config.CaughtTime + 6)
+	check(phases.warn == true and phases.look == true, "the kid never snorted and looked around")
+	local eyes = 0
+	for _, p in kid:GetDescendants() do
+		if p.Name == "EyeOpen" and p.Transparency == 0 then
+			eyes += 1
+		end
+	end
+	check(eyes > 0, "the kid looks around with closed eyes")
+	run(Config.StirTime * 0.5)
+	check(workspace:GetAttribute("State") == "play", "standing still while the kid looked woke him")
+	-- Next time he looks, move
+	for _ = 1, math.ceil((Config.StirEvery[2] + 12) / DT) do
+		Engine.step(DT)
+		if kid:GetAttribute("Stir") == "look" then
+			break
+		end
+	end
+	for i = 1, 20 do
+		teleport(ana, spot + Vector3.new(if i % 2 == 0 then 1.5 else -1.5, 0, 0))
+		Engine.step(DT)
+		if workspace:GetAttribute("State") == "caught" then
+			break
+		end
+	end
+	check(workspace:GetAttribute("State") == "caught", "moving while the kid looked did not wake him")
+	run(Config.CaughtTime + 1.5)
+	check(workspace:GetAttribute("State") == "play" and kid:GetAttribute("Stir") == "sleep", "the round did not reset after the kid woke")
 end
+
+-- The stairs are solid from the side
+check((counts.StairSide or 0) > 10 and (counts.StairEnd or 0) == 1, "the stairs can be walked into from the side")
 
 -- All three keys open the front door, then out you go
 local Watch = Engine.server.modules[game:GetService("ReplicatedStorage"):FindFirstChild("Shared"):FindFirstChild("Watch")]
