@@ -30,7 +30,7 @@ return {
 	WinRestart = 25,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 0,
+	SfxId = 123219985977884,
 	Sfx = {
 		SnoreDeep = { 0.3, 3.42 },
 		SnoreLight = { 4.02, 3.42 },
@@ -44,7 +44,7 @@ return {
 		Snort = { 23.38, 0.95 },
 		Dream = { 24.63, 4.4 },
 	},
-	MusicId = 0,
+	MusicId = 87567301857264,
 
 	-- Voices and meows from Find Pianka the Cat
 	VoicesId = 97571276201632,
