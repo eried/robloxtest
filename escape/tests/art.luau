@@ -15,9 +15,9 @@ local Cat = Engine.server.modules[shared:FindFirstChild("Cat")]
 local Config = Engine.server.modules[shared:FindFirstChild("Config")]
 local workspace = Engine.workspace
 
--- Pianka sneaking across the upstairs living room, and one looking at the camera for the icon
+-- Pianka sneaking past Milenkitka's bed to a key, and one looking at the camera for the icon
 local f2 = Config.Floor2
-local sneak = Cat.build(CFrame.lookAt(roblox.Vector3.new(63, f2 - 0.15, 64), roblox.Vector3.new(50, f2, 50)), 1)
+local sneak = Cat.build(CFrame.lookAt(roblox.Vector3.new(17, f2 - 0.15, 65), roblox.Vector3.new(5, f2, 61)), 1)
 sneak.model.Name = "Sneak"
 sneak.model.Parent = workspace
 local icon = Cat.build(CFrame.lookAt(roblox.Vector3.new(300, 0, 300), roblox.Vector3.new(300, 0, 310)), 1)

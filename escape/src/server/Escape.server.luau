@@ -150,7 +150,7 @@ local HOUSE_W, HOUSE_D = floor1.w * U, floor1.h * U
 
 -- Rooms: floor cells joined together, named by the labels in them
 local STYLES: { { words: { string }, material: Enum.Material, color: Color3, light: Color3, bright: number } } = {
-	{ words = { "bath", "toilet" }, material = Enum.Material.Marble, color = Color3.fromRGB(222, 230, 236), light = Color3.fromRGB(255, 230, 200), bright = 0.6 },
+	{ words = { "bath", "toilet" }, material = Enum.Material.CeramicTiles, color = Color3.fromRGB(110, 160, 185), light = Color3.fromRGB(255, 230, 200), bright = 0.6 },
 	{ words = { "kitchen", "storage" }, material = Enum.Material.Slate, color = Color3.fromRGB(205, 196, 180), light = Color3.fromRGB(255, 220, 170), bright = 0.7 },
 	{ words = { "kid" }, material = Enum.Material.Fabric, color = Color3.fromRGB(120, 150, 205), light = Color3.fromRGB(140, 160, 255), bright = 0.35 },
 	{ words = { "girl" }, material = Enum.Material.Fabric, color = Color3.fromRGB(220, 160, 195), light = Color3.fromRGB(200, 150, 255), bright = 0.35 },
@@ -384,7 +384,7 @@ end
 type Sleeper = { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, phase: string, next: number, since: number, facing: Vector3, shut: { BasePart }, open: { BasePart }, face: { { part: BasePart, rel: CFrame } }, side: number }
 local sleepers: { Sleeper } = {}
 local toys: { { kind: string, model: Model, pos: Vector3, floor: number, ready: number } } = {}
-local keySpots: { { floor: number, pos: Vector3 } } = {}
+local keySpots: { { floor: number, pos: Vector3, room: string } } = {}
 local catBed: Vector3 = Vector3.new(HOUSE_W / 2, 1, HOUSE_D / 2)
 
 local WOOD_DARK = Color3.fromRGB(120, 80, 50)
@@ -461,6 +461,7 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 		model:SetAttribute("Sleeper", look.name)
 		model:SetAttribute("Snore", look.snore)
 		model:SetAttribute("Pitch", look.pitch)
+		model:SetAttribute("Room", roomName(floorNo, it.x, it.y))
 		model:SetAttribute("Stir", "sleep")
 		local first = os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + #sleepers * 3
 		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, since = 0, facing = Vector3.zero, shut = shut, open = open, face = face, side = 1 })
@@ -590,18 +591,38 @@ local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number
 		;(door :: Part).Shape = Enum.PartType.Cylinder
 		surface(floorNo, r, baseY + 7)
 	elseif t == "toilet" then
-		box(model, "Bowl", cf * CFrame.new(0, 1.6, -0.6), Vector3.new(width * 0.75, 3.2, depth * 0.6), WHITE, Enum.Material.Marble)
-		box(model, "Tank", cf * CFrame.new(0, 3, depth / 2 - 0.9), Vector3.new(width * 0.85, 6, 1.6), WHITE, Enum.Material.Marble)
+		local chrome = Color3.fromRGB(200, 205, 212)
+		box(model, "Bowl", cf * CFrame.new(0, 1.6, -0.6), Vector3.new(width * 0.75, 3.2, depth * 0.6), WHITE, Enum.Material.SmoothPlastic)
+		box(model, "Seat", cf * CFrame.new(0, 3.3, -0.6), Vector3.new(width * 0.82, 0.2, depth * 0.64), Color3.fromRGB(230, 232, 236), Enum.Material.SmoothPlastic, false)
+		box(model, "Lid", cf * CFrame.new(0, 4.7, depth / 2 - 1.85), Vector3.new(width * 0.78, 2.8, 0.2), Color3.fromRGB(230, 232, 236), Enum.Material.SmoothPlastic, false)
+		box(model, "Tank", cf * CFrame.new(0, 3, depth / 2 - 0.9), Vector3.new(width * 0.85, 6, 1.6), WHITE, Enum.Material.SmoothPlastic)
+		box(model, "Flush", cf * CFrame.new(0, 6.05, depth / 2 - 0.9), Vector3.new(0.6, 0.1, 0.6), chrome, Enum.Material.Metal, false)
+		local roll = box(model, "Paper", cf * CFrame.new(width * 0.25, 6.45, depth / 2 - 0.9), Vector3.new(0.9, 0.9, 0.9), Color3.fromRGB(250, 250, 250), Enum.Material.Fabric, false)
+		;(roll :: Part).Shape = Enum.PartType.Cylinder
 		surface(floorNo, r, baseY + 3.3)
 	elseif t == "bathtub" then
 		local white = Color3.fromRGB(245, 248, 250)
-		box(model, "Bottom", cf * CFrame.new(0, 0.4, 0), Vector3.new(width, 0.8, depth), white, Enum.Material.Marble)
+		local chrome = Color3.fromRGB(200, 205, 212)
+		box(model, "Bottom", cf * CFrame.new(0, 0.4, 0), Vector3.new(width, 0.8, depth), white, Enum.Material.SmoothPlastic)
 		for _, x in { -1, 1 } do
-			box(model, "Side", cf * CFrame.new(x * (width / 2 - 0.35), 2.4, 0), Vector3.new(0.7, 4.8, depth), white, Enum.Material.Marble)
+			box(model, "Side", cf * CFrame.new(x * (width / 2 - 0.35), 2.4, 0), Vector3.new(0.7, 4.8, depth), white, Enum.Material.SmoothPlastic)
 		end
 		for _, z in { -1, 1 } do
-			box(model, "End", cf * CFrame.new(0, 2.4, z * (depth / 2 - 0.35)), Vector3.new(width, 4.8, 0.7), white, Enum.Material.Marble)
+			box(model, "End", cf * CFrame.new(0, 2.4, z * (depth / 2 - 0.35)), Vector3.new(width, 4.8, 0.7), white, Enum.Material.SmoothPlastic)
 		end
+		local water = box(model, "Water", cf * CFrame.new(0, 3.3, 0), Vector3.new(width - 1.4, 0.2, depth - 1.4), Color3.fromRGB(150, 205, 235), Enum.Material.Glass, false)
+		water.Transparency = 0.3
+		box(model, "Tap", cf * CFrame.new(width / 2 - 0.35, 5.4, 0), Vector3.new(0.4, 1.2, 0.4), chrome, Enum.Material.Metal, false)
+		box(model, "Spout", cf * CFrame.new(width / 2 - 0.85, 5.8, 0), Vector3.new(1.0, 0.3, 0.3), chrome, Enum.Material.Metal, false)
+		-- A rubber duck floating in the water
+		local duckAt = cf * CFrame.new(width * 0.15, 3.85, -depth * 0.15)
+		local duck = box(model, "Duck", duckAt, Vector3.one * 1.1, Color3.fromRGB(255, 215, 50), Enum.Material.SmoothPlastic, false)
+		;(duck :: Part).Shape = Enum.PartType.Ball
+		local duckHead = box(model, "Duck", duckAt * CFrame.new(0, 0.6, -0.4), Vector3.one * 0.7, Color3.fromRGB(255, 215, 50), Enum.Material.SmoothPlastic, false)
+		;(duckHead :: Part).Shape = Enum.PartType.Ball
+		box(model, "Beak", duckAt * CFrame.new(0, 0.55, -0.85), Vector3.new(0.35, 0.15, 0.3), Color3.fromRGB(255, 140, 40), Enum.Material.SmoothPlastic, false)
+		-- A bath mat in front of the tub
+		box(model, "Mat", cf * CFrame.new(0, 0.17, -depth / 2 - 1.5), Vector3.new(math.min(width, depth) * 0.8, 0.1, 2.4), Color3.fromRGB(240, 150, 170), Enum.Material.Fabric, false)
 	elseif t == "other" and string.find(room, "kitchen", 1, true) then
 		-- The kitchen gets a stove first, then a fridge
 		kitchenCount += 1
@@ -764,7 +785,7 @@ local function furnish(lv: Level, floorNo: number, baseY: number, parent: Folder
 			buildToy(it, floorNo, baseY, parent)
 		elseif t == "key" then
 			local r = rectOf(it)
-			table.insert(keySpots, { floor = floorNo, pos = Vector3.new((r.x + 0.5) * U, baseY, (r.y + 0.5) * U) })
+			table.insert(keySpots, { floor = floorNo, pos = Vector3.new((r.x + 0.5) * U, baseY, (r.y + 0.5) * U), room = roomName(floorNo, it.x, it.y) })
 		elseif t ~= "stairsUp" and t ~= "stairsDown" and t ~= "exit" then
 			local room = roomName(floorNo, it.x, it.y)
 			buildFurniture(lv, it, floorNo, baseY, parent, if t == "sofa" then spots["tv" .. room] elseif t == "tv" then spots["sofa" .. room] else nil)
@@ -779,6 +800,9 @@ furnish(floor2, 2, FLOOR2, f2)
 local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folder)
 	local deco = folder("Decor", parent)
 	local taken: { [number]: boolean } = {}
+	-- Wall spots already used by something hanging, by cell and side
+	local hung: { [number]: boolean } = {}
+	local rugged: { [number]: boolean } = {}
 	for _, it in lv.items do
 		if it.t ~= "key" and it.t ~= "exit" then
 			local r = rectOf(it)
@@ -833,7 +857,7 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 			continue
 		end
 		local tint = PALETTE[(index + floorNo) % #PALETTE + 1]
-		-- A rug in the middle of the room
+		-- A rug in the middle of the room, or by the sofa when the middle is the stairs
 		if not plain then
 			local w, h = math.max(2, math.floor((maxX - minX + 1) * 0.5)), math.max(2, math.floor((maxY - minY + 1) * 0.45))
 			local rx, ry = math.floor((minX + maxX + 1) / 2 - w / 2), math.floor((minY + maxY + 1) / 2 - h / 2)
@@ -846,6 +870,7 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 				end
 			end
 			if ok then
+				rugged[index] = true
 				part({ Name = "Rug", Size = Vector3.new(w * U - 1, 0.1, h * U - 1), CFrame = CFrame.new((rx + w / 2) * U, baseY + 0.17, (ry + h / 2) * U), Material = Enum.Material.Fabric, Color = tint, CanCollide = false, CastShadow = false, Parent = deco })
 				part({ Name = "Rug", Size = Vector3.new(w * U - 2.4, 0.11, h * U - 2.4), CFrame = CFrame.new((rx + w / 2) * U, baseY + 0.18, (ry + h / 2) * U), Material = Enum.Material.Fabric, Color = tint:Lerp(Color3.new(1, 1, 1), 0.35), CanCollide = false, CastShadow = false, Parent = deco })
 			end
@@ -854,7 +879,7 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 		local placed: { { number } } = {}
 		for _, k in room.cells do
 			local x, y = k % lv.w, k // lv.w
-			for _, d in DIRS do
+			for di, d in DIRS do
 				local wx, wy = x + d[1], y + d[2]
 				local sx, sy = d[2], d[1]
 				if cell(lv, wx, wy) == "w" and cell(lv, wx + sx, wy + sy) == "w" and cell(lv, wx - sx, wy - sy) == "w" and #placed < (if plain then 1 else 2) then
@@ -866,6 +891,7 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 					end
 					if far and (x + y * 3 + index) % 3 == 0 then
 						table.insert(placed, { x, y })
+						hung[k * 4 + di] = true
 						local face = at(x, y, 11) + Vector3.new(d[1], 0, d[2]) * (U / 2 - 0.2)
 						local cf = CFrame.lookAt(face, face - Vector3.new(d[1], 0, d[2]))
 						if not clockDone and floorNo == 1 and string.find(name, "living", 1, true) then
@@ -886,13 +912,21 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 				end
 			end
 		end
-		-- A potted plant in a free corner, away from doors
+		-- Potted plants in free corners, away from doors, a few in big rooms
 		if not wet then
+			local plants: { { number } } = {}
 			for _, k in room.cells do
 				local x, y = k % lv.w, k // lv.w
 				local wallX = cell(lv, x - 1, y) == "w" or cell(lv, x + 1, y) == "w"
 				local wallY = cell(lv, x, y - 1) == "w" or cell(lv, x, y + 1) == "w"
-				if wallX and wallY and free(x, y) and not nearDoor(x, y) then
+				local apart = true
+				for _, p in plants do
+					if math.abs(p[1] - x) + math.abs(p[2] - y) < 6 then
+						apart = false
+					end
+				end
+				if wallX and wallY and apart and free(x, y) and not nearDoor(x, y) then
+					table.insert(plants, { x, y })
 					local base = at(x, y, 0)
 					local pot = part({ Name = "Pot", Shape = Enum.PartType.Cylinder, Size = Vector3.new(2.2, 2, 2), CFrame = CFrame.new(base + Vector3.new(0, 1.1, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(190, 110, 70), Parent = deco })
 					pot.Material = Enum.Material.Slate
@@ -901,7 +935,9 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 						leaf.CastShadow = true
 					end
 					taken[y * lv.w + x] = true
-					break
+					if #plants >= (if #room.cells > 120 then 3 else 1) then
+						break
+					end
 				end
 			end
 		end
@@ -939,11 +975,17 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 			end
 			part({ Name = "Mug", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.8, 0.6, 0.6), CFrame = cf * CFrame.new(1.4, 3.25, 0.4) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(240, 120, 110), CanCollide = false, Parent = deco })
 			taken[cy * lv.w + cx] = true
+			local rid = roomIds[floorNo][cy * lv.w + cx]
+			if rid and not rugged[rid] then
+				local len = math.max(6, (b - a).Magnitude - 5)
+				part({ Name = "Rug", Size = Vector3.new(14, 0.1, len), CFrame = cf * CFrame.new(0, 0.17, 0), Material = Enum.Material.Fabric, Color = Color3.fromRGB(150, 90, 80), CanCollide = false, CastShadow = false, Parent = deco })
+				part({ Name = "Rug", Size = Vector3.new(12, 0.11, len - 2), CFrame = cf * CFrame.new(0, 0.18, 0), Material = Enum.Material.Fabric, Color = Color3.fromRGB(215, 180, 140), CanCollide = false, CastShadow = false, Parent = deco })
+			end
 		end
 	end
 	for _, room in roomLists[floorNo] do
 		local name = string.lower(room.name)
-		local living = string.find(name, "living", 1, true) ~= nil
+		local living = string.find(name, "living", 1, true) ~= nil or string.find(name, "dining", 1, true) ~= nil
 		local kids = string.find(name, "kid", 1, true) or string.find(name, "girl", 1, true)
 		if living then
 			-- Three free cells in a row along a solid wall
@@ -1062,6 +1104,269 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 			end
 		elseif it.t == "exit" then
 			part({ Name = "Doormat", Size = Vector3.new(7, 0.12, 4), CFrame = CFrame.new((r.x + 1) * U, baseY + 0.18, (r.y + 0.3) * U), Color = Color3.fromRGB(150, 100, 60), Material = Enum.Material.Fabric, CanCollide = false, Parent = deco })
+		end
+	end
+
+	-- A run of free cells along a solid wall, away from doors. The frame sits on the floor at
+	-- the wall, looking into the room, X along the wall
+	local function wallRun(cells: { number }, need: number): CFrame?
+		for _, k in cells do
+			local x, y = k % lv.w, k // lv.w
+			for _, d in DIRS do
+				local sx, sy = d[2], d[1]
+				local ok = true
+				for i = 0, need - 1 do
+					local cx, cy = x + sx * i, y + sy * i
+					if not free(cx, cy) or nearDoor(cx, cy) or cell(lv, cx + d[1], cy + d[2]) ~= "w" then
+						ok = false
+						break
+					end
+				end
+				if ok then
+					for i = 0, need - 1 do
+						taken[(y + sy * i) * lv.w + x + sx * i] = true
+					end
+					local wallAt = at(x, y, 0) + Vector3.new(sx, 0, sy) * ((need - 1) * U / 2) + Vector3.new(d[1], 0, d[2]) * (U / 2)
+					return CFrame.lookAt(wallAt, wallAt - Vector3.new(d[1], 0, d[2]))
+				end
+			end
+		end
+		return nil
+	end
+	-- A free spot high on a solid wall for things that hang there
+	local function wallSpot(cells: { number }, from: number): CFrame?
+		for n = 0, #cells - 1 do
+			local k = cells[(from + n) % #cells + 1]
+			local x, y = k % lv.w, k // lv.w
+			for di, d in DIRS do
+				if cell(lv, x + d[1], y + d[2]) == "w" and not hung[k * 4 + di] and free(x, y) and not nearDoor(x, y) then
+					hung[k * 4 + di] = true
+					local wallAt = at(x, y, 0) + Vector3.new(d[1], 0, d[2]) * (U / 2)
+					return CFrame.lookAt(wallAt, wallAt - Vector3.new(d[1], 0, d[2]))
+				end
+			end
+		end
+		return nil
+	end
+	local function piece(name: string, cf: CFrame, size: Vector3, color: Color3, material: Enum.Material?, collide: boolean?): BasePart
+		return part({ Name = name, CFrame = cf, Size = size, Color = color, Material = material or Enum.Material.SmoothPlastic, CanCollide = collide == true, Parent = deco })
+	end
+	local function round(p: BasePart, shape: Enum.PartType): BasePart
+		(p :: Part).Shape = shape
+		return p
+	end
+	local CHROME = Color3.fromRGB(200, 205, 212)
+	-- A shelf on the wall with books and a little plant
+	local function shelf(cf: CFrame, h: number, tint: Color3)
+		piece("Shelf", cf * CFrame.new(0, h, -0.6), Vector3.new(3.6, 0.25, 1.2), WOOD_DARK, Enum.Material.Wood)
+		for b = 0, 3 do
+			local bh = 1.2 + (b % 2) * 0.35
+			piece("Book", cf * CFrame.new(-1.4 + b * 0.5, h + 0.12 + bh / 2, -0.6), Vector3.new(0.4, bh, 0.9), PALETTE[(b + h) % #PALETTE + 1])
+		end
+		round(piece("Pot", cf * CFrame.new(1.1, h + 0.5, -0.6) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.8, 0.8, 0.8), tint, Enum.Material.Slate), Enum.PartType.Cylinder)
+		round(piece("Leaves", cf * CFrame.new(1.1, h + 1.3, -0.6), Vector3.one * 1.1, Color3.fromRGB(70, 150, 80), Enum.Material.Grass), Enum.PartType.Ball)
+	end
+	-- A poster or a drawing on the wall
+	local function poster(cf: CFrame, h: number, colors: { Color3 })
+		piece("Poster", cf * CFrame.new(0, h, -0.1), Vector3.new(2.8, 3.6, 0.08), colors[1])
+		piece("Poster", cf * CFrame.new(0, h + 0.4, -0.15), Vector3.new(1.6, 1.6, 0.06), colors[2])
+		piece("Poster", cf * CFrame.new(0, h - 1.1, -0.15), Vector3.new(2.2, 0.5, 0.06), colors[3])
+	end
+	for index, room in roomLists[floorNo] do
+		local name = string.lower(room.name)
+		local function has(word: string): boolean
+			return string.find(name, word, 1, true) ~= nil
+		end
+		if #room.cells < 6 then
+			continue
+		end
+		if has("bath") or has("toilet") then
+			-- A sink with a mirror, a shelf with bottles and a towel
+			local cf = wallRun(room.cells, 1)
+			if cf then
+				piece("SinkStand", cf * CFrame.new(0, 2.2, -1.3), Vector3.new(1, 4.4, 1), WHITE, nil, true)
+				piece("Sink", cf * CFrame.new(0, 4.9, -1.3), Vector3.new(3.2, 1, 2.4), WHITE, nil, true)
+				piece("Basin", cf * CFrame.new(0, 5.42, -1.4), Vector3.new(2.4, 0.1, 1.6), Color3.fromRGB(190, 215, 230))
+				piece("Tap", cf * CFrame.new(0, 5.8, -0.35), Vector3.new(0.3, 0.9, 0.3), CHROME, Enum.Material.Metal)
+				piece("Spout", cf * CFrame.new(0, 6.15, -0.65), Vector3.new(0.25, 0.25, 0.7), CHROME, Enum.Material.Metal)
+				piece("MirrorFrame", cf * CFrame.new(0, 10.2, -0.1), Vector3.new(3.8, 4.6, 0.2), CHROME, Enum.Material.Metal)
+				piece("Mirror", cf * CFrame.new(0, 10.2, -0.22), Vector3.new(3.4, 4.2, 0.1), Color3.fromRGB(200, 225, 240), Enum.Material.Glass).Reflectance = 0.5
+				piece("Shelf", cf * CFrame.new(0, 7.5, -0.45), Vector3.new(3.4, 0.2, 0.9), WHITE)
+				for i, c in { Color3.fromRGB(120, 200, 230), Color3.fromRGB(255, 160, 190), Color3.fromRGB(250, 240, 200) } do
+					local bh = 0.8 + (i % 2) * 0.4
+					piece("Bottle", cf * CFrame.new(-1.6 + i * 0.8, 7.6 + bh / 2, -0.45), Vector3.new(0.5, bh, 0.5), c)
+				end
+			end
+			local towel = wallSpot(room.cells, index * 3)
+			if towel then
+				piece("TowelBar", towel * CFrame.new(0, 8, -0.4), Vector3.new(3, 0.2, 0.2), CHROME, Enum.Material.Metal)
+				piece("Towel", towel * CFrame.new(0, 6.1, -0.5), Vector3.new(2.4, 4, 0.25), PALETTE[index % #PALETTE + 1]:Lerp(Color3.new(1, 1, 1), 0.4), Enum.Material.Fabric)
+			end
+		elseif has("kitchen") then
+			-- Counters with a sink and a kettle, cupboards above
+			for run = 1, 2 do
+				local cf = wallRun(room.cells, 2)
+				if not cf then
+					break
+				end
+				local len = 2 * U
+				local white = Color3.fromRGB(235, 232, 225)
+				piece("Counter", cf * CFrame.new(0, 2.9, -1.8), Vector3.new(len - 0.2, 5.8, 3.2), white, nil, true)
+				piece("CounterTop", cf * CFrame.new(0, 6, -1.9), Vector3.new(len, 0.4, 3.6), Color3.fromRGB(60, 60, 66), Enum.Material.Slate, true)
+				piece("Cupboard", cf * CFrame.new(0, 13, -1.0), Vector3.new(len - 0.2, 4, 2), white, nil, true)
+				for _, x in { -len / 4, len / 4 } do
+					piece("Handle", cf * CFrame.new(x, 5, -3.45), Vector3.new(0.8, 0.15, 0.15), Color3.fromRGB(70, 70, 75), Enum.Material.Metal)
+					piece("Handle", cf * CFrame.new(x, 11.4, -2.05), Vector3.new(0.8, 0.15, 0.15), Color3.fromRGB(70, 70, 75), Enum.Material.Metal)
+				end
+				if run == 1 then
+					piece("Basin", cf * CFrame.new(len / 4, 6.22, -2), Vector3.new(2.6, 0.1, 2), Color3.fromRGB(170, 175, 182), Enum.Material.Metal)
+					piece("Tap", cf * CFrame.new(len / 4, 6.9, -0.6), Vector3.new(0.3, 1.2, 0.3), CHROME, Enum.Material.Metal)
+					piece("Spout", cf * CFrame.new(len / 4, 7.45, -1.0), Vector3.new(0.25, 0.25, 0.9), CHROME, Enum.Material.Metal)
+					round(piece("Kettle", cf * CFrame.new(-len / 4, 7, -1.9) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(1.6, 1.4, 1.4), Color3.fromRGB(220, 70, 60)), Enum.PartType.Cylinder)
+				else
+					round(piece("Bowl", cf * CFrame.new(0, 6.5, -1.9) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.6, 2.2, 2.2), Color3.fromRGB(240, 240, 235)), Enum.PartType.Cylinder)
+					for i, c in { Color3.fromRGB(230, 60, 50), Color3.fromRGB(255, 200, 40), Color3.fromRGB(120, 200, 70) } do
+						round(piece("Fruit", cf * CFrame.new(-0.5 + i * 0.35, 7.1, -1.9 + (i % 2) * 0.4), Vector3.one * 0.7, c), Enum.PartType.Ball)
+					end
+				end
+			end
+		elseif has("living") or has("dining") then
+			-- A reading corner: an armchair and a floor lamp
+			local chair = wallRun(room.cells, 1)
+			if chair then
+				local fabric = PALETTE[(index + 2) % #PALETTE + 1]
+				piece("Armchair", chair * CFrame.new(0, 1.4, -2.2), Vector3.new(3.6, 2.8, 3.2), fabric, Enum.Material.Fabric, true)
+				piece("ArmchairBack", chair * CFrame.new(0, 3.2, -0.9), Vector3.new(3.6, 6.4, 0.9), fabric, Enum.Material.Fabric, true)
+				for _, x in { -1.6, 1.6 } do
+					piece("ArmchairArm", chair * CFrame.new(x, 2.4, -2.1), Vector3.new(0.6, 2, 3.2), fabric, Enum.Material.Fabric, true)
+				end
+				piece("Cushion", chair * CFrame.new(0, 3, -2.3), Vector3.new(2.4, 0.5, 2.4), fabric:Lerp(Color3.new(1, 1, 1), 0.3), Enum.Material.Fabric)
+			end
+			local lamp = wallRun(room.cells, 1)
+			if lamp then
+				round(piece("LampFoot", lamp * CFrame.new(0, 0.15, -1.4) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.3, 1.6, 1.6), Color3.fromRGB(60, 60, 66), Enum.Material.Metal, true), Enum.PartType.Cylinder)
+				piece("LampPole", lamp * CFrame.new(0, 4.5, -1.4), Vector3.new(0.25, 9, 0.25), Color3.fromRGB(60, 60, 66), Enum.Material.Metal, true)
+				local shade = piece("LampShade", lamp * CFrame.new(0, 9.6, -1.4), Vector3.new(2.2, 1.8, 2.2), Color3.fromRGB(255, 225, 170), Enum.Material.Neon)
+				local glow = Instance.new("PointLight")
+				glow.Color = Color3.fromRGB(255, 200, 140)
+				glow.Brightness = 0.4
+				glow.Range = 18
+				glow.Parent = shade
+			end
+			if #room.cells > 150 and floorNo == 2 then
+				-- A piano with its bench
+				local piano = wallRun(room.cells, 3)
+				if piano then
+					local black = Color3.fromRGB(25, 25, 30)
+					piece("Piano", piano * CFrame.new(0, 3.8, -1.3), Vector3.new(3 * U - 0.8, 7.6, 2.4), black, nil, true).Reflectance = 0.15
+					piece("Keys", piano * CFrame.new(0, 4.6, -2.9), Vector3.new(3 * U - 2, 0.4, 1.2), Color3.fromRGB(245, 245, 240), nil, true)
+					for i = 0, 13 do
+						if i % 7 ~= 2 and i % 7 ~= 6 then
+							piece("BlackKey", piano * CFrame.new(-4.6 + i * 0.7, 4.9, -2.65), Vector3.new(0.3, 0.25, 0.7), black)
+						end
+					end
+					piece("Music", piano * CFrame.new(0, 6.6, -2.4) * CFrame.Angles(math.rad(-15), 0, 0), Vector3.new(2.6, 1.8, 0.08), Color3.fromRGB(250, 248, 235))
+					piece("Bench", piano * CFrame.new(0, 2.6, -5), Vector3.new(4.4, 0.6, 1.8), black, nil, true)
+					for _, x in { -1.8, 1.8 } do
+						piece("BenchLeg", piano * CFrame.new(x, 1.15, -5), Vector3.new(0.4, 2.3, 1.4), black)
+					end
+				end
+			end
+			-- A sideboard with a vase of flowers
+			local side = wallRun(room.cells, 2)
+			if side then
+				piece("Sideboard", side * CFrame.new(0, 2.6, -1.4), Vector3.new(7.4, 5.2, 2.4), WOOD_DARK, Enum.Material.Wood, true)
+				round(piece("Vase", side * CFrame.new(-1.8, 6.2, -1.4) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(2, 1, 1), Color3.fromRGB(90, 140, 200), Enum.Material.Glass), Enum.PartType.Cylinder)
+				for i, c in { Color3.fromRGB(255, 120, 150), Color3.fromRGB(255, 220, 90), Color3.fromRGB(250, 250, 250) } do
+					round(piece("Flower", side * CFrame.new(-1.8 + (i - 2) * 0.45, 7.8 + (i % 2) * 0.3, -1.4), Vector3.one * 0.6, c), Enum.PartType.Ball)
+				end
+				for i = 0, 2 do
+					round(piece("Plate", side * CFrame.new(1 + i * 0.3, 5.9 + i * 0.12, -1.4) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.12, 1.6, 1.6), WHITE), Enum.PartType.Cylinder)
+				end
+			end
+			-- Pianka's scratching tree near her bed downstairs
+			local tree = if floorNo == 1 then wallRun(room.cells, 1) else nil
+			if tree then
+				local sisal = Color3.fromRGB(200, 170, 120)
+				piece("TreeBase", tree * CFrame.new(0, 0.3, -2), Vector3.new(3.2, 0.6, 3.2), Color3.fromRGB(240, 140, 185), Enum.Material.Fabric, true)
+				round(piece("TreePost", tree * CFrame.new(0, 3.3, -2) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(5.4, 1.1, 1.1), sisal, Enum.Material.Fabric, true), Enum.PartType.Cylinder)
+				piece("TreeTop", tree * CFrame.new(0, 6.2, -2), Vector3.new(3, 0.5, 3), Color3.fromRGB(240, 140, 185), Enum.Material.Fabric, true)
+				round(piece("TreeBall", tree * CFrame.new(1.2, 5, -3.2), Vector3.one * 0.7, Color3.fromRGB(120, 200, 255)), Enum.PartType.Ball)
+				piece("TreeString", tree * CFrame.new(1.2, 5.6, -3.2), Vector3.new(0.05, 1.2, 0.05), WHITE)
+			end
+		elseif has("hall") then
+			-- Coats, a hat and shoes by the front door
+			local rack = wallRun(room.cells, 1)
+			if rack then
+				piece("CoatRack", rack * CFrame.new(0, 5.5, -1.2), Vector3.new(0.35, 11, 0.35), WOOD_DARK, Enum.Material.Wood, true)
+				piece("CoatFoot", rack * CFrame.new(0, 0.2, -1.2), Vector3.new(2, 0.4, 2), WOOD_DARK, Enum.Material.Wood, true)
+				for i, c in { Color3.fromRGB(180, 60, 60), Color3.fromRGB(70, 90, 150), Color3.fromRGB(230, 200, 90) } do
+					local a = i * 2.1
+					piece("Coat", rack * CFrame.new(math.cos(a) * 0.7, 8, -1.2 + math.sin(a) * 0.7) * CFrame.Angles(0, a, 0), Vector3.new(1.6, 4.5, 0.5), c, Enum.Material.Fabric)
+				end
+				round(piece("Hat", rack * CFrame.new(0, 11.2, -1.2) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.8, 1.8, 1.8), Color3.fromRGB(90, 60, 40), Enum.Material.Fabric), Enum.PartType.Cylinder)
+				for i, c in { Color3.fromRGB(40, 40, 46), Color3.fromRGB(240, 90, 120), Color3.fromRGB(240, 90, 120), Color3.fromRGB(40, 40, 46) } do
+					piece("Shoe", rack * CFrame.new(-1.5 + (i - 1) * 0.6 + (if i > 2 then 1.4 else 0), 0.3, -2.6), Vector3.new(0.5, 0.5, 1.3), c)
+				end
+			end
+		elseif has("kid") then
+			-- Glow stars on the ceiling, a shelf with a rocket and a superhero poster
+			for i = 1, 16 do
+				local k = room.cells[(i * 37) % #room.cells + 1]
+				local x, y = k % lv.w, k // lv.w
+				local star = piece("Star", CFrame.new(at(x, y, WALL - 0.06) + Vector3.new(((i * 13) % 5 - 2) * 0.6, 0, ((i * 7) % 5 - 2) * 0.6)) * CFrame.Angles(0, i, 0), Vector3.new(0.7, 0.06, 0.7), Color3.fromRGB(210, 255, 170), Enum.Material.Neon)
+				star.CastShadow = false
+			end
+			local spot = wallSpot(room.cells, 5)
+			if spot then
+				shelf(spot, 9, Color3.fromRGB(120, 150, 205))
+			end
+			local p = wallSpot(room.cells, 17)
+			if p then
+				poster(p, 13, { Color3.fromRGB(40, 60, 120), Color3.fromRGB(230, 60, 60), Color3.fromRGB(255, 210, 60) })
+			end
+		elseif has("girl") then
+			-- Fairy lights along a wall, a shelf and a poster
+			local lights = wallSpot(room.cells, 3)
+			if lights then
+				local colors = { Color3.fromRGB(255, 150, 200), Color3.fromRGB(255, 230, 140), Color3.fromRGB(170, 210, 255) }
+				for i = 0, 8 do
+					local x = -3.6 + i * 0.9
+					local bulb = round(piece("FairyLight", lights * CFrame.new(x, 15 - math.sin(i / 8 * math.pi) * 0.8, -0.25), Vector3.one * 0.35, colors[i % 3 + 1], Enum.Material.Neon), Enum.PartType.Ball)
+					bulb.CastShadow = false
+				end
+			end
+			local spot = wallSpot(room.cells, 11)
+			if spot then
+				shelf(spot, 9, Color3.fromRGB(230, 170, 200))
+			end
+			local p = wallSpot(room.cells, 23)
+			if p then
+				poster(p, 12.5, { Color3.fromRGB(250, 200, 225), Color3.fromRGB(240, 80, 140), Color3.fromRGB(150, 110, 220) })
+			end
+		elseif has("mom") then
+			-- Books, a plant and family drawings from the kids
+			local spot = wallSpot(room.cells, 7)
+			if spot then
+				shelf(spot, 9, Color3.fromRGB(190, 110, 70))
+			end
+			local p = wallSpot(room.cells, 19)
+			if p then
+				poster(p, 12.5, { Color3.fromRGB(250, 248, 240), Color3.fromRGB(255, 120, 150), Color3.fromRGB(90, 160, 220) })
+			end
+		elseif has("guest") then
+			-- A desk with a chair and a lamp
+			local desk = wallRun(room.cells, 2)
+			if desk then
+				piece("Desk", desk * CFrame.new(0, 5.2, -1.6), Vector3.new(7, 0.4, 3), WOOD_LIGHT, Enum.Material.Wood, true)
+				for _, x in { -3.2, 3.2 } do
+					piece("DeskLeg", desk * CFrame.new(x, 2.5, -1.6), Vector3.new(0.4, 5, 2.6), WOOD_LIGHT, Enum.Material.Wood, true)
+				end
+				piece("Chair", desk * CFrame.new(0, 3.2, -4.2), Vector3.new(2.4, 0.4, 2.4), WOOD_DARK, Enum.Material.Wood, true)
+				piece("ChairBack", desk * CFrame.new(0, 4.9, -5.3), Vector3.new(2.4, 3.2, 0.35), WOOD_DARK, Enum.Material.Wood, true)
+				piece("Laptop", desk * CFrame.new(-1.2, 5.5, -1.8), Vector3.new(2, 0.15, 1.4), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
+				piece("Mug", desk * CFrame.new(1.8, 5.8, -1.4), Vector3.new(0.6, 0.8, 0.6), Color3.fromRGB(90, 160, 220))
+			end
 		end
 	end
 end
@@ -1498,23 +1803,33 @@ local function toBed(player: Player)
 	end
 end
 
+local KEY_BRONZE = Color3.fromRGB(214, 150, 62)
+local KEY_GLOW = Color3.fromRGB(255, 215, 110)
 local function makeKey(pos: Vector3, index: number): Model
-	local gold = Color3.fromRGB(255, 205, 60)
 	local model = Instance.new("Model")
 	model.Name = "Key"
-	-- Big and glowing, easy to spot in a dark room on a small screen
-	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = CFrame.new(pos), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
-	local ring = part({ Name = "Ring", Size = Vector3.new(0.55, 2.1, 2.1), CFrame = center.CFrame * CFrame.new(0, 0, 1.95) * CFrame.Angles(0, 0, math.rad(90)), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
+	-- Bronze like the key on the screen, with a glow around it so it shows in a dark room
+	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = CFrame.new(pos), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
+	local ring = part({ Name = "Ring", Size = Vector3.new(0.55, 2.1, 2.1), CFrame = center.CFrame * CFrame.new(0, 0, 1.95) * CFrame.Angles(0, 0, math.rad(90)), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
 	;(ring :: Part).Shape = Enum.PartType.Cylinder
-	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.85, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.6, -1), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
-	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.6, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.5, -0.3), Material = Enum.Material.Neon, Color = gold, CanCollide = false, Parent = model })
+	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.85, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.6, -1), Material = Enum.Material.Metal, Color = KEY_BRONZE, CanCollide = false, Parent = model })
+	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.6, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.5, -0.3), Material = Enum.Material.Metal, Color = KEY_BRONZE, CanCollide = false, Parent = model })
 	model.PrimaryPart = center
-	model.Parent = keyFolder
+	-- The light sits just above the key so it lights the key itself and the floor around it
+	local lamp = part({ Name = "Glow", Size = Vector3.one * 0.2, CFrame = center.CFrame * CFrame.new(0, 2.2, 0), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = model })
 	local light = Instance.new("PointLight")
-	light.Color = gold
+	light.Color = KEY_GLOW
 	light.Range = 14
-	light.Brightness = 1.8
-	light.Parent = center
+	light.Brightness = 2
+	light.Parent = lamp
+	local halo = Instance.new("Highlight")
+	halo.FillColor = KEY_GLOW
+	halo.FillTransparency = 0.75
+	halo.OutlineColor = KEY_GLOW
+	halo.OutlineTransparency = 0.1
+	halo.DepthMode = Enum.HighlightDepthMode.Occluded
+	halo.Parent = model
+	model.Parent = keyFolder
 	model:SetAttribute("Index", index)
 	return model
 end
@@ -1525,7 +1840,7 @@ local function take(picks: { any }, list: { any })
 	end
 end
 
--- Three keys: mostly upstairs where people sleep, sometimes one downstairs as a bonus
+-- Three keys upstairs, one in each bedroom, deep inside behind the toys
 -- Keys go back to the same spots after a fail, new spots only after a win
 local housePicks: { any }? = nil
 local gatePicks: { any }? = nil
@@ -1535,16 +1850,21 @@ local function placeKeys(reroll: boolean?)
 	keysFound = 0
 	workspace:SetAttribute("Keys", 0)
 	if reroll or not housePicks then
-		local up, down = {}, {}
+		local byRoom: { [string]: { any } } = {}
+		local rooms = {}
 		for _, s in keySpots do
-			table.insert(if s.floor == 2 then up else down, s)
+			if s.floor == 2 then
+				if not byRoom[s.room] then
+					byRoom[s.room] = {}
+					table.insert(rooms, s.room)
+				end
+				table.insert(byRoom[s.room], s)
+			end
 		end
 		local fresh = {}
-		if #down > 0 and rng:NextNumber() < Config.DownstairsKeyChance then
-			take(fresh, down)
-		end
-		while #fresh < Config.KeyCount and (#up > 0 or #down > 0) do
-			take(fresh, if #up > 0 then up else down)
+		while #fresh < Config.KeyCount and #rooms > 0 do
+			local room = table.remove(rooms, rng:NextInteger(1, #rooms)) :: string
+			take(fresh, byRoom[room])
 		end
 		housePicks = fresh
 	end

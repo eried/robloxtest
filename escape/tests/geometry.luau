@@ -12,7 +12,7 @@ for _ = 1, 40 do
 end
 local out = {}
 for _, p in Engine.workspace:GetDescendants() do
-	if p:IsA("BasePart") and p.Transparency < 1 then
+	if p:IsA("BasePart") and (p.Transparency < 1 or (process.args[2] == "all" and p.CanCollide)) then
 		local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = p.CFrame:GetComponents()
 		local c = p.Color
 		table.insert(out, {
@@ -26,6 +26,7 @@ for _, p in Engine.workspace:GetDescendants() do
 			wedge = p.ClassName == "WedgePart",
 			mesh = p:FindFirstChildOfClass("SpecialMesh") ~= nil,
 			a = 1 - p.Transparency,
+			col = p.CanCollide,
 		})
 	end
 end

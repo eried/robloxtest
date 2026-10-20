@@ -98,6 +98,22 @@ for _, k in keys() do
 	local floor = if p.Y > Config.Floor2 - 3 then 2 else 1
 	check(p.Y > (if floor == 2 then Config.Floor2 else 0) + 0.5, "a key is under the floor")
 end
+-- One key in each bedroom upstairs
+local floorParts = {}
+for _, d in world:GetDescendants() do
+	if d.Name == "Floor" then
+		table.insert(floorParts, d)
+	end
+end
+local keyRooms: { [string]: boolean } = {}
+for _, k in keys() do
+	local hit = Engine.raycast(k:GetPivot().Position, Vector3.new(0, -10, 0), { FilterType = roblox.Enum.RaycastFilterType.Include, FilterDescendantsInstances = floorParts })
+	local room = hit and hit.Instance:GetAttribute("Room")
+	if type(room) == "string" then
+		keyRooms[room] = true
+	end
+end
+check(keyRooms.kid == true and keyRooms.girl == true and keyRooms.mom == true, "the keys are not one in each bedroom")
 
 local function teleport(player: any, pos: any)
 	local r = root(player)

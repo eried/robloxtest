@@ -323,29 +323,87 @@ def dream_box():
 # Sound effects -------------------------------------------------------------
 
 
+def shaped(g, n, peaks, lo=80, hi=6000, tilt=0.5, noise=None):
+    """Noise with a smooth spectrum: wide soft peaks, gentle slopes, a pink tilt. RMS 1."""
+    x = noise if noise is not None else g.standard_normal(n)
+    f = np.fft.rfftfreq(n, 1 / SR)
+    spec = np.full(len(f), 0.05)
+    for fc, bw, gain in peaks:
+        spec += gain * np.exp(-0.5 * ((f - fc) / bw) ** 2)
+    spec /= np.sqrt(1 + (lo / np.maximum(f, 1)) ** 4)
+    spec /= np.sqrt(1 + (f / hi) ** 4)
+    spec *= (np.maximum(f, 40) / 1000) ** -tilt
+    y = np.fft.irfft(np.fft.rfft(x) * spec, n)
+    return y / max(np.sqrt(np.mean(y ** 2)), 1e-9)
+
+
+def curve(n, a, b):
+    """A smooth swell from 0 to 1 and back: rises like x^a, falls like (1 - x)^b."""
+    x = np.linspace(0, 1, n)
+    e = x ** a * (1 - x) ** b
+    return e / max(e.max(), 1e-9)
+
+
+def drift(g, n, rate):
+    """Slow random wobble around 0, about -1 to 1, changing about rate times a second."""
+    f = np.fft.rfftfreq(n, 1 / SR)
+    y = np.fft.irfft(np.fft.rfft(g.standard_normal(n)) * np.exp(-0.5 * (f / rate) ** 2), n)
+    return y / max(np.abs(y).max(), 1e-9)
+
+
+def flutter(g, n, f0, span):
+    """Soft palate flutter: uneven soft pulses near f0 Hz, each a little different."""
+    freq = f0 + span * drift(g, n, 2.5) + 2.5 * drift(g, n, 9)
+    phase = 2 * np.pi * np.cumsum(freq) / SR
+    cycles = int(phase[-1] / (2 * np.pi)) + 2
+    amp = g.uniform(0.45, 1.0, cycles)
+    shape = g.uniform(1.5, 3.0, cycles)
+    k = (phase / (2 * np.pi)).astype(int)
+    return amp[k] * ((1 - np.cos(phase)) / 2) ** shape[k]
+
+
+def room(x, wet=0.1, seed=5):
+    """A small quiet bedroom, wrapped around so the loop stays seamless."""
+    g = np.random.default_rng(seed)
+    m = int(0.3 * SR)
+    t = np.arange(m) / SR
+    ir = lowpass(g.standard_normal(m), 8) * np.exp(-t * 18)
+    ir /= np.sqrt(np.sum(ir ** 2))
+    w = np.fft.irfft(np.fft.rfft(x) * np.fft.rfft(ir, len(x)), len(x))
+    return x * (1 - wet) + w * wet * np.sqrt(np.mean(x ** 2)) / max(np.sqrt(np.mean(w ** 2)), 1e-9)
+
+
 def breathe(deep):
-    """Sleeping breath: a soft nasal inhale with a little snore, a long sigh out."""
+    """Asleep: a soft nasal inhale, a pause, a long relaxed sigh out, a rest. Mom snores a little."""
     g = np.random.default_rng(11 if deep else 12)
-    d_in, d_out = (1.7, 1.9) if deep else (1.3, 1.5)
-    n = int(d_in * SR)
-    t = np.arange(n) / SR
-    rise = np.sin(np.pi * t / d_in) ** 1.4
-    inhale = band(g.standard_normal(n), 500 if deep else 800, 2600 if deep else 3600) * rise * 0.5
+    up = 1.0 if deep else 1.12
     if deep:
-        f0 = 24 + 5 * np.sin(np.pi * t / d_in)
-        pulses = (np.diff(np.floor(np.cumsum(f0) / SR), prepend=0) > 0).astype(float)
-        k = np.arange(int(0.04 * SR)) / SR
-        ir = np.exp(-k * 60) * np.sin(2 * np.pi * 170 * k) + 0.5 * np.exp(-k * 90) * np.sin(2 * np.pi * 420 * k)
-        rattle = np.convolve(pulses, ir)[:n]
-        inhale += norm(rattle, 0.5) * rise ** 2
-    m = int(d_out * SR)
-    t2 = np.arange(m) / SR
-    sigh = band(g.standard_normal(m), 180 if deep else 300, 1500 if deep else 2200) * (np.minimum(t2 / 0.12, 1) * np.exp(-t2 * 1.6)) * 0.6
-    puff = np.zeros(m)
-    k2 = int(0.05 * SR)
-    puff[:k2] = band(g.standard_normal(k2), 100, 700) * np.exp(-np.arange(k2) / SR * 60) * (0.8 if deep else 0.3)
-    out = np.concatenate([inhale, np.zeros(int(0.12 * SR)), sigh + puff, np.zeros(int((0.7 if deep else 0.5) * SR))])
-    return norm(out, 0.75)
+        plan = [(1.5, 0.14, 1.95, 0.55, 1.0, 0.35), (1.7, 0.12, 2.15, 0.65, 0.9, 0.6), (1.45, 0.16, 1.85, 0.5, 0.95, 0.15)]
+    else:
+        plan = [(1.2, 0.12, 1.55, 0.55, 1.0, 0), (1.35, 0.1, 1.7, 0.7, 0.85, 0), (1.15, 0.14, 1.5, 0.5, 0.92, 0)]
+    out = [np.zeros(int(0.04 * SR))]
+    for d_in, gap, d_out, rest, gain, snore in plan:
+        n = int(d_in * SR)
+        e = curve(n, 1.6, 1.3)
+        soft = shaped(g, n, [(650 * up, 320, 1.0), (1700 * up, 600, 0.55), (2900 * up, 900, 0.2)], 180 * up, 4500 * up, 0.45)
+        bright = shaped(g, n, [(950 * up, 400, 0.8), (2200 * up, 700, 0.9), (3400 * up, 1000, 0.35)], 250 * up, 6000 * up, 0.35)
+        inhale = e * (soft * (1 - 0.6 * e) + bright * 0.6 * e) * 0.5
+        if snore > 0:
+            body = shaped(g, n, [(420, 160, 1.0), (900, 300, 0.45), (1600, 500, 0.12)], 90, 2400, 0.25)
+            buzz = flutter(g, n, 33, 6)
+            inhale += body * (0.3 + 0.7 * buzz) * curve(n, 2.6, 1.3) * snore * 0.65
+        m = int(d_out * SR)
+        e2 = curve(m, 0.9, 2.4) * np.minimum(np.arange(m) / (0.06 * SR), 1)
+        low = shaped(g, m, [(380 * up, 220, 1.0), (1250 * up, 450, 0.45), (2400 * up, 700, 0.15)], 110 * up, 3800 * up, 0.6)
+        air = shaped(g, m, [(800 * up, 400, 0.6), (1900 * up, 700, 0.5)], 200 * up, 5000 * up, 0.4)
+        exhale = e2 * (low * 0.75 + air * 0.25 * e2) * 0.42
+        if deep:
+            k = int(0.12 * SR)
+            exhale[:k] += shaped(g, k, [(300, 150, 1.0), (700, 250, 0.4)], 100, 1500, 0.3) * curve(k, 0.6, 3.0) * 0.12
+        out += [inhale * gain, np.zeros(int(gap * SR)), exhale * gain, np.zeros(int(rest * SR))]
+    x = room(np.concatenate(out), 0.1, 13 if deep else 14)
+    x *= 0.09 / np.sqrt(np.mean(x ** 2))
+    return x * min(1, 0.92 / np.abs(x).max())
 
 
 def squeak(double):
@@ -470,16 +528,17 @@ def purr():
 
 
 def snort():
+    """A sudden snore and a gasp, about to wake."""
+    g = np.random.default_rng(71)
     n = int(0.45 * SR)
     t = np.arange(n) / SR
-    pulses = (np.diff(np.floor(np.cumsum(40 + 30 * t) / SR), prepend=0) > 0).astype(float)
-    k = np.arange(int(0.04 * SR)) / SR
-    ir = np.exp(-k * 50) * np.sin(2 * np.pi * 200 * k)
-    burst = np.convolve(pulses, ir)[:n] * np.exp(-t * 6)
+    body = shaped(g, n, [(380, 150, 1.0), (850, 280, 0.5), (1500, 450, 0.15)], 80, 2600, 0.2)
+    buzz = flutter(g, n, 38 + 20 * t / 0.45, 5)
+    burst = body * (0.2 + 0.8 * buzz) * curve(n, 0.5, 1.6) * np.minimum(t / 0.015, 1)
     m = int(0.5 * SR)
-    t2 = np.arange(m) / SR
-    gasp = band(rng.standard_normal(m), 300, 3000) * np.sin(np.pi * t2 / 0.5) * np.linspace(0.6, 1, m) * 0.6
-    return norm(np.concatenate([norm(burst), gasp]))
+    gasp = shaped(None, m, [(800, 350, 0.8), (1900, 600, 0.9), (3000, 900, 0.3)], 250, 5000, 0.35, noise=rng.standard_normal(m))
+    gasp *= curve(m, 1.4, 0.8) * 0.45
+    return norm(np.concatenate([burst, gasp]))
 
 
 def pop():
@@ -612,8 +671,10 @@ def sigh():
     """Settling back to sleep: a long soft sigh out."""
     g = np.random.default_rng(41)
     m = int(1.6 * SR)
-    t = np.arange(m) / SR
-    return norm(band(g.standard_normal(m), 200, 1600) * np.minimum(t / 0.15, 1) * np.exp(-t * 1.8), 0.7)
+    e = curve(m, 0.7, 2.2) * np.minimum(np.arange(m) / (0.05 * SR), 1)
+    low = shaped(g, m, [(420, 220, 1.0), (1300, 450, 0.5), (2500, 700, 0.15)], 120, 3800, 0.55)
+    air = shaped(g, m, [(900, 400, 0.6), (2000, 700, 0.45)], 220, 5000, 0.4)
+    return norm(e * (low * 0.75 + air * 0.25 * e), 0.7)
 
 
 def crickets():

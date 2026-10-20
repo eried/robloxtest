@@ -1038,6 +1038,10 @@ Engine.stores = stores
 function Engine.raycast(origin: any, direction: any, params: any): any
 	local exclude = params and params.FilterDescendantsInstances or {}
 	local include = params and params.FilterType == Enum.RaycastFilterType.Include
+	local set: { [any]: boolean } = {}
+	for _, f in exclude do
+		set[f] = true
+	end
 	local best: number = 1
 	local hit: any = nil
 	for part in Engine.parts do
@@ -1048,11 +1052,13 @@ function Engine.raycast(origin: any, direction: any, params: any): any
 			continue
 		end
 		local listed = false
-		for _, f in exclude do
-			if part == f or part:IsDescendantOf(f) then
+		local a = part
+		while a do
+			if set[a] then
 				listed = true
 				break
 			end
+			a = a.Parent
 		end
 		if listed ~= (include == true) then
 			continue

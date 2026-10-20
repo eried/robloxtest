@@ -7,6 +7,10 @@ on:
         description: Make the game public
         type: boolean
         default: false
+      upload_art:
+        description: Upload the icon and thumbnail in escape/art
+        type: boolean
+        default: false
   push:
     branches: [claude/roblox-forest-cat-game-qr4nzd]
     paths: [escape/**, tools/roblox.py, .github/workflows/escape.yml]
@@ -92,6 +96,13 @@ jobs:
         env:
           ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
         run: python3 escape/tools/publish.py public | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Icon and thumbnail
+        if: env.HAS_KEY == 'true' && inputs.upload_art
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py art | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Game name
         if: env.HAS_KEY == 'true'

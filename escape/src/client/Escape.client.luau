@@ -18,6 +18,7 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local world = workspace:WaitForChild("World")
 local GOLD = Color3.fromRGB(255, 205, 60)
+local KEY_BRONZE = Color3.fromRGB(214, 150, 62)
 local SFX = Config.Sfx
 
 local function new(class: string, props: { [string]: any }): any
@@ -93,6 +94,10 @@ local function whenLoaded(s: Sound, f: () -> ())
 	end
 end
 
+-- Sounds of the house: breathing, the clock, toys, crickets. Quiet until the dream is over
+local worldSounds = new("SoundGroup", { Name = "World", Volume = 0, Parent = SoundService })
+local introOn = false
+
 -- One clip from a sound sheet. Little sounds are skipped until the sheet has loaded
 local function playClip(parent: Instance, clip: { number }?, volume: number, speed: number, range: number, from: Sound?, optional: boolean?): Sound?
 	if not from or not clip then
@@ -112,6 +117,9 @@ local function playClip(parent: Instance, clip: { number }?, volume: number, spe
 	s.RollOffMaxDistance = range
 	s.PlaybackRegionsEnabled = true
 	s.PlaybackRegion = NumberRange.new(c[1], c[1] + c[2])
+	if parent ~= SoundService then
+		s.SoundGroup = worldSounds
+	end
 	s.Parent = parent
 	-- Cleaned up once the clip has really played. A sound that is not loaded yet "ends" at
 	-- once, so it only gets cleaned up after it has loaded and played
@@ -158,6 +166,7 @@ local function loopClip(parent: Instance, clip: { number }, volume: number, rang
 	s.RollOffMode = Enum.RollOffMode.InverseTapered
 	s.RollOffMinDistance = 6
 	s.RollOffMaxDistance = range
+	s.SoundGroup = worldSounds
 	s.Parent = parent
 	whenLoaded(s, function()
 		s.PlaybackRegionsEnabled = true
@@ -432,10 +441,12 @@ local function flyKey(from: Vector3, index: number, gateKey: boolean)
 end
 
 -- Sleepers breathe. A snort means they are about to look around: freeze!
-type Sleeper = { model: Model, head: BasePart, breath: Sound?, mark: TextLabel, phase: string, cone: { BasePart }, drawn: string }
+type Sleeper = { model: Model, head: BasePart, breath: Sound?, level: number, room: string, mark: TextLabel, phase: string, cone: { BasePart }, drawn: string }
 local sleepers: { Sleeper } = {}
 local MARKS = { sleep = "💤", warn = "❗", look = "👀", awake = "‼️" }
+-- Breathing is loud in their own room, soft elsewhere upstairs and silent downstairs
 local SNORE = 5
+local SNORE_SOFT = 1.2
 local SIGHT_SLICES = 36
 local sightFolder = new("Folder", { Name = "SightCones", Parent = workspace })
 -- Where a sleeper looks: about to look covers both sides, looking is the real view
@@ -516,10 +527,11 @@ local function addSleeper(model: Instance)
 		local s = (sfx :: Sound):Clone()
 		s.Looped = true
 		s.PlaybackSpeed = (model:GetAttribute("Pitch") :: number?) or 1
-		s.Volume = SNORE
+		s.Volume = 0
 		s.RollOffMode = Enum.RollOffMode.InverseTapered
-		s.RollOffMinDistance = 14
-		s.RollOffMaxDistance = Config.SnoreRange + 60
+		s.RollOffMinDistance = 10
+		s.RollOffMaxDistance = 80
+		s.SoundGroup = worldSounds
 		s.Parent = head
 		breath = s
 		whenLoaded(s, function()
@@ -537,7 +549,7 @@ local function addSleeper(model: Instance)
 	for i = 1, SIGHT_SLICES * 2 do
 		cone[i] = new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 215, 70), Transparency = 1, Size = Vector3.one * 0.1, Parent = sightFolder })
 	end
-	local entry: Sleeper = { model = model, head = head, breath = breath, mark = mark, phase = "sleep", cone = cone, drawn = "" }
+	local entry: Sleeper = { model = model, head = head, breath = breath, level = 0, room = (model:GetAttribute("Room") :: string?) or "", mark = mark, phase = "sleep", cone = cone, drawn = "" }
 	table.insert(sleepers, entry)
 	model:GetAttributeChangedSignal("Stir"):Connect(function()
 		local phase = (model:GetAttribute("Stir") :: string?) or "sleep"
@@ -554,9 +566,6 @@ local function addSleeper(model: Instance)
 			end
 		elseif phase == "look" then
 			sound(if kid then "HmmKid" else "Hmm", 1.4, 1, head, 90)
-		end
-		if breath then
-			TweenService:Create(breath, TweenInfo.new(0.4), { Volume = if phase == "sleep" then SNORE else 0 }):Play()
 		end
 	end)
 end
@@ -586,6 +595,7 @@ task.spawn(function()
 			s.RollOffMode = Enum.RollOffMode.InverseTapered
 			s.RollOffMinDistance = 6
 			s.RollOffMaxDistance = 70
+			s.SoundGroup = worldSounds
 			s.Parent = d
 			whenLoaded(s, function()
 				s.PlaybackRegionsEnabled = true
@@ -989,6 +999,13 @@ local sneaking = false
 local sneakAt = 0
 local sneakRay = RaycastParams.new()
 sneakRay.FilterType = Enum.RaycastFilterType.Exclude
+-- The floor under Pianka tells the room, the rays only see floors and the stairs
+local floorRay = RaycastParams.new()
+floorRay.FilterType = Enum.RaycastFilterType.Include
+local floorParts: { Instance } = {}
+local myRoom = ""
+local floorRoom = ""
+local roomMix = 0
 local asleepShown = false
 local stride = 0
 local lastPaw = 0
@@ -1008,13 +1025,22 @@ RunService.RenderStepped:Connect(function(dt: number)
 			sneakAt = os.clock() + 0.1
 			near = false
 			-- What is under her: a bedroom floor means sneaking, the stairs turn the bumpers off
-			sneakRay.FilterDescendantsInstances = { character :: Instance, sightFolder, coneFolder }
-			local below = workspace:Raycast(root.Position, Vector3.new(0, -4, 0), sneakRay)
+			local stairs = world:FindFirstChild("Stairs", true)
+			if #floorParts == 0 then
+				for _, d in world:GetDescendants() do
+					if d:IsA("BasePart") and (d.Name == "Floor" or (stairs and d:IsDescendantOf(stairs))) then
+						table.insert(floorParts, d)
+					end
+				end
+				floorRay.FilterDescendantsInstances = floorParts
+			end
+			local below = workspace:Raycast(root.Position, Vector3.new(0, -12, 0), floorRay)
 			local room = below and below.Instance:GetAttribute("Room")
-			if type(room) == "string" and (string.find(room, "kid", 1, true) or string.find(room, "girl", 1, true) or string.find(room, "mom", 1, true)) then
+			floorRoom = if type(room) == "string" then room else ""
+			myRoom = if type(room) == "string" and (string.find(room, "kid", 1, true) or string.find(room, "girl", 1, true) or string.find(room, "mom", 1, true)) then room else ""
+			if myRoom ~= "" then
 				near = true
 			end
-			local stairs = world:FindFirstChild("Stairs", true)
 			local onStairs = below ~= nil and stairs ~= nil and below.Instance:IsDescendantOf(stairs)
 			for _, p in (character :: Instance):GetChildren() do
 				if p:IsA("BasePart") and p.Name == "Bumper" and p.CanCollide == onStairs then
@@ -1043,6 +1069,17 @@ RunService.RenderStepped:Connect(function(dt: number)
 			end
 		end
 		sneaking = near
+		-- Breathing: loud in their own room, soft elsewhere upstairs
+		for _, s in sleepers do
+			if s.breath then
+				local want = 0
+				if s.phase == "sleep" and up then
+					want = if myRoom ~= "" and myRoom == s.room then SNORE else SNORE_SOFT
+				end
+				s.level += (want - s.level) * math.min(1, dt * 1.5)
+				s.breath.Volume = s.level
+			end
+		end
 		local airborne = humanoid.FloorMaterial == Enum.Material.Air
 		humanoid.WalkSpeed = if clipOn then 0 elseif near and airborne then Config.HopSpeed elseif near then Config.SneakSpeed else Config.WalkSpeed
 		humanoid.JumpHeight = if clipOn then 0 else Config.JumpHeight
@@ -1066,11 +1103,13 @@ RunService.RenderStepped:Connect(function(dt: number)
 		target = clipDanger
 	end
 	danger += (target - danger) * math.min(1, dt * (if target > danger then 3 else 0.6))
+	-- In a bedroom the music fades away and only the breathing is left
+	roomMix += ((if myRoom ~= "" and not clipOn then 1 else 0) - roomMix) * math.min(1, dt * 1.2)
 	if music and musicOn then
-		music.Volume = if tense then 0.4 * (1 - 0.65 * danger) else 0.4
+		music.Volume = (if tense then 0.4 * (1 - 0.65 * danger) else 0.4) * (1 - roomMix)
 	end
 	if tense and musicOn then
-		tense.Volume = 0.5 * danger
+		tense.Volume = 0.5 * danger * (1 - roomMix)
 	end
 	-- Keep the tense layer in step with the tune, checked now and then
 	local now = os.clock()
@@ -1615,7 +1654,6 @@ local function viewOf(target: Vector3, from: Vector3, skip: Instance?): Vector3
 end
 
 -- Pianka asleep in her bed, dreaming. Then she wakes up and wants to go out
-local introOn = false
 local function intro()
 	introOn = true
 	local my = beginClip(4, 0) :: number
@@ -1702,6 +1740,7 @@ local function intro()
 	TweenService:Create(fade, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
 	keyBar.Visible = true
 	introOn = false
+	TweenService:Create(worldSounds, TweenInfo.new(2), { Volume = 1 }):Play()
 	endClip(my)
 	startMusic()
 	-- The clock for the speed score starts now
@@ -1737,9 +1776,10 @@ local function along(path: { Vector3 }, k: number): Vector3
 end
 local function ghostKey(at: Vector3): Model
 	local m = Instance.new("Model")
-	local p = new("Part", { Size = Vector3.new(0.7, 0.7, 2.6), Material = Enum.Material.Neon, Color = GOLD, Anchored = true, CanCollide = false, CanQuery = false, Transparency = 0.15, CFrame = CFrame.new(at), Parent = m })
-	new("Sparkles", { SparkleColor = GOLD, Parent = p })
+	local p = new("Part", { Size = Vector3.new(0.7, 0.7, 2.6), Material = Enum.Material.Metal, Color = KEY_BRONZE, Anchored = true, CanCollide = false, CanQuery = false, CFrame = CFrame.new(at), Parent = m })
+	new("Part", { Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.5, 1.8, 1.8), Material = Enum.Material.Metal, Color = KEY_BRONZE, Anchored = true, CanCollide = false, CanQuery = false, CFrame = CFrame.new(at) * CFrame.new(0, 0, 1.7) * CFrame.Angles(0, 0, math.rad(90)), Parent = m })
 	new("PointLight", { Color = GOLD, Range = 14, Brightness = 2, Parent = p })
+	new("Highlight", { FillColor = GOLD, FillTransparency = 0.75, OutlineColor = GOLD, OutlineTransparency = 0.1, DepthMode = Enum.HighlightDepthMode.Occluded, Parent = m })
 	m.PrimaryPart = p
 	m.Parent = workspace
 	return m
@@ -1898,21 +1938,18 @@ local function showDoorHint()
 	doorHint = bill
 end
 
--- Near the stairs or the door downstairs, once each round: the door is locked, the keys are up there
+-- Once each round, in the hall where she sees the door and the stairs: the door is locked, the keys are up there
 RunService.Heartbeat:Connect(function()
 	if lockedShown or clipOn or introOn or workspace:GetAttribute("State") ~= "play" or workspace:GetAttribute("Stage") ~= "house" then
 		return
 	end
 	local house = world:FindFirstChild("House")
 	local door = house and house:FindFirstChild("ExitDoor") :: BasePart?
-	local stairs = house and house:FindFirstChild("Stairs")
-	local ramp = stairs and stairs:FindFirstChild("Ramp") :: BasePart?
 	local root = myRoot()
 	if not door or not root or root.Position.Y > 10 or ((workspace:GetAttribute("Keys") :: number?) or 0) >= Config.KeyCount then
 		return
 	end
-	local foot = if ramp then ramp.Position - ramp.CFrame.LookVector * (ramp.Size.Z / 2) else door.Position
-	if (root.Position - door.Position).Magnitude < 14 or Vector3.new(root.Position.X - foot.X, 0, root.Position.Z - foot.Z).Magnitude < 12 then
+	if floorRoom == "hall" then
 		task.spawn(lockedClip, door)
 	end
 end)
