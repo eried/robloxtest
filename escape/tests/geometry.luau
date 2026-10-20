@@ -23,6 +23,7 @@ for _, p in Engine.workspace:GetDescendants() do
 			ball = p.Shape == roblox.Enum.PartType.Ball,
 			cyl = p.Shape == roblox.Enum.PartType.Cylinder,
 			neon = p.Material == roblox.Enum.Material.Neon,
+			wedge = p.ClassName == "WedgePart",
 			a = 1 - p.Transparency,
 		})
 	end

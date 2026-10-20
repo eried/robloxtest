@@ -192,6 +192,63 @@ def dream():
     return norm(reverb(mix(parts, 2.6)[: int(2.6 * SR)], 0.45, 1.8, 1.8))
 
 
+# Backyard sounds use their own random numbers so the house sounds and the music stay the same
+def beep():
+    n = int(0.14 * SR)
+    t = np.arange(n) / SR
+    return norm(np.sin(2 * np.pi * 1180 * t) * env(n, 0.005, 0.05), 0.6)
+
+
+def alert():
+    parts = []
+    for i, f in enumerate((988, 740, 988, 740)):
+        n = int(0.16 * SR)
+        t = np.arange(n) / SR
+        tone = np.tanh(1.6 * np.sin(2 * np.pi * f * t)) * env(n, 0.005, 0.03) * 0.5
+        parts.append((i * 0.19, tone, 1.0))
+    for m, t0 in ((62, 0.8), (61, 0.8), (57, 0.8)):
+        parts.append((t0, bell(midi(m), 1.6, 1.3), 1.0))
+    n = int(0.6 * SR)
+    t = np.arange(n) / SR
+    parts.append((0.8, np.sin(2 * np.pi * (70 + 30 * np.exp(-t * 8)) * t) * np.exp(-t * 5) * 0.8, 1.0))
+    return norm(reverb(mix(parts, 2.2)[: int(2.2 * SR)], 0.25, 3, 1.0))
+
+
+def buzz():
+    g = np.random.default_rng(21)
+    parts = []
+    for t0 in (0.0, 0.5):
+        n = int(0.38 * SR)
+        t = np.arange(n) / SR
+        motor = np.sign(np.sin(2 * np.pi * 172 * t)) * 0.4 + np.sin(2 * np.pi * 344 * t) * 0.3
+        rattle = lowpass(g.standard_normal(n), 3) * 0.25 * (np.sin(2 * np.pi * 43 * t) > 0)
+        parts.append((t0, lowpass((motor + rattle) * env(n, 0.02, 0.04), 4), 1.0))
+    return norm(mix(parts, 0.95)[: int(0.95 * SR)], 0.8)
+
+
+def ding():
+    parts = [(0, bell(midi(88), 1.4, 1.4), 1.0), (0.16, bell(midi(93), 1.6, 1.4), 1.0)]
+    return norm(reverb(mix(parts, 1.6)[: int(1.6 * SR)], 0.2, 3, 0.8))
+
+
+def gate_motor():
+    g = np.random.default_rng(31)
+    d = 2.8
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    hum = (np.sin(2 * np.pi * 96 * t) + 0.5 * np.sin(2 * np.pi * 192 * t)) * 0.35
+    roll = lowpass(g.standard_normal(n), 30) * (0.6 + 0.4 * np.sin(2 * np.pi * 7 * t))
+    squeal = 0.05 * np.sin(2 * np.pi * (1500 + 300 * np.sin(2 * np.pi * 0.7 * t)) * t)
+    body = (hum + roll + squeal) * env(n, 0.25, 0.3)
+    m = int(0.4 * SR)
+    k = np.arange(m) / SR
+    clank = (np.sin(2 * np.pi * 420 * k) * 0.6 + np.sin(2 * np.pi * 1130 * k) * 0.3 + g.standard_normal(m) * 0.3) * np.exp(-k * 14)
+    out = np.zeros(n + m)
+    out[:n] += body
+    out[n - int(0.1 * SR) : n - int(0.1 * SR) + m] += clank
+    return norm(out)
+
+
 def sneak_music():
     beat = 0.42
     bars = 16
@@ -249,6 +306,8 @@ def main():
         ("Track", ball_track()), ("Unlock", unlock()), ("Key", key_melody()), ("AllKeys", fanfare()),
         ("Purr", purr()), ("Snort", snort()), ("Dream", dream()),
     ]
+    music = sneak_music()
+    clips += [("Beep", beep()), ("Alert", alert()), ("Buzz", buzz()), ("Ding", ding()), ("Gate", gate_motor())]
     table, chunks, pos = {}, [np.zeros(int(0.3 * SR))], 0.3
     for name, x in clips:
         table[name] = [round(pos, 3), round(len(x) / SR, 3)]
@@ -257,7 +316,6 @@ def main():
     os.makedirs(os.path.join(ROOT, "sounds"), exist_ok=True)
     os.makedirs(os.path.join(ROOT, "music"), exist_ok=True)
     to_mp3(np.concatenate(chunks), os.path.join(ROOT, "sounds", "PiankaEscapeSfx.mp3"))
-    music = sneak_music()
     to_mp3(music, os.path.join(ROOT, "music", "PiankaSneak.mp3"))
     print(json.dumps(table))
     print("music", round(len(music) / SR, 2), "s")

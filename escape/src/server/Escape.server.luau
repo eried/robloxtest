@@ -1,4 +1,4 @@
--- Pianka the Escape: the sleeping house, built from the plan, with keys, noise and the way out
+-- Pianka the Escape: the sleeping house and the backyard, built from the plan, with keys, noise, cameras and the way out
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -10,6 +10,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Plan = require(Shared:WaitForChild("Plan"))
 local Cat = require(Shared:WaitForChild("Cat"))
+local Watch = require(Shared:WaitForChild("Watch"))
 
 local U = Config.Square
 local WALL = Config.WallHeight
@@ -416,6 +417,11 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 	local blanketColor = if look then look.blanket else Color3.fromRGB(200, 185, 160)
 	box(model, "Blanket", cf * CFrame.new(0, 4.6, -1.6), Vector3.new(width - 0.2, 0.4, depth - 4.6), blanketColor, Enum.Material.Fabric)
 	surface(floorNo, r, baseY + 4.8)
+	if it.t == "bedMom" then
+		-- Her phone by the pillow, it lights up when a camera sees Pianka
+		box(model, "Phone", cf * CFrame.new(width / 2 - 1.4, 4.58, depth / 2 - 2.4), Vector3.new(1, 0.16, 1.8), Color3.fromRGB(30, 30, 36), Enum.Material.SmoothPlastic, false)
+		box(model, "PhoneScreen", cf * CFrame.new(width / 2 - 1.4, 4.68, depth / 2 - 2.4), Vector3.new(0.85, 0.05, 1.6), Color3.fromRGB(12, 14, 20), Enum.Material.Glass, false)
+	end
 	if look then
 		local head = buildSleeper(model, cf, width, depth, look, it.t)
 		model:SetAttribute("Sleeper", look.name)
@@ -652,8 +658,16 @@ local YX, YZ = -16 * U, -14 * U
 local function inHouse(x: number, y: number): boolean
 	return x >= 16 and x < 16 + floor1.w and y >= 14 and y < 14 + floor1.h
 end
+local cameras: { { eye: Vector3, yaw: number, phase: number } } = {}
+local yardKeySpots: { { pos: Vector3, garage: boolean } } = {}
+local gate: BasePart? = nil
+local gateClosedCf = CFrame.identity
+local gateSlide = Vector3.zero
+local gateLine = math.huge
+local camFolder: Folder
 do
 	local yf = folder("Yard")
+	camFolder = folder("Cameras", yf)
 	part({ Name = "Ground", Size = Vector3.new(yard.w * U + 400, 2, yard.h * U + 400), CFrame = CFrame.new(YX + yard.w * U / 2, -1.06, YZ + yard.h * U / 2), Material = Enum.Material.Grass, Color = Color3.fromRGB(70, 120, 60), Parent = yf })
 	local function yardRects(kind: string): { Rect }
 		return rects(yard, function(c, x, y)
@@ -686,11 +700,24 @@ do
 	end) do
 		block(r, YX, YZ, DOOR, WALL, { Name = "DoorTop", Material = Enum.Material.Brick, Color = Color3.fromRGB(170, 120, 100), Parent = yf })
 	end
-	-- The gate in the fence stays shut for now
+	-- The gate in the fence, locked three times
 	for _, r in rects(yard, function(c, x, y)
 		return c == "d" and (x == 0 or y == 0 or x == yard.w - 1 or y == yard.h - 1)
 	end) do
-		block(r, YX, YZ, 0, 10, { Name = "Gate", Material = Enum.Material.Metal, Color = Color3.fromRGB(60, 65, 70), Parent = yf })
+		local g = block(r, YX, YZ, 0, 10, { Name = "Gate", Material = Enum.Material.Metal, Color = Color3.fromRGB(60, 65, 70), Parent = yf })
+		local across = r.w >= r.h
+		for i = -1, 1 do
+			local offset = if across then Vector3.new(i * 2.4, 1.5, -0.9 - r.h * U / 2 + 0.5) else Vector3.new(-0.9 - r.w * U / 2 + 0.5, 1.5, i * 2.4)
+			local lock = part({ Name = "Lock", Size = Vector3.new(1.3, 1.7, 1.3), CFrame = CFrame.new(g.Position + offset), Material = Enum.Material.Metal, Color = Color3.fromRGB(220, 180, 60), CanCollide = false, Anchored = false, Parent = g })
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = g
+			weld.Part1 = lock
+			weld.Parent = lock
+		end
+		gate = g
+		gateClosedCf = g.CFrame
+		gateSlide = if across then Vector3.new(r.w * U, 0, 0) else Vector3.new(0, 0, r.h * U)
+		gateLine = YZ + (r.y + r.h) * U
 	end
 	for _, r in rects(yard, function(c, x, y)
 		local edge = x == 0 or y == 0 or x == yard.w - 1 or y == yard.h - 1
@@ -733,11 +760,24 @@ do
 				end
 			end
 		elseif it.t == "camera" then
-			local dir = ({ Vector3.new(0, 0, -1), Vector3.new(1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(-1, 0, 0) })[it.r % 4 + 1]
-			local cam = part({ Name = "Camera", Size = Vector3.new(1.2, 1.2, 2.4), CFrame = CFrame.lookAt(c + Vector3.new(0, 14, 0), c + Vector3.new(0, 12, 0) + dir * 10), Color = Color3.fromRGB(235, 235, 240), Parent = yf })
-			local led = part({ Name = "Led", Size = Vector3.one * 0.35, CFrame = cam.CFrame * CFrame.new(0.35, 0.35, -1.2), Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 40, 40), CanCollide = false, Parent = yf })
+			-- A camera on a pole, sweeping left and right. The client turns it and draws its cone
+			local yaw = (it.r % 4) * math.pi / 2
+			local phase = #cameras * 1.9
+			local eye = c + Vector3.new(0, 14, 0)
+			local look = Watch.look(yaw, phase, 0)
+			local cam = Instance.new("Model")
+			cam.Name = "Cam"
+			cam:SetAttribute("Yaw", yaw)
+			cam:SetAttribute("Phase", phase)
+			cam.Parent = camFolder
+			local head = part({ Name = "Camera", Size = Vector3.new(1.2, 1.2, 2.4), CFrame = CFrame.lookAt(eye, eye + look * 10 - Vector3.new(0, 4, 0)), Color = Color3.fromRGB(235, 235, 240), CanCollide = false, Parent = cam })
+			local led = part({ Name = "Led", Size = Vector3.one * 0.35, CFrame = head.CFrame * CFrame.new(0.35, 0.35, -1.2), Material = Enum.Material.Neon, Color = Color3.fromRGB(255, 40, 40), CanCollide = false, Parent = cam })
 			led:SetAttribute("Blink", true)
-			part({ Name = "Pole", Size = Vector3.new(0.5, 14, 0.5), CFrame = CFrame.new(c + Vector3.new(0, 7, 0)), Color = Color3.fromRGB(80, 80, 85), Parent = yf })
+			cam.PrimaryPart = head
+			part({ Name = "Pole", Size = Vector3.new(0.5, 14, 0.5), CFrame = CFrame.new(c + Vector3.new(0, 6.6, 0)), Color = Color3.fromRGB(80, 80, 85), Parent = camFolder })
+			table.insert(cameras, { eye = eye, yaw = yaw, phase = phase })
+		elseif it.t == "key" then
+			table.insert(yardKeySpots, { pos = Vector3.new(c.X, 0, c.Z), garage = rawCell(yard, it.x, it.y) == "f" })
 		end
 	end
 end
@@ -766,6 +806,18 @@ local keysFound = 0
 local tease = 0
 local keyFolder = folder("Keys")
 local keyModels: { Model } = {}
+-- After the house comes the yard: gate keys, cameras and the gate
+local stage: string = "house"
+local gateFound = 0
+local gateOpen = false
+local seen: { [Player]: number } = {}
+local safeUntil: { [Player]: number } = {}
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+local function setStage(s: string)
+	stage = s
+	workspace:SetAttribute("Stage", s)
+end
 
 local function root(player: Player): BasePart?
 	local character = player.Character
@@ -805,6 +857,12 @@ local function makeKey(pos: Vector3, index: number): Model
 	return model
 end
 
+local function take(picks: { any }, list: { any })
+	if #list > 0 then
+		table.insert(picks, table.remove(list, rng:NextInteger(1, #list)))
+	end
+end
+
 -- Three keys: mostly upstairs where people sleep, sometimes one downstairs as a bonus
 local function placeKeys()
 	keyFolder:ClearAllChildren()
@@ -816,21 +874,46 @@ local function placeKeys()
 		table.insert(if s.floor == 2 then up else down, s)
 	end
 	local picks = {}
-	local function take(list: { any })
-		if #list > 0 then
-			table.insert(picks, table.remove(list, rng:NextInteger(1, #list)))
-		end
-	end
 	if #down > 0 and rng:NextNumber() < Config.DownstairsKeyChance then
-		take(down)
+		take(picks, down)
 	end
 	while #picks < Config.KeyCount and (#up > 0 or #down > 0) do
-		take(if #up > 0 then up else down)
+		take(picks, if #up > 0 then up else down)
 	end
 	for i, s in picks do
 		local y = keyHeight(s.floor, s.pos) + 1.6
 		table.insert(keyModels, makeKey(Vector3.new(s.pos.X, y, s.pos.Z), i))
 	end
+end
+
+-- Gate keys in the yard, one always hides in the garage
+local function placeGateKeys()
+	gateFound = 0
+	workspace:SetAttribute("GateKeys", 0)
+	local garage, other = {}, {}
+	for _, s in yardKeySpots do
+		table.insert(if s.garage then garage else other, s)
+	end
+	local picks = {}
+	take(picks, garage)
+	while #picks < Config.GateKeyCount and (#other > 0 or #garage > 0) do
+		take(picks, if #other > 0 then other else garage)
+	end
+	for i, s in picks do
+		local key = makeKey(s.pos + Vector3.new(0, 1.6, 0), i)
+		key:SetAttribute("Gate", true)
+		table.insert(keyModels, key)
+	end
+end
+
+local function openGate()
+	local g = gate
+	if gateOpen or not g then
+		return
+	end
+	gateOpen = true
+	g.CanCollide = false
+	TweenService:Create(g, TweenInfo.new(2.5, Enum.EasingStyle.Sine), { CFrame = gateClosedCf + gateSlide }):Play()
 end
 
 local doorOpen = false
@@ -850,6 +933,16 @@ end
 
 local function resetRound()
 	setState("play")
+	setStage("house")
+	table.clear(seen)
+	table.clear(safeUntil)
+	gateFound = 0
+	workspace:SetAttribute("GateKeys", 0)
+	if gate then
+		gateOpen = false
+		gate.CFrame = gateClosedCf
+		gate.CanCollide = true
+	end
 	if exitDoor then
 		doorOpen = false
 		exitDoor.CFrame = doorClosedCf
@@ -863,6 +956,7 @@ local function resetRound()
 	placeKeys()
 	for _, player in Players:GetPlayers() do
 		player:SetAttribute("Out", nil)
+		player:SetAttribute("Seen", nil)
 		local r = root(player)
 		if r then
 			r.Anchored = false
@@ -872,6 +966,19 @@ local function resetRound()
 	event:FireAllClients("round")
 end
 
+local function freezeAll()
+	for _, player in Players:GetPlayers() do
+		local r = root(player)
+		if r then
+			r.Anchored = true
+		end
+	end
+end
+
+local function sitUp(s: { head: BasePart, rest: CFrame })
+	TweenService:Create(s.head, TweenInfo.new(0.5, Enum.EasingStyle.Back), { CFrame = s.rest * CFrame.new(0, 3, -1.5) }):Play()
+end
+
 -- Someone woke up: Pianka goes back to bed and the keys go back
 local function wake(s: { name: string, head: BasePart, rest: CFrame })
 	if state ~= "play" then
@@ -879,18 +986,58 @@ local function wake(s: { name: string, head: BasePart, rest: CFrame })
 	end
 	setState("caught")
 	event:FireAllClients("wake", s.name, s.head.Position)
-	TweenService:Create(s.head, TweenInfo.new(0.5, Enum.EasingStyle.Back), { CFrame = s.rest * CFrame.new(0, 3, -1.5) }):Play()
-	for _, player in Players:GetPlayers() do
-		local r = root(player)
-		if r then
-			r.Anchored = true
-		end
-	end
+	sitUp(s)
+	freezeAll()
 	task.delay(Config.CaughtTime, function()
 		if workspace:GetAttribute("State") == "caught" then
 			resetRound()
 		end
 	end)
+end
+
+-- A camera saw Pianka: mom's phone buzzes, she wakes up and everything starts over
+local mom = nil
+for _, s in sleepers do
+	if s.model.Name == "bedMom" then
+		mom = s
+	end
+end
+local function spotted(eye: Vector3, player: Player)
+	if state ~= "play" then
+		return
+	end
+	setState("caught")
+	event:FireAllClients("spotted", player, eye)
+	freezeAll()
+	task.delay(Config.SpottedTime * 0.55, function()
+		if workspace:GetAttribute("State") == "caught" and mom then
+			sitUp(mom)
+		end
+	end)
+	task.delay(Config.SpottedTime, function()
+		if workspace:GetAttribute("State") == "caught" then
+			resetRound()
+		end
+	end)
+end
+
+-- The first camera that can see this spot right now, walls and bushes block the view
+local function watcher(pos: Vector3, t: number): Vector3?
+	for _, cam in cameras do
+		if Watch.inCone(cam.eye, Watch.look(cam.yaw, cam.phase, t), pos) then
+			local filter: { Instance } = { camFolder, keyFolder }
+			for _, p in Players:GetPlayers() do
+				if p.Character then
+					table.insert(filter, p.Character)
+				end
+			end
+			rayParams.FilterDescendantsInstances = filter
+			if not workspace:Raycast(cam.eye, pos - cam.eye, rayParams) then
+				return cam.eye
+			end
+		end
+	end
+	return nil
 end
 
 local function noise(pos: Vector3, loud: number, floorNo: number)
@@ -960,28 +1107,62 @@ RunService.Heartbeat:Connect(function(dt: number)
 				local key = keyModels[i]
 				if (key:GetPivot().Position - pos).Magnitude < 3.4 then
 					table.remove(keyModels, i)
+					local forGate = key:GetAttribute("Gate") == true
 					key:Destroy()
-					keysFound += 1
-					workspace:SetAttribute("Keys", keysFound)
-					event:FireAllClients("key", player, keysFound)
-					if keysFound >= Config.KeyCount then
-						openDoor()
-						event:FireAllClients("allKeys", player)
+					if forGate then
+						gateFound += 1
+						workspace:SetAttribute("GateKeys", gateFound)
+						event:FireAllClients("gateKey", player, gateFound)
+						if gateFound >= Config.GateKeyCount then
+							openGate()
+							event:FireAllClients("gateOpen", player)
+						end
+					else
+						keysFound += 1
+						workspace:SetAttribute("Keys", keysFound)
+						event:FireAllClients("key", player, keysFound)
+						if keysFound >= Config.KeyCount then
+							openDoor()
+							event:FireAllClients("allKeys", player)
+						end
 					end
 				end
 			end
-			-- Out of the front door
+			-- Out of the front door and into the yard
 			if doorOpen and not player:GetAttribute("Out") and pos.Y < 10 and (pos.X < -1 or pos.Z < -1 or pos.X > HOUSE_W + 1 or pos.Z > HOUSE_D + 1) then
 				player:SetAttribute("Out", true)
-				event:FireAllClients("escaped", player)
-				if state == "play" then
-					setState("won")
-					task.delay(Config.WinRestart, function()
-						if workspace:GetAttribute("State") == "won" then
-							resetRound()
-						end
-					end)
+				safeUntil[player] = now + Config.ExitClipTime
+				if stage == "house" then
+					setStage("yard")
+					placeGateKeys()
 				end
+				event:FireAllClients("escaped", player)
+			end
+			-- Cameras watch the yard. A moment in their light and mom's phone buzzes
+			if player:GetAttribute("Out") then
+				local eye = if now >= (safeUntil[player] or 0) then watcher(pos, workspace:GetServerTimeNow()) else nil
+				local s = seen[player] or 0
+				s = if eye then s + dt / Config.SpotTime else math.max(0, s - dt / Config.SpotTime * 0.6)
+				seen[player] = s
+				local shown = math.floor(math.min(s, 1) * 10) / 10
+				if player:GetAttribute("Seen") ~= shown then
+					player:SetAttribute("Seen", shown)
+				end
+				if eye and s >= 1 then
+					spotted(eye, player)
+					break
+				end
+			end
+			-- Through the open gate: free
+			if gateOpen and player:GetAttribute("Out") and pos.Z > gateLine + 2 then
+				setState("won")
+				event:FireAllClients("free", player)
+				task.delay(Config.WinRestart, function()
+					if workspace:GetAttribute("State") == "won" then
+						resetRound()
+					end
+				end)
+				break
 			end
 		end
 	end
@@ -1008,6 +1189,7 @@ Players.PlayerAdded:Connect(function(player: Player)
 		humanoid.WalkSpeed = Config.WalkSpeed
 		humanoid.UseJumpPower = false
 		humanoid.JumpHeight = Config.JumpHeight
+		player:SetAttribute("Out", nil)
 		task.defer(function()
 			toBed(player)
 			if state == "caught" then
@@ -1021,8 +1203,11 @@ Players.PlayerAdded:Connect(function(player: Player)
 end)
 Players.PlayerRemoving:Connect(function(player: Player)
 	last[player] = nil
+	seen[player] = nil
+	safeUntil[player] = nil
 end)
 
 placeKeys()
+setStage("house")
 workspace:SetAttribute("CatBed", catBed)
 workspace:SetAttribute("Floor2", FLOOR2)

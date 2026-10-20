@@ -6,6 +6,13 @@ local roblox = require("@lune/roblox")
 local Vector3 = roblox.Vector3
 
 Engine.build()
+-- Fake sound ids so the clips play their sounds in the test
+Engine.patch = function(name: string, module: any)
+	if name == "Config" then
+		module.SfxId = 99
+		module.MusicId = 98
+	end
+end
 Engine.startServer()
 local workspace = Engine.workspace
 local game = Engine.game
@@ -164,27 +171,119 @@ if kid then
 end
 
 -- All three keys open the front door, then out you go
-for _, k in keys() do
-	teleport(ana, k:GetPivot().Position)
-	run(0.3)
+local Watch = Engine.server.modules[game:GetService("ReplicatedStorage"):FindFirstChild("Shared"):FindFirstChild("Watch")]
+local U = Config.Square
+local outside = Vector3.new(16 * U, 1.4, 22 * U + 8)
+local function escapeHouse(player: any)
+	for _, k in keys() do
+		if not k:GetAttribute("Gate") then
+			teleport(player, k:GetPivot().Position)
+			run(0.3)
+		end
+	end
+	run(1.5)
+	teleport(player, outside)
+	run(0.5)
 end
+escapeHouse(ana)
 check(workspace:GetAttribute("Keys") == 3, "could not collect all keys, got " .. tostring(workspace:GetAttribute("Keys")))
-run(1.5)
 local door = house:FindFirstChild("ExitDoor")
 check(door ~= nil and door.CanCollide == false, "front door did not open")
-local houseDepth = 22 * Config.Square
-teleport(ana, Vector3.new(16 * Config.Square, 1.4, houseDepth + 8))
-run(0.5)
 check(ana:GetAttribute("Out") == true, "walking out of the open door did not count as escaping")
+
+-- The backyard: three gate keys, one in the garage, and a locked gate
+check(workspace:GetAttribute("Stage") == "yard", "escaping the house did not start the yard")
+local gateKeys = {}
+for _, k in keys() do
+	if k:GetAttribute("Gate") then
+		table.insert(gateKeys, k)
+	end
+end
+check(#gateKeys == Config.GateKeyCount, "expected 3 gate keys, found " .. #gateKeys)
+local inGarage = false
+for _, k in gateKeys do
+	local p = k:GetPivot().Position
+	if p.X < -16 * U + 14 * U and p.Z < -14 * U + 15 * U then
+		inGarage = true
+	end
+end
+check(inGarage, "no gate key in the garage")
+local gate = world:FindFirstChild("Yard"):FindFirstChild("Gate")
+check(gate ~= nil and gate.CanCollide == true, "the gate is not locked")
+local cams = {}
+for _, m in world:FindFirstChild("Yard"):FindFirstChild("Cameras"):GetChildren() do
+	if m.Name == "Cam" then
+		table.insert(cams, m)
+	end
+end
+check(#cams == 5, "expected 5 cameras, found " .. #cams)
+
+-- Right after the door Pianka is safe, the exit clip plays
+run(Config.ExitClipTime + 1)
+check(workspace:GetAttribute("State") == "play", "caught while standing at the door")
+
+-- Behind a wall the camera can not see her
+local cam = cams[1]
+local eye = cam:FindFirstChild("Camera").Position
+local function inView(distance: number): any
+	local look = Watch.look(cam:GetAttribute("Yaw"), cam:GetAttribute("Phase"), workspace:GetServerTimeNow())
+	return Vector3.new(eye.X, 1.4, eye.Z) + look * distance
+end
+local blocker = Engine.new("Part")
+blocker.Anchored = true
+blocker.Size = Vector3.new(80, 80, 80)
+blocker.Parent = workspace
+for _ = 1, 30 do
+	local spot = inView(30)
+	blocker.CFrame = Engine.CFrame.new(eye:Lerp(spot, 0.5) - Vector3.new(0, 30, 0))
+	teleport(ana, spot)
+	Engine.step(DT)
+end
+check(workspace:GetAttribute("State") == "play", "a camera saw through a wall")
+blocker:Destroy()
+teleport(ana, outside)
+run(2)
+
+-- In the light: spotted, mom's phone, back to bed, everything starts over
+local caught = false
+for _ = 1, 40 do
+	teleport(ana, inView(30))
+	Engine.step(DT)
+	if workspace:GetAttribute("State") == "caught" then
+		caught = true
+		break
+	end
+end
+check(caught, "standing in a camera cone was not spotted")
+run(Config.SpottedTime + 1)
+check(workspace:GetAttribute("Stage") == "house" and workspace:GetAttribute("Keys") == 0, "being spotted did not restart the round")
+check(nearBed(ana) and ana:GetAttribute("Out") == nil, "being spotted did not send Pianka back to bed")
+check(gate.CanCollide == true and #keys() == 3, "the yard was not reset after being spotted")
+
+-- All the way out: house keys, gate keys and through the gate
+escapeHouse(ana)
+for _, k in keys() do
+	if k:GetAttribute("Gate") then
+		teleport(ana, k:GetPivot().Position)
+		run(0.3)
+	end
+end
+check(workspace:GetAttribute("GateKeys") == Config.GateKeyCount, "could not collect the gate keys, got " .. tostring(workspace:GetAttribute("GateKeys")))
+run(3)
+check(gate.CanCollide == false, "the gate did not open")
+local through = gate.Position + Vector3.new(0, 1.4, 12)
+teleport(ana, through)
+run(0.5)
+check(workspace:GetAttribute("State") == "won", "walking through the open gate did not win")
 run(Config.WinRestart + 2)
-check(workspace:GetAttribute("Keys") == 0 and nearBed(ana), "the round did not restart after the escape")
+check(workspace:GetAttribute("Keys") == 0 and workspace:GetAttribute("Stage") == "house" and nearBed(ana), "the round did not restart after the escape")
 
 for _, e in Engine.errors do
 	failures += 1
 	print(string.format("SCRIPT ERROR x%d: %s", e.count, e.msg))
 	print(e.trace)
 end
-print(string.format("Pianka the Escape playtest: %d walls, %d windows, %d sleepers, %d toys, %d keys", counts.Wall or 0, counts.Window or 0, #sleepers, #toys, 3))
+print(string.format("Pianka the Escape playtest: %d walls, %d windows, %d sleepers, %d toys, %d keys, %d cameras", counts.Wall or 0, counts.Window or 0, #sleepers, #toys, 3, #cams))
 if failures > 0 then
 	print(string.format("%d checks FAILED", failures))
 	process.exit(1)

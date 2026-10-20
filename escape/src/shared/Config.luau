@@ -29,8 +29,18 @@ return {
 	DownstairsKeyChance = 0.35,
 	WinRestart = 25,
 
+	-- Backyard cameras: how far and wide they see, how they sweep, how fast they catch you
+	CameraRange = 60,
+	CameraHalf = 26,
+	CameraSweep = 38,
+	CameraPeriod = 9,
+	SpotTime = 0.6,
+	SpottedTime = 7,
+	ExitClipTime = 6.5,
+	GateKeyCount = 3,
+
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 123219985977884,
+	SfxId = 0,
 	Sfx = {
 		SnoreDeep = { 0.3, 3.42 },
 		SnoreLight = { 4.02, 3.42 },
@@ -43,6 +53,11 @@ return {
 		Purr = { 20.48, 2.6 },
 		Snort = { 23.38, 0.95 },
 		Dream = { 24.63, 4.4 },
+		Beep = { 29.33, 0.14 },
+		Alert = { 29.77, 3.2 },
+		Buzz = { 33.27, 0.95 },
+		Ding = { 34.52, 2.4 },
+		Gate = { 37.22, 3.2 },
 	},
 	MusicId = 87567301857264,
 

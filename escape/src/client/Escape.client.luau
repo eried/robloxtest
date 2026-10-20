@@ -5,9 +5,11 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
+local GuiService = game:GetService("GuiService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
+local Watch = require(Shared:WaitForChild("Watch"))
 local event = ReplicatedStorage:WaitForChild("Escape") :: RemoteEvent
 
 local player = Players.LocalPlayer
@@ -16,6 +18,10 @@ local world = workspace:WaitForChild("World")
 local FONT = Enum.Font.FredokaOne
 local GOLD = Color3.fromRGB(255, 205, 60)
 local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local function usingPad(): boolean
+	local last = UserInputService:GetLastInputType()
+	return string.find(tostring(last), "Gamepad", 1, true) ~= nil
+end
 
 local function new(class: string, props: { [string]: any }): any
 	local obj = Instance.new(class)
@@ -78,7 +84,7 @@ local keyBar = new("Frame", {
 round(keyBar, 16)
 new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8), Parent = keyBar })
 local slots: { TextLabel } = {}
-for i = 1, Config.KeyCount do
+for i = 1, math.max(Config.KeyCount, Config.GateKeyCount) do
 	slots[i] = new("TextLabel", { Size = UDim2.fromOffset(50, 46), BackgroundTransparency = 1, Font = FONT, TextScaled = true, Text = "🔑", TextTransparency = 0.75, Parent = keyBar })
 end
 local hint = new("TextLabel", {
@@ -172,6 +178,25 @@ local sprintButton = new("TextButton", {
 	Parent = gui,
 })
 round(sprintButton, 39)
+local padHint = new("TextLabel", {
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, -20, 1, -20),
+	Size = UDim2.fromOffset(150, 34),
+	BackgroundColor3 = Color3.fromRGB(28, 26, 40),
+	BackgroundTransparency = 0.3,
+	Font = FONT,
+	TextSize = 20,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "R2  💨 Run",
+	Visible = false,
+	Parent = gui,
+})
+round(padHint, 10)
+local function showPad()
+	padHint.Visible = usingPad()
+end
+UserInputService.LastInputTypeChanged:Connect(showPad)
+showPad()
 sprintButton.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
 		sprinting = true
@@ -182,7 +207,13 @@ sprintButton.InputEnded:Connect(function(input)
 		sprinting = false
 	end
 end)
+local skipClip: (() -> ())? = nil
 UserInputService.InputBegan:Connect(function(input, processed)
+	local k = input.KeyCode
+	if skipClip and (k == Enum.KeyCode.ButtonA or k == Enum.KeyCode.ButtonB or k == Enum.KeyCode.ButtonX) then
+		skipClip()
+		return
+	end
 	if processed then
 		return
 	end
@@ -236,30 +267,169 @@ world.DescendantAdded:Connect(function(d)
 	task.defer(addSleeper, d)
 end)
 
--- The front door shows its locks
+-- The front door and the gate show their locks. In the yard the key bar counts gate keys
 local lockText: TextLabel? = nil
+local gateText: TextLabel? = nil
+local function locks(n: number, total: number): string
+	return string.rep("🔓", n) .. string.rep("🔒", total - n)
+end
+local function showKeys()
+	local yard = workspace:GetAttribute("Stage") == "yard"
+	local n = (workspace:GetAttribute(if yard then "GateKeys" else "Keys") :: number?) or 0
+	local total = if yard then Config.GateKeyCount else Config.KeyCount
+	for i, slot in slots do
+		slot.Visible = i <= total
+		slot.Text = if yard then "🗝️" else "🔑"
+		slot.TextTransparency = if i <= n then 0 else 0.75
+	end
+	keyBar.BackgroundColor3 = if yard then Color3.fromRGB(26, 44, 34) else Color3.fromRGB(28, 26, 40)
+	if lockText then
+		lockText.Text = locks((workspace:GetAttribute("Keys") :: number?) or 0, Config.KeyCount)
+	end
+	if gateText then
+		gateText.Text = locks((workspace:GetAttribute("GateKeys") :: number?) or 0, Config.GateKeyCount)
+	end
+end
+for _, name in { "Keys", "GateKeys", "Stage" } do
+	workspace:GetAttributeChangedSignal(name):Connect(showKeys)
+end
 task.spawn(function()
 	local door = world:WaitForChild("House"):WaitForChild("ExitDoor", 10)
 	if door then
 		local bill = new("BillboardGui", { Size = UDim2.fromOffset(150, 50), StudsOffsetWorldSpace = Vector3.new(0, 10, 0), MaxDistance = 70, Parent = door })
-		lockText = new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = "🔒🔒🔒", Parent = bill })
+		lockText = new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = "", Parent = bill })
+	end
+	local gate = world:WaitForChild("Yard"):WaitForChild("Gate", 10)
+	if gate then
+		local bill = new("BillboardGui", { Size = UDim2.fromOffset(150, 50), StudsOffsetWorldSpace = Vector3.new(0, 9, 0), MaxDistance = 110, Parent = gate })
+		gateText = new("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, TextScaled = true, Text = "", Parent = bill })
+	end
+	showKeys()
+end)
+showKeys()
+
+-- Backyard cameras turn, blink and light a red cone on the ground
+type Cam = { model: Model, eye: Vector3, yaw: number, phase: number, cone: { BasePart }, led: BasePart? }
+local cams: { Cam } = {}
+local coneFolder = new("Folder", { Name = "Cones", Parent = workspace })
+local RED = Color3.fromRGB(255, 60, 60)
+local SLICES = 6
+local function addCam(model: Instance)
+	if not model:IsA("Model") or model.Name ~= "Cam" then
+		return
+	end
+	local head = model:WaitForChild("Camera", 5) :: BasePart?
+	if not head then
+		return
+	end
+	local cone = {}
+	for i = 1, SLICES * 2 do
+		cone[i] = new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = RED, Transparency = 0.8, Size = Vector3.one * 0.1, Parent = coneFolder })
+	end
+	new("SpotLight", { Color = RED, Brightness = 3, Range = Config.CameraRange, Angle = Config.CameraHalf * 2, Face = Enum.NormalId.Front, Parent = head })
+	table.insert(cams, {
+		model = model,
+		eye = head.Position,
+		yaw = (model:GetAttribute("Yaw") :: number?) or 0,
+		phase = (model:GetAttribute("Phase") :: number?) or 0,
+		cone = cone,
+		led = model:FindFirstChild("Led") :: BasePart?,
+	})
+end
+for _, d in world:GetDescendants() do
+	task.spawn(addCam, d)
+end
+world.DescendantAdded:Connect(function(d)
+	task.defer(addCam, d)
+end)
+
+-- A flat triangle from two wedges
+local function triangle(a: Vector3, b: Vector3, c: Vector3, w1: BasePart, w2: BasePart)
+	local ab, ac, bc = b - a, c - a, c - b
+	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
+	if abd > acd and abd > bcd then
+		c, a = a, c
+	elseif acd > bcd and acd > abd then
+		a, b = b, a
+	end
+	ab, ac, bc = b - a, c - a, c - b
+	local right = ac:Cross(ab).Unit
+	local up = bc:Cross(right).Unit
+	local back = bc.Unit
+	local height = math.abs(ab:Dot(up))
+	w1.Size = Vector3.new(0.05, height, math.abs(ab:Dot(back)))
+	w1.CFrame = CFrame.fromMatrix((a + b) / 2, right, up, back)
+	w2.Size = Vector3.new(0.05, height, math.abs(ac:Dot(back)))
+	w2.CFrame = CFrame.fromMatrix((a + c) / 2, -right, up, -back)
+end
+
+local camHint = ""
+local beepAt = 0
+local seenRay = RaycastParams.new()
+seenRay.FilterType = Enum.RaycastFilterType.Exclude
+RunService.RenderStepped:Connect(function()
+	local t = workspace:GetServerTimeNow()
+	local half = math.rad(Config.CameraHalf)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local out = player:GetAttribute("Out") == true
+	local seen = (player:GetAttribute("Seen") :: number?) or 0
+	local yardFolder = world:FindFirstChild("Yard")
+	local filter: { Instance } = { coneFolder, yardFolder and yardFolder:FindFirstChild("Cameras") or coneFolder }
+	for _, other in Players:GetPlayers() do
+		if other.Character then
+			table.insert(filter, other.Character)
+		end
+	end
+	local keys = world:FindFirstChild("Keys")
+	if keys then
+		table.insert(filter, keys)
+	end
+	seenRay.FilterDescendantsInstances = filter
+	local hidden = false
+	for _, c in cams do
+		local look = Watch.look(c.yaw, c.phase, t)
+		c.model:PivotTo(CFrame.lookAt(c.eye, c.eye + look * 10 - Vector3.new(0, 4, 0)))
+		if c.led then
+			c.led.Transparency = if math.floor(t * 2) % 2 == 0 then 0 else 0.85
+		end
+		-- The cone on the ground stops at walls and bushes
+		local apex = Vector3.new(c.eye.X, 0.3, c.eye.Z)
+		local yaw = math.atan2(look.X, -look.Z)
+		local points = {}
+		for i = 0, SLICES do
+			local a = yaw - half + i * half * 2 / SLICES
+			local dir = Vector3.new(math.sin(a), 0, -math.cos(a))
+			local hit = workspace:Raycast(apex + Vector3.new(0, 1.2, 0), dir * Config.CameraRange, seenRay)
+			local length = if hit then math.max(1, (hit.Position - apex).Magnitude) else Config.CameraRange
+			points[i + 1] = apex + dir * length
+		end
+		for i = 1, SLICES do
+			triangle(apex, points[i], points[i + 1], c.cone[i * 2 - 1], c.cone[i * 2])
+		end
+		local mine = false
+		if out and root and Watch.inCone(c.eye, look, root.Position) then
+			if workspace:Raycast(c.eye, root.Position - c.eye, seenRay) then
+				hidden = true
+			else
+				mine = true
+			end
+		end
+		for _, w in c.cone do
+			w.Transparency = if mine then 0.55 else 0.8
+		end
+	end
+	camHint = if not out then "" elseif seen > 0 then "📹 A camera sees you! Hide!" elseif hidden then "🌿 Hidden from the camera" else ""
+	if out and seen > 0 and sfx and os.clock() >= beepAt then
+		beepAt = os.clock() + 0.45 - seen * 0.25
+		playClip(SoundService, Config.Sfx.Beep, 0.6, 1 + seen * 0.5, 1000, sfx)
 	end
 end)
-local function showKeys()
-	local n = (workspace:GetAttribute("Keys") :: number?) or 0
-	for i, slot in slots do
-		slot.TextTransparency = if i <= n then 0 else 0.75
-	end
-	if lockText then
-		lockText.Text = string.rep("🔓", n) .. string.rep("🔒", Config.KeyCount - n)
-	end
-end
-workspace:GetAttributeChangedSignal("Keys"):Connect(showKeys)
-showKeys()
 
 -- Moving like a cat: sneak near sleepers, sprint when you dare
 local floor2 = Config.Floor2
 local sneaking = false
+local clipOn = false
 RunService.RenderStepped:Connect(function()
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -280,14 +450,23 @@ RunService.RenderStepped:Connect(function()
 			end
 		end
 		sneaking = near and not sprinting
-		humanoid.WalkSpeed = if sprinting then Config.SprintSpeed elseif near then Config.SneakSpeed else Config.WalkSpeed
+		humanoid.WalkSpeed = if clipOn then 0 elseif sprinting then Config.SprintSpeed elseif near then Config.SneakSpeed else Config.WalkSpeed
+		humanoid.JumpHeight = if clipOn then 0 else Config.JumpHeight
 		humanoid.HipHeight = if sneaking then 0.45 else 0.7
 	end
-	hint.Text = if sneaking then "🐾 Sneaking... someone is asleep" elseif near and sprinting then "💨 Too loud!" else ""
-	meter.Visible = loudest > 0 or near
-	meterFill.Size = UDim2.fromScale(loudest / 100, 1)
-	meterFill.BackgroundColor3 = if loudest > 65 then Color3.fromRGB(255, 90, 90) elseif loudest > 35 then Color3.fromRGB(255, 200, 80) else Color3.fromRGB(120, 220, 140)
-	meterFace.Text = if loudest > 65 then "😳" elseif loudest > 35 then "😪" else "😴"
+	hint.Text = if camHint ~= "" then camHint elseif sneaking then "🐾 Sneaking... someone is asleep" elseif near and sprinting then "💨 Too loud!" else ""
+	local seen = (player:GetAttribute("Seen") :: number?) or 0
+	if player:GetAttribute("Out") and loudest == 0 then
+		meter.Visible = seen > 0
+		meterFill.Size = UDim2.fromScale(seen, 1)
+		meterFill.BackgroundColor3 = Color3.fromRGB(255, 90, 90)
+		meterFace.Text = "📹"
+	else
+		meter.Visible = loudest > 0 or near
+		meterFill.Size = UDim2.fromScale(loudest / 100, 1)
+		meterFill.BackgroundColor3 = if loudest > 65 then Color3.fromRGB(255, 90, 90) elseif loudest > 35 then Color3.fromRGB(255, 200, 80) else Color3.fromRGB(120, 220, 140)
+		meterFace.Text = if loudest > 65 then "😳" elseif loudest > 35 then "😪" else "😴"
+	end
 	for _, s in sleepers do
 		local sleep = (s.model:GetAttribute("Sleep") :: number?) or 0
 		s.mark.Text = if sleep > 65 then "😳" elseif sleep > 35 then "z?" else "Zzz"
@@ -297,7 +476,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Legs and tail move on every cat, keys spin, camera lights blink
+-- Legs and tail move on every cat, keys spin
 local stride = 0
 local bases: { [Weld]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
 local keyBases: { [Model]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
@@ -351,11 +530,12 @@ end
 local introOn = false
 local function intro()
 	introOn = true
+	clipOn = true
 	local bed = (workspace:GetAttribute("CatBed") :: Vector3?) or Vector3.zero
 	camera.CameraType = Enum.CameraType.Scriptable
 	letterbox(true)
 	keyBar.Visible = false
-	local skip = new("TextButton", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -20, 1, -20), Size = UDim2.fromOffset(100, 40), BackgroundColor3 = Color3.fromRGB(28, 26, 40), Font = FONT, TextSize = 20, TextColor3 = Color3.new(1, 1, 1), Text = "Skip ▶", ZIndex = 16, Parent = gui })
+	local skip = new("TextButton", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -20, 1, -20), Size = UDim2.fromOffset(120, 40), BackgroundColor3 = Color3.fromRGB(28, 26, 40), Font = FONT, TextSize = 20, TextColor3 = Color3.new(1, 1, 1), Text = if usingPad() then "Ⓑ Skip ▶" else "Skip ▶", ZIndex = 16, Parent = gui })
 	round(skip, 12)
 	local bubble = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.62, 0.36), Size = UDim2.fromOffset(330, 150), BackgroundColor3 = Color3.fromRGB(255, 235, 248), BackgroundTransparency = 1, Font = FONT, TextScaled = true, TextColor3 = Color3.fromRGB(90, 50, 90), TextTransparency = 1, Text = "", ZIndex = 16, Parent = gui })
 	round(bubble, 60)
@@ -363,6 +543,12 @@ local function intro()
 	skip.Activated:Connect(function()
 		done = true
 	end)
+	skipClip = function()
+		done = true
+	end
+	if usingPad() then
+		GuiService.SelectedObject = skip
+	end
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if sfx and root then
 		playClip(root, Config.Sfx.Purr, 1, 1, 40, sfx)
@@ -394,12 +580,14 @@ local function intro()
 		end
 		RunService.RenderStepped:Wait()
 	end
+	skipClip = nil
 	bubble:Destroy()
 	skip:Destroy()
 	letterbox(false)
 	keyBar.Visible = true
 	camera.CameraType = Enum.CameraType.Custom
 	introOn = false
+	clipOn = false
 	showBanner("Escape the house! 🔑🔑🔑\nFind 3 keys. Don't wake anyone up.", 5)
 	if music then
 		music:Play()
@@ -435,13 +623,178 @@ local function wakeClip(name: string, at: Vector3)
 	TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
 end
 
+local function myRoot(): BasePart?
+	local character = player.Character
+	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+-- Out of the house: Pianka spots the cameras and meows a warning
+local function exitClip()
+	local root = myRoot()
+	if introOn or not root then
+		return
+	end
+	clipOn = true
+	camera.CameraType = Enum.CameraType.Scriptable
+	letterbox(true)
+	-- The closest cameras she can see from the door
+	local from = root.Position + Vector3.new(0, 2, 0)
+	local view = RaycastParams.new()
+	view.FilterType = Enum.RaycastFilterType.Exclude
+	local yardFolder = world:FindFirstChild("Yard")
+	view.FilterDescendantsInstances = { coneFolder, player.Character :: Instance, yardFolder and yardFolder:FindFirstChild("Cameras") or coneFolder }
+	local eyes = {}
+	for _, c in cams do
+		if not workspace:Raycast(from, c.eye - from, view) then
+			table.insert(eyes, c.eye)
+		end
+	end
+	table.sort(eyes, function(a, b)
+		return (a - from).Magnitude < (b - from).Magnitude
+	end)
+	local look = {}
+	for i = 1, math.min(3, #eyes) do
+		look[i] = eyes[i]
+	end
+	if #look > 0 then
+		local first = look[1]
+		root.CFrame = CFrame.lookAt(root.Position, Vector3.new(first.X, root.Position.Y, first.Z))
+	end
+	local bubble = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromOffset(300, 90), BackgroundColor3 = Color3.fromRGB(255, 240, 230), BackgroundTransparency = 1, Font = FONT, TextScaled = true, TextColor3 = Color3.fromRGB(80, 40, 60), TextTransparency = 1, Text = "", ZIndex = 16, Parent = gui })
+	round(bubble, 40)
+	local start = os.clock()
+	local meowed = false
+	local length = Config.ExitClipTime - 0.5
+	while os.clock() - start < length do
+		local t = os.clock() - start
+		local cat = root.Position
+		local target: Vector3
+		if #look == 0 or t < 1.2 then
+			target = cat + root.CFrame.LookVector * 20
+		else
+			local k = math.clamp((t - 1.2) / (length - 1.6), 0, 0.999) * #look
+			local i = math.floor(k) + 1
+			local a = look[i]
+			local b = look[math.min(i + 1, #look)]
+			local f = math.clamp((k % 1) * 2.5 - 1.5, 0, 1)
+			target = a:Lerp(b, f * f * (3 - 2 * f))
+		end
+		local back = (Vector3.new(target.X, cat.Y, target.Z) - cat)
+		back = if back.Magnitude > 0.1 then back.Unit else Vector3.new(0, 0, -1)
+		local head = cat + Vector3.new(0, 2, 0)
+		local want = cat - back * 9 + Vector3.new(0, 4.5, 0)
+		local hit = workspace:Raycast(head, want - head, view)
+		if hit then
+			want = hit.Position + (head - hit.Position).Unit * 0.8
+		end
+		camera.CFrame = CFrame.lookAt(want, target)
+		if t > 1.4 and not meowed then
+			meowed = true
+			if meows then
+				playClip(SoundService, Config.Meow, 1.2, 1.1, 1000, meows)
+			end
+			bubble.Text = "🐈 Meow! 📹"
+			bubble.BackgroundTransparency = 0.1
+			bubble.TextTransparency = 0
+		end
+		RunService.RenderStepped:Wait()
+	end
+	bubble:Destroy()
+	letterbox(false)
+	camera.CameraType = Enum.CameraType.Custom
+	clipOn = false
+	showBanner("📹 Cameras! Stay out of the red light.\nFind 3 gate keys 🗝️🗝️🗝️", 6)
+end
+
+-- A camera saw Pianka: mom's phone lights up and buzzes, she wakes up
+local function spottedClip(eye: Vector3)
+	if introOn then
+		return
+	end
+	clipOn = true
+	camera.CameraType = Enum.CameraType.Scriptable
+	letterbox(true)
+	if sfx then
+		playClip(SoundService, Config.Sfx.Alert, 1, 1, 1000, sfx)
+	end
+	showBanner("📹 Spotted!", 1.8)
+	local momBed = world:FindFirstChild("bedMom", true)
+	local head = momBed and momBed:FindFirstChild("Head") :: BasePart?
+	local screen = momBed and momBed:FindFirstChild("PhoneScreen") :: BasePart?
+	local root = myRoot()
+	local cat = if root then root.Position else eye - Vector3.new(0, 12, 0)
+	local start = os.clock()
+	local phase = 0
+	while os.clock() - start < Config.SpottedTime - 1 do
+		local t = os.clock() - start
+		if t < 1.8 then
+			local toward = Vector3.new(cat.X - eye.X, 0, cat.Z - eye.Z)
+			toward = if toward.Magnitude > 0.1 then toward.Unit else Vector3.new(0, 0, 1)
+			camera.CFrame = CFrame.lookAt(eye + toward * (8 - t * 2) + Vector3.new(0, 1.5, 0), eye)
+		elseif head then
+			if phase == 0 then
+				phase = 1
+				fade.BackgroundTransparency = 0
+				TweenService:Create(fade, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+				if screen then
+					screen.Material = Enum.Material.Neon
+					screen.Color = Color3.fromRGB(190, 220, 255)
+				end
+				if sfx then
+					playClip(SoundService, Config.Sfx.Buzz, 1.2, 1, 1000, sfx)
+					playClip(SoundService, Config.Sfx.Ding, 0.9, 1, 1000, sfx)
+				end
+				popText("📱 Motion in the backyard!", Color3.fromRGB(190, 220, 255))
+			end
+			local at = head.Position
+			local k = t - 1.8
+			camera.CFrame = CFrame.lookAt(at + Vector3.new(7 - k * 0.6, 4 + k * 0.3, 6), at + Vector3.new(0, -0.5, 0))
+			if phase == 1 and t > Config.SpottedTime * 0.55 then
+				phase = 2
+				if sfx then
+					playClip(SoundService, Config.Sfx.Snort, 1.4, 1, 1000, sfx)
+				end
+				task.delay(0.6, function()
+					if voices then
+						local calls = Config.Calls
+						playClip(SoundService, calls[math.random(1, #calls)], 1.6, 1, 1000, voices)
+					end
+				end)
+				showBanner("😳 Milenkitka saw the camera!\n\"PIANKA!\" Back to bed...", 2.6)
+			end
+		end
+		RunService.RenderStepped:Wait()
+	end
+	TweenService:Create(fade, TweenInfo.new(0.5), { BackgroundTransparency = 0 }):Play()
+	task.wait(0.9)
+	if screen then
+		screen.Material = Enum.Material.Glass
+		screen.Color = Color3.fromRGB(12, 14, 20)
+	end
+	letterbox(false)
+	camera.CameraType = Enum.CameraType.Custom
+	clipOn = false
+	TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+end
+
 event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
-	if kind == "key" then
+	if kind == "key" or kind == "gateKey" then
 		if sfx then
 			playClip(SoundService, Config.Sfx.Key, 1, 1, 1000, sfx)
 		end
 		local who = if a == player then "You" else (a and a.DisplayName or "Someone")
-		popText(who .. " found a key! 🔑 " .. tostring(b) .. "/" .. Config.KeyCount, GOLD)
+		local total = if kind == "gateKey" then Config.GateKeyCount else Config.KeyCount
+		popText(who .. " found a key! " .. (if kind == "gateKey" then "🗝️ " else "🔑 ") .. tostring(b) .. "/" .. total, GOLD)
+	elseif kind == "gateOpen" then
+		if sfx then
+			playClip(SoundService, Config.Sfx.AllKeys, 1, 1, 1000, sfx)
+			local gate = world:FindFirstChild("Yard") and world.Yard:FindFirstChild("Gate")
+			task.delay(1.2, function()
+				playClip(gate or SoundService, Config.Sfx.Unlock, 1, 1, 1000, sfx)
+				playClip(gate or SoundService, Config.Sfx.Gate, 1.4, 1, 200, sfx)
+			end)
+		end
+		showBanner("All 3 gate keys! 🔓\nThe gate is open. Go! 🐈", 5)
 	elseif kind == "allKeys" then
 		if sfx then
 			playClip(SoundService, Config.Sfx.AllKeys, 1, 1, 1000, sfx)
@@ -484,11 +837,22 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
 	elseif kind == "wake" then
 		task.spawn(wakeClip, tostring(a), b)
 	elseif kind == "escaped" then
+		if a == player then
+			task.spawn(exitClip)
+		else
+			popText((a and a.DisplayName or "Someone") .. " is outside! 🌙", Color3.fromRGB(200, 220, 255))
+		end
+	elseif kind == "spotted" then
+		task.spawn(spottedClip, b)
+	elseif kind == "free" then
 		local who = if a == player then "You" else (a and a.DisplayName or "Someone")
-		if a == player and meows then
+		if sfx then
+			playClip(SoundService, Config.Sfx.AllKeys, 1, 1, 1000, sfx)
+		end
+		if meows then
 			playClip(SoundService, Config.Meow, 1, 1.05, 1000, meows)
 		end
-		showBanner("🎉 " .. who .. " escaped the house!\nNext: the backyard... coming soon 🌙", 8)
+		showBanner("🎉 " .. who .. " got out! Pianka is free!\nNext: the town... coming soon 🌙", 8)
 	elseif kind == "round" then
 		showKeys()
 		showBanner("Back in bed. Try again! 🔑🔑🔑", 3)
