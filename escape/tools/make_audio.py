@@ -254,7 +254,11 @@ def stealth_tense():
         t0 = i * 8 * BEAT
         r = CHORD_ROOT[c]
         parts.append((t0, strings([midi(r), midi(r + 12), midi(r + 12 + TONES[c][2])], 8 * BEAT + 0.3, seed=i), 1.0))
-        parts.append((t0, strings([midi(r + 24 + 1)], 8 * BEAT + 0.3, trem=11, bright=3000, seed=i + 20), 0.35))
+        parts.append((t0, strings([midi(r + 24 + 1)], 8 * BEAT + 0.3, trem=11, bright=3000, seed=i + 20), 0.6))
+        # A nervous ostinato in the middle, where phone speakers can play it
+        for e in range(16):
+            note = r + 24 + (0, 1, 0, 3)[e % 4]
+            parts.append((t0 + e * BEAT / 2, pluck(midi(note), 0.22), 0.55))
     for bar in range(BARS):
         t0 = bar * 4 * BEAT
         for b in (0, 2):

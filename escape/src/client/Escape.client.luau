@@ -316,11 +316,11 @@ for _, d in world:GetDescendants() do
 	task.spawn(addSleeper, d)
 end
 
--- A clock ticks in the living room downstairs
+-- The wall clock ticks in the living room downstairs
 task.spawn(function()
 	task.wait(2)
 	for _, d in world:GetDescendants() do
-		if d:IsA("BasePart") and d.Name == "Lamp" and d:GetAttribute("Room") == "Living room" and d.Position.Y < Config.Floor2 and sfx then
+		if d:IsA("BasePart") and d:GetAttribute("Ticks") and sfx then
 			local s = (sfx :: Sound):Clone()
 			s.Looped = true
 			s.Volume = 0.8

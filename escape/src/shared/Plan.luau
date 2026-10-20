@@ -30,9 +30,9 @@ return {
 		items = {
 			{ t = "table", x = 4, y = 4, r = 0 },
 			{ t = "other", x = 1, y = 18, r = 0 },
-			{ t = "other", x = 8, y = 18, r = 0 },
+			{ t = "other", x = 6, y = 18, r = 0 },
 			{ t = "sofa", x = 14, y = 8, r = 0 },
-			{ t = "sofa", x = 20, y = 2, r = 1 },
+			{ t = "sofa", x = 20, y = 1, r = 1 },
 			{ t = "bedEmpty", x = 28, y = 2, r = 0 },
 			{ t = "toilet", x = 23, y = 13, r = 0 },
 			{ t = "washer", x = 29, y = 18, r = 0 },

@@ -2,16 +2,18 @@
 
 A Roblox game by Mr. Scientist 84. You are Pianka, the black cat from Find Pianka the Cat.
 
-Pianka sleeps in her bed and dreams of catching a mouse for Milenkitka. Tonight she escapes to make it come true.
+Pianka sleeps in her bed and dreams: out of the door, a mouse caught, and Milenkitka so happy she hugs her. Tonight she escapes to make it come true. The game tells its story with pictures and sounds, no text.
 
 ## The house (stage 1)
 
-- Everyone else is asleep upstairs: Patrick, Aurelia and Milenkitka. You hear them snore.
-- Near a sleeper Pianka sneaks on her own, slow and quiet. Sprinting (Shift, the right trigger or 💨 on phones) is loud.
-- Squeaky toys and the ball track make noise when you bump them. Too much noise and someone wakes up: "PIANKA!" and she is carried back to bed. The keys go back too.
-- Downstairs nobody sleeps, but every few noises someone calls "Piaaaanka?" from upstairs.
-- Find the 3 keys. They are mostly upstairs, sometimes one is downstairs. On beds and furniture you have to jump.
-- With all 3 keys the front door opens. Out you go!
+- Everyone else is asleep upstairs: Patrick, Aurelia and Milenkitka. You hear them breathe and snore.
+- The front door is locked. The first time you try it, it rattles, three locks clunk and three golden keys fly off to where they hide.
+- Near a sleeper Pianka walks low and slow on her own.
+- Now and then a sleeper snorts, then opens their eyes and looks around. Freeze! Moving where they can see wakes them up.
+- One squeak of a toy upstairs wakes the closest sleeper. Downstairs a squeak only gets a grumble, and every few someone calls "Piaaaanka?".
+- Woken up: "PIANKA!", back to bed, and the keys go back.
+- Find the 3 keys, mostly upstairs, sometimes one downstairs, on furniture too. With all 3 the door opens.
+- The music is a sneaky detective tune. When someone stirs, a toy squeaks or a camera gets close, a tense layer fades in on top.
 
 ## The backyard (stage 2)
 
@@ -26,9 +28,8 @@ Coming next: the town with cars and the bridge, the forest and the mouse.
 
 ## Controls
 
-- Move, jump and look like any Roblox game
-- Run: Shift, R2 or L2 on a controller, 💨 on phones
-- Skip a clip: Skip button, or A, B or X on a controller
+- Move, jump and look like any Roblox game. No run button: sneaking is the game
+- Skip a clip: ⏭, or A, B or X on a controller
 
 ## Plans
 
@@ -39,9 +40,9 @@ The house, yard and town come from `plans/*.json`, drawn in the Pianka Escape Pl
 - `src/shared/Config.luau` speeds, noise, timers, sound clips, who sleeps where
 - `src/shared/Cat.luau` Pianka, same as in the first game
 - `src/shared/Watch.luau` where the backyard cameras look and what they see
-- `src/server/Escape.server.luau` builds the house and yard from the plan, keys, noise, waking up, cameras, the door and the gate
+- `src/server/Escape.server.luau` builds the house and yard from the plan and makes it a home, keys, toys, stirring sleepers, cameras, the doors and the gate
 - `src/client/Escape.client.luau` screen, snoring, sneaking, cat walk, clips
-- `tools/make_audio.py` makes the sounds and the sneaky music
+- `tools/make_audio.py` makes the sounds, the sneaky music, its tense layer and the dream music box. Voice lines in `sounds/voice` were made once with Piper
 
 ## Tests and publish
 

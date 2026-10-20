@@ -86,7 +86,7 @@ return {
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
 	MusicId = 104015424025242,
-	TenseId = 100196456396884,
+	TenseId = 0,
 	DreamId = 113838553205676,
 
 	-- Voices and meows from Find Pianka the Cat
