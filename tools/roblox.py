@@ -251,5 +251,25 @@ def set_name():
     print("Game name:", res.get("displayName"))
 
 
+def sounds():
+    """Prints who owns the game and each sound, and whether Roblox approved the sound."""
+    universe = universe_id(place_id())
+    try:
+        info = call("GET", f"{API}/cloud/v2/universes/{universe}")
+        print("Game owner:", info.get("user") or info.get("group"), "visibility:", info.get("visibility"))
+    except SystemExit as err:
+        print("Could not read the game owner:", err)
+    with open(CONFIG) as f:
+        ids = re.findall(r"\b(\w+Id) = (\d{6,}),", f.read())
+    for key, asset in ids:
+        try:
+            res = call("GET", f"{API}/assets/v1/assets/{asset}?readMask=moderationResult,creationContext,displayName,assetType")
+            creator = (res.get("creationContext") or {}).get("creator")
+            state = (res.get("moderationResult") or {}).get("moderationState")
+            print(f"{key} {asset}: {res.get('assetType')} {state} owner {creator} {res.get('displayName')}")
+        except SystemExit as err:
+            print(f"{key} {asset}: could not read ({err})")
+
+
 if __name__ == "__main__":
-    {"audio": audio, "passes": passes, "publish": publish, "restart": restart, "status": status, "public": make_public, "name": set_name}[sys.argv[1]]()
+    {"audio": audio, "passes": passes, "publish": publish, "restart": restart, "status": status, "public": make_public, "name": set_name, "sounds": sounds}[sys.argv[1]]()

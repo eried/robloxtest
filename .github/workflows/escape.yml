@@ -93,3 +93,10 @@ jobs:
         if: env.HAS_KEY == 'true'
         continue-on-error: true
         run: python3 escape/tools/publish.py status | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Sound check
+        if: env.HAS_KEY == 'true'
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py sounds | tee -a "$GITHUB_STEP_SUMMARY"
