@@ -84,6 +84,7 @@ local function whenLoaded(s: Sound, f: () -> ())
 	end
 end
 
+local clipsStarted = 0
 -- One clip from a sound sheet. Little sounds are skipped until the sheet has loaded
 local function playClip(parent: Instance, clip: { number }?, volume: number, speed: number, range: number, from: Sound?, optional: boolean?): Sound?
 	if not from or not clip then
@@ -115,6 +116,7 @@ local function playClip(parent: Instance, clip: { number }?, volume: number, spe
 		end)
 	end
 	s:Play()
+	clipsStarted += 1
 	if loaded(s) then
 		finish()
 	else
@@ -208,41 +210,41 @@ end
 
 -- Screen
 local gui = new("ScreenGui", { Name = "Escape", ResetOnSpawn = false, IgnoreGuiInset = true, Parent = player:WaitForChild("PlayerGui") })
--- For the game's owner only: is each sound file loaded, and the last sound problem Roblox reported
+-- The version, and if each sound file loaded, small at the bottom. A tap plays a test sound
 task.spawn(function()
-	local ok, creator = pcall(function()
-		return game.CreatorId
-	end)
-	if not ok or creator ~= player.UserId then
-		return
-	end
-	local strip = new("TextButton", { Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(330, 44), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4, TextColor3 = Color3.new(1, 1, 1), TextSize = 12, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 40, Text = "", Parent = gui })
-	strip.Activated:Connect(function()
-		strip.Visible = false
-	end)
+	local version = require(Shared:WaitForChild("Version")) :: string
+	local strip = new("TextButton", { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -4), Size = UDim2.fromOffset(420, 18), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, TextColor3 = Color3.new(1, 1, 1), TextSize = 11, TextWrapped = true, ZIndex = 40, Text = version, Parent = gui })
+	round(strip, 6)
 	local problems: { string } = {}
 	pcall(function()
 		game:GetService("LogService").MessageOut:Connect(function(message: string, kind: Enum.MessageType)
 			local lower = string.lower(message)
 			if kind ~= Enum.MessageType.MessageOutput and (string.find(lower, "sound", 1, true) or string.find(lower, "asset", 1, true) or string.find(lower, "audio", 1, true)) then
-				table.insert(problems, string.sub(message, 1, 120))
+				table.insert(problems, string.sub(message, 1, 110))
 				if #problems > 2 then
 					table.remove(problems, 1)
 				end
 			end
 		end)
 	end)
+	local open = false
+	strip.Activated:Connect(function()
+		open = not open
+		sound("Ding", 1.5)
+		meow(Config.Meow, 1)
+	end)
 	local start = os.clock()
 	while strip.Parent do
 		local parts = {}
 		for name, snd in sources do
 			if snd then
-				local mark = if loaded(snd :: Sound) then "✅" elseif os.clock() - start > 20 then "❌" else "⏳"
-				table.insert(parts, name .. mark)
+				table.insert(parts, name .. (if loaded(snd :: Sound) then "✅" elseif os.clock() - start > 20 then "❌" else "⏳"))
 			end
 		end
 		table.sort(parts)
-		strip.Text = "🔊 " .. table.concat(parts, " ") .. (if #problems > 0 then "\n" .. table.concat(problems, "\n") else "")
+		local playing = if music and music.IsPlaying then "🎵" else "🔇"
+		strip.Text = version .. "  " .. playing .. " " .. table.concat(parts, " ") .. "  ▶" .. clipsStarted .. (if open and #problems > 0 then "\n" .. table.concat(problems, "\n") else "")
+		strip.Size = UDim2.fromOffset(420, if open and #problems > 0 then 60 else 18)
 		task.wait(1)
 	end
 end)
