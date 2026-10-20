@@ -1,0 +1,207 @@
+{
+  "bg": null,
+  "bgOpacity": 50,
+  "cells": "wwwnnnnnwwwwwwnnnnnnwwwwwwnnnnwwwffffffffffwfffffffffffwfffffffwwffffffffffwfffffffffffwfffffffwnffffffffffffffffffffffwfffffffwnffffffffffffffffffffffwfffffffnnffffffffffffffffffffffdfffffffnnffffffffffffffffffffffdfffffffnwffffffffffffffffffffffwfffffffwwffffffffffwfffffffffffwfffffffwwffffffffffwfffffffffffwfffffffwwwwwddwwwwwwfffffffffffwwwwwwwwwwffffffffffwfffffffffffw.wfffffwwffffffffffwwwwddwwwwwwwwwfffffwwffffffffffwffffffffwffffwfffffwnffffffffffwffffffffwffffwfffffnnffffffffffwffffffffwffffwfffffnnffffffffffdffffffffdffffwfffffwnffffffffffdffffffffdffffwfffffwwffffffffffwffffffffwffffdfffffwwffffffffffwffffffffwffffdfffffwwffffffffffwffffffffwffffwfffffwwwwnnnnwwwwwwwwddwwwwwwwwwwwwwww",
+  "h": 22,
+  "items": [
+    {
+      "id": "p34",
+      "r": 0,
+      "t": "table",
+      "x": 4,
+      "y": 4
+    },
+    {
+      "id": "p35",
+      "r": 0,
+      "t": "other",
+      "x": 1,
+      "y": 18
+    },
+    {
+      "id": "p36",
+      "r": 0,
+      "t": "other",
+      "x": 8,
+      "y": 18
+    },
+    {
+      "id": "p37",
+      "r": 0,
+      "t": "sofa",
+      "x": 14,
+      "y": 8
+    },
+    {
+      "id": "p38",
+      "r": 1,
+      "t": "sofa",
+      "x": 20,
+      "y": 2
+    },
+    {
+      "id": "p39",
+      "r": 0,
+      "t": "bedEmpty",
+      "x": 28,
+      "y": 2
+    },
+    {
+      "id": "p40",
+      "r": 0,
+      "t": "toilet",
+      "x": 23,
+      "y": 13
+    },
+    {
+      "id": "p41",
+      "r": 0,
+      "t": "washer",
+      "x": 29,
+      "y": 18
+    },
+    {
+      "id": "p42",
+      "r": 0,
+      "t": "other",
+      "x": 27,
+      "y": 11
+    },
+    {
+      "id": "p43",
+      "r": 0,
+      "t": "catStart",
+      "x": 12,
+      "y": 9
+    },
+    {
+      "id": "p44",
+      "r": 0,
+      "t": "stairsUp",
+      "x": 12,
+      "y": 14
+    },
+    {
+      "id": "p45",
+      "r": 0,
+      "t": "exit",
+      "x": 15,
+      "y": 20
+    },
+    {
+      "id": "p46",
+      "r": 0,
+      "t": "key",
+      "x": 2,
+      "y": 2
+    },
+    {
+      "id": "p47",
+      "r": 0,
+      "t": "key",
+      "x": 29,
+      "y": 8
+    },
+    {
+      "id": "p48",
+      "r": 0,
+      "t": "key",
+      "x": 8,
+      "y": 13
+    },
+    {
+      "id": "p49",
+      "r": 0,
+      "t": "squeaky",
+      "x": 8,
+      "y": 7
+    },
+    {
+      "id": "p50",
+      "r": 0,
+      "t": "squeaky",
+      "x": 17,
+      "y": 4
+    },
+    {
+      "id": "p51",
+      "r": 0,
+      "t": "squeaky",
+      "x": 5,
+      "y": 15
+    },
+    {
+      "id": "p52",
+      "r": 0,
+      "t": "squeaky",
+      "x": 18,
+      "y": 17
+    },
+    {
+      "id": "p53",
+      "r": 0,
+      "t": "ballTrack",
+      "x": 19,
+      "y": 8
+    }
+  ],
+  "labels": [
+    {
+      "id": "l54",
+      "text": "Dining room",
+      "x": 6,
+      "y": 8.4
+    },
+    {
+      "id": "l55",
+      "text": "Kitchen",
+      "x": 6,
+      "y": 12.6
+    },
+    {
+      "id": "l56",
+      "text": "Living room",
+      "x": 17.5,
+      "y": 5.6
+    },
+    {
+      "id": "l57",
+      "text": "Guest room",
+      "x": 27,
+      "y": 9.4
+    },
+    {
+      "id": "l58",
+      "text": "Toilet",
+      "x": 22.5,
+      "y": 20.4
+    },
+    {
+      "id": "l59",
+      "text": "Storage",
+      "x": 28.5,
+      "y": 15.4
+    },
+    {
+      "id": "l60",
+      "text": "Hall",
+      "x": 17.5,
+      "y": 15
+    },
+    {
+      "id": "l61",
+      "text": "Exit, 3 locks",
+      "x": 16,
+      "y": 18.8
+    },
+    {
+      "id": "l62",
+      "text": "Pianka's bed",
+      "x": 15,
+      "y": 10.6
+    }
+  ],
+  "rev": "claude137",
+  "updated": 1792486159466,
+  "w": 32
+}

@@ -1,0 +1,321 @@
+{
+  "bg": null,
+  "bgOpacity": 50,
+  "cells": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFkrrrkFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFkrrrkFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFkrrrkFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFkrrrkFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFkrrrkFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFkrrrkFFFFFFFFgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxxxxxxxxxxxxxxxxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxggggggggggggggxghgggggggghgggggggghgggggggghggggggggkrrrkgggggggggggggggggghgggggggghgggggggghgxddxxxxxxxxxxxxxghgggggggghgggggggghgggggggghggggggggkrrrkggggggggkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkppkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkrrrkkkkkkkkkrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkgrrrgkkkkkkkkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkggggggggoooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooorrrooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooorrrooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooorrrooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooorrrooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooorrrooooooooogggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkggggggggFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFgggggggggggkrrrkgggggggg",
+  "h": 64,
+  "items": [
+    {
+      "id": "p92",
+      "r": 0,
+      "t": "house",
+      "x": 3,
+      "y": 11
+    },
+    {
+      "id": "p93",
+      "r": 0,
+      "t": "house",
+      "x": 12,
+      "y": 11
+    },
+    {
+      "id": "p94",
+      "r": 0,
+      "t": "house",
+      "x": 21,
+      "y": 11
+    },
+    {
+      "id": "p95",
+      "r": 0,
+      "t": "ourHouse",
+      "x": 34,
+      "y": 11
+    },
+    {
+      "id": "p96",
+      "r": 0,
+      "t": "garage",
+      "x": 31,
+      "y": 9
+    },
+    {
+      "id": "p97",
+      "r": 0,
+      "t": "house",
+      "x": 49,
+      "y": 11
+    },
+    {
+      "id": "p98",
+      "r": 0,
+      "t": "house",
+      "x": 58,
+      "y": 11
+    },
+    {
+      "id": "p99",
+      "r": 0,
+      "t": "house",
+      "x": 67,
+      "y": 11
+    },
+    {
+      "id": "p100",
+      "r": 0,
+      "t": "house",
+      "x": 76,
+      "y": 11
+    },
+    {
+      "id": "p101",
+      "r": 0,
+      "t": "house",
+      "x": 89,
+      "y": 8
+    },
+    {
+      "id": "p102",
+      "r": 0,
+      "t": "house",
+      "x": 89,
+      "y": 15
+    },
+    {
+      "id": "p103",
+      "r": 0,
+      "t": "house",
+      "x": 75,
+      "y": 46
+    },
+    {
+      "id": "p104",
+      "r": 0,
+      "t": "house",
+      "x": 75,
+      "y": 54
+    },
+    {
+      "id": "p105",
+      "r": 0,
+      "t": "house",
+      "x": 89,
+      "y": 46
+    },
+    {
+      "id": "p106",
+      "r": 0,
+      "t": "house",
+      "x": 89,
+      "y": 54
+    },
+    {
+      "id": "p107",
+      "r": 0,
+      "t": "playground",
+      "x": 10,
+      "y": 29
+    },
+    {
+      "id": "p108",
+      "r": 0,
+      "t": "flowers",
+      "x": 30,
+      "y": 31
+    },
+    {
+      "id": "p109",
+      "r": 0,
+      "t": "flowers",
+      "x": 52,
+      "y": 30
+    },
+    {
+      "id": "p110",
+      "r": 0,
+      "t": "tree",
+      "x": 4,
+      "y": 32
+    },
+    {
+      "id": "p111",
+      "r": 0,
+      "t": "tree",
+      "x": 22,
+      "y": 33
+    },
+    {
+      "id": "p112",
+      "r": 0,
+      "t": "tree",
+      "x": 40,
+      "y": 29
+    },
+    {
+      "id": "p113",
+      "r": 0,
+      "t": "tree",
+      "x": 62,
+      "y": 33
+    },
+    {
+      "id": "p114",
+      "r": 0,
+      "t": "tree",
+      "x": 70,
+      "y": 29
+    },
+    {
+      "id": "p115",
+      "r": 0,
+      "t": "streetLight",
+      "x": 8,
+      "y": 22
+    },
+    {
+      "id": "p116",
+      "r": 0,
+      "t": "streetLight",
+      "x": 24,
+      "y": 22
+    },
+    {
+      "id": "p117",
+      "r": 0,
+      "t": "streetLight",
+      "x": 40,
+      "y": 22
+    },
+    {
+      "id": "p118",
+      "r": 0,
+      "t": "streetLight",
+      "x": 56,
+      "y": 22
+    },
+    {
+      "id": "p119",
+      "r": 0,
+      "t": "streetLight",
+      "x": 72,
+      "y": 22
+    },
+    {
+      "id": "p120",
+      "r": 0,
+      "t": "streetLight",
+      "x": 83,
+      "y": 32
+    },
+    {
+      "id": "p121",
+      "r": 0,
+      "t": "streetLight",
+      "x": 87,
+      "y": 50
+    },
+    {
+      "id": "p122",
+      "r": 1,
+      "t": "parked",
+      "x": 14,
+      "y": 23
+    },
+    {
+      "id": "p123",
+      "r": 1,
+      "t": "parked",
+      "x": 60,
+      "y": 24
+    },
+    {
+      "id": "p124",
+      "r": 0,
+      "t": "dog",
+      "x": 6,
+      "y": 17
+    },
+    {
+      "id": "p125",
+      "r": 0,
+      "t": "dog",
+      "x": 60,
+      "y": 17
+    },
+    {
+      "id": "p126",
+      "r": 0,
+      "t": "mouseSpot",
+      "x": 20,
+      "y": 52
+    },
+    {
+      "id": "p127",
+      "r": 0,
+      "t": "mouseSpot",
+      "x": 45,
+      "y": 58
+    },
+    {
+      "id": "p128",
+      "r": 0,
+      "t": "mouseSpot",
+      "x": 60,
+      "y": 48
+    },
+    {
+      "id": "p129",
+      "r": 0,
+      "t": "mouseSpot",
+      "x": 8,
+      "y": 47
+    }
+  ],
+  "labels": [
+    {
+      "id": "l130",
+      "text": "Our house",
+      "x": 38,
+      "y": 19.6
+    },
+    {
+      "id": "l131",
+      "text": "Road",
+      "x": 50,
+      "y": 24.5
+    },
+    {
+      "id": "l132",
+      "text": "Garden",
+      "x": 46,
+      "y": 35
+    },
+    {
+      "id": "l133",
+      "text": "River",
+      "x": 40,
+      "y": 40.5
+    },
+    {
+      "id": "l134",
+      "text": "Bridge",
+      "x": 85.5,
+      "y": 36.6
+    },
+    {
+      "id": "l135",
+      "text": "Forest",
+      "x": 34,
+      "y": 54
+    },
+    {
+      "id": "l136",
+      "text": "Road up",
+      "x": 85.5,
+      "y": 3
+    }
+  ],
+  "rev": "claude140",
+  "updated": 1792486159468,
+  "w": 96
+}

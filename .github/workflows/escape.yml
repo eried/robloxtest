@@ -1,0 +1,95 @@
+name: Publish Pianka the Escape
+
+on:
+  workflow_dispatch:
+    inputs:
+      make_public:
+        description: Make the game public
+        type: boolean
+        default: false
+  push:
+    branches: [claude/roblox-forest-cat-game-qr4nzd]
+    paths: [escape/**, tools/roblox.py, .github/workflows/escape.yml]
+
+permissions:
+  contents: write
+
+concurrency: escape
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.ROBLOX_API_KEY != '' }}
+      UNIVERSE_ID: "10772048262"
+      PLACE_ID: "90217765834800"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Playtest with bots
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/lune.zip" https://github.com/lune-org/lune/releases/download/v0.8.9/lune-0.8.9-linux-x86_64.zip
+          unzip -o "$RUNNER_TEMP/lune.zip" -d "$RUNNER_TEMP"
+          cd escape && "$RUNNER_TEMP/lune" run tests/escape.spec.luau | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Get Rojo
+        if: env.HAS_KEY == 'true'
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/rojo.zip" https://github.com/rojo-rbx/rojo/releases/download/v7.4.4/rojo-7.4.4-linux-x86_64.zip
+          unzip -o "$RUNNER_TEMP/rojo.zip" -d "$RUNNER_TEMP"
+
+      - name: Upload sounds
+        if: env.HAS_KEY == 'true'
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py audio | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Build place
+        if: env.HAS_KEY == 'true'
+        run: |
+          "$RUNNER_TEMP/rojo" build escape/default.project.json -o escape/PiankaEscape.rbxlx
+          if ! git diff --quiet escape/src/shared/Config.luau; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add escape/src/shared/Config.luau
+            git commit -m "Set uploaded Pianka Escape sound ids"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push
+          fi
+
+      - name: Publish place
+        if: env.HAS_KEY == 'true'
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py publish | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Restart servers
+        if: env.HAS_KEY == 'true'
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py restart | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Make public
+        if: env.HAS_KEY == 'true' && inputs.make_public
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py public | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Game name
+        if: env.HAS_KEY == 'true'
+        continue-on-error: true
+        env:
+          ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+        run: python3 escape/tools/publish.py name | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Game status
+        if: env.HAS_KEY == 'true'
+        continue-on-error: true
+        run: python3 escape/tools/publish.py status | tee -a "$GITHUB_STEP_SUMMARY"

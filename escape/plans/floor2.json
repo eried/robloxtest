@@ -1,0 +1,236 @@
+{
+  "bg": null,
+  "bgOpacity": 50,
+  "cells": "wwwnnnwwwwwwwnnnnnnwwwwwwwwwwwwwwffffffffwffffffffffffwffffffffwwffffffffwffffffffffffwffffffffwwffffffffwffffffffffffwffffffffwwffffffffdffffffffffffwffffffffnwffffffffdffffffffffffdffffffffnwffffffffwffffffffffffdffffffffnwffffffffwffffffffffffwffffffffwwwwwwwwwwwffffffffffffwffffffffwwffffffffwffffffffffffwffffffffwwffffffffwffffffffffffwwwwwwwwwwwffffffffwffffffffffffwffffffffwnffffffffwffffffffffffwffffffffwnffffffffwffffffffffffwffffffffwnffffffffdffffffffffffwffffffffnnffffffffdffffffffffffdffffffffnwffffffffwffffffffffffdffffffffnwffffffffwffffffffffffwffffffffwwffffffffwffffffffffffwffffffffwwffffffffwffffffffffffwffffffffwwffffffffwffffffffffffwffffffffwwwwnnnnwwwwwwwwwwwwwwwwwwwwwwwww",
+  "h": 22,
+  "items": [
+    {
+      "id": "p1",
+      "r": 1,
+      "t": "bathtub",
+      "x": 1,
+      "y": 1
+    },
+    {
+      "id": "p2",
+      "r": 0,
+      "t": "toilet",
+      "x": 7,
+      "y": 1
+    },
+    {
+      "id": "p3",
+      "r": 1,
+      "t": "tv",
+      "x": 10,
+      "y": 6
+    },
+    {
+      "id": "p4",
+      "r": 1,
+      "t": "sofa",
+      "x": 15,
+      "y": 5
+    },
+    {
+      "id": "p5",
+      "r": 0,
+      "t": "stairsDown",
+      "x": 12,
+      "y": 14
+    },
+    {
+      "id": "p6",
+      "r": 0,
+      "t": "tv",
+      "x": 25,
+      "y": 1
+    },
+    {
+      "id": "p7",
+      "r": 0,
+      "t": "bedKid",
+      "x": 28,
+      "y": 5
+    },
+    {
+      "id": "p8",
+      "r": 0,
+      "t": "bedGirl",
+      "x": 28,
+      "y": 14
+    },
+    {
+      "id": "p9",
+      "r": 0,
+      "t": "bedMom",
+      "x": 2,
+      "y": 12
+    },
+    {
+      "id": "p10",
+      "r": 0,
+      "t": "key",
+      "x": 24,
+      "y": 8
+    },
+    {
+      "id": "p11",
+      "r": 0,
+      "t": "key",
+      "x": 30,
+      "y": 2
+    },
+    {
+      "id": "p12",
+      "r": 0,
+      "t": "key",
+      "x": 24,
+      "y": 19
+    },
+    {
+      "id": "p13",
+      "r": 0,
+      "t": "key",
+      "x": 30,
+      "y": 19
+    },
+    {
+      "id": "p14",
+      "r": 0,
+      "t": "key",
+      "x": 7,
+      "y": 10
+    },
+    {
+      "id": "p15",
+      "r": 0,
+      "t": "key",
+      "x": 2,
+      "y": 19
+    },
+    {
+      "id": "p16",
+      "r": 0,
+      "t": "key",
+      "x": 11,
+      "y": 2
+    },
+    {
+      "id": "p17",
+      "r": 0,
+      "t": "key",
+      "x": 20,
+      "y": 12
+    },
+    {
+      "id": "p18",
+      "r": 0,
+      "t": "key",
+      "x": 8,
+      "y": 7
+    },
+    {
+      "id": "p19",
+      "r": 0,
+      "t": "squeaky",
+      "x": 13,
+      "y": 11
+    },
+    {
+      "id": "p20",
+      "r": 0,
+      "t": "squeaky",
+      "x": 19,
+      "y": 3
+    },
+    {
+      "id": "p21",
+      "r": 0,
+      "t": "squeaky",
+      "x": 26,
+      "y": 13
+    },
+    {
+      "id": "p22",
+      "r": 0,
+      "t": "squeaky",
+      "x": 5,
+      "y": 18
+    },
+    {
+      "id": "p23",
+      "r": 0,
+      "t": "squeaky",
+      "x": 25,
+      "y": 4
+    },
+    {
+      "id": "p24",
+      "r": 0,
+      "t": "squeaky",
+      "x": 19,
+      "y": 18
+    },
+    {
+      "id": "p25",
+      "r": 0,
+      "t": "ballTrack",
+      "x": 16,
+      "y": 17
+    }
+  ],
+  "labels": [
+    {
+      "id": "l26",
+      "text": "Bathroom",
+      "x": 4.5,
+      "y": 6.4
+    },
+    {
+      "id": "l27",
+      "text": "Mom",
+      "x": 5.5,
+      "y": 9.6
+    },
+    {
+      "id": "l28",
+      "text": "Living room",
+      "x": 16,
+      "y": 2.4
+    },
+    {
+      "id": "l29",
+      "text": "TV faces right",
+      "x": 12.5,
+      "y": 9.4
+    },
+    {
+      "id": "l30",
+      "text": "Kid",
+      "x": 26,
+      "y": 9.4
+    },
+    {
+      "id": "l31",
+      "text": "Kid TV faces down",
+      "x": 26.5,
+      "y": 2.8
+    },
+    {
+      "id": "l32",
+      "text": "Girl",
+      "x": 26,
+      "y": 20.4
+    },
+    {
+      "id": "l33",
+      "text": "Stairs",
+      "x": 13,
+      "y": 20.4
+    }
+  ],
+  "rev": "claude138",
+  "updated": 1792486159467,
+  "w": 32
+}

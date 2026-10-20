@@ -1,0 +1,212 @@
+{
+  "bg": null,
+  "bgOpacity": 50,
+  "cells": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggxxgwwwwwwwwwwwwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwgggggggggggggggggggggggggggggggggggggggggggggggggxxgwffffffffffwggwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwgggggggggggggggxxgwwdddddddwwwggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwffffffffffffffffffffffffffffffwgggggggggggggggxxgggpppppppgggggwwwwwwwwwwwwwwwddwwwwwwwwwwwwwwwgggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggppggggggggggggggggggggggggggggggxxgggpppppppppppppppppppppppppppppggggggggggggggggggggggggggggggxxgggpppppppppppppppppppppppppppppggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxgggpppppppggggggggggggggggggggggggggggggggggggggggggggggggggggxxxxxdddddddxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "h": 56,
+  "items": [
+    {
+      "id": "p63",
+      "r": 0,
+      "t": "car",
+      "x": 5,
+      "y": 4
+    },
+    {
+      "id": "p64",
+      "r": 0,
+      "t": "houseDoor",
+      "x": 31,
+      "y": 36
+    },
+    {
+      "id": "p65",
+      "r": 0,
+      "t": "gate",
+      "x": 6,
+      "y": 55
+    },
+    {
+      "id": "p66",
+      "r": 0,
+      "t": "key",
+      "x": 3,
+      "y": 3
+    },
+    {
+      "id": "p67",
+      "r": 0,
+      "t": "key",
+      "x": 12,
+      "y": 13
+    },
+    {
+      "id": "p68",
+      "r": 0,
+      "t": "key",
+      "x": 11,
+      "y": 4
+    },
+    {
+      "id": "p69",
+      "r": 0,
+      "t": "key",
+      "x": 3,
+      "y": 50
+    },
+    {
+      "id": "p70",
+      "r": 0,
+      "t": "key",
+      "x": 60,
+      "y": 3
+    },
+    {
+      "id": "p71",
+      "r": 0,
+      "t": "key",
+      "x": 58,
+      "y": 50
+    },
+    {
+      "id": "p72",
+      "r": 0,
+      "t": "key",
+      "x": 40,
+      "y": 45
+    },
+    {
+      "id": "p73",
+      "r": 0,
+      "t": "key",
+      "x": 25,
+      "y": 8
+    },
+    {
+      "id": "p74",
+      "r": 0,
+      "t": "key",
+      "x": 55,
+      "y": 24
+    },
+    {
+      "id": "p75",
+      "r": 2,
+      "t": "camera",
+      "x": 16,
+      "y": 36
+    },
+    {
+      "id": "p76",
+      "r": 1,
+      "t": "camera",
+      "x": 47,
+      "y": 13
+    },
+    {
+      "id": "p77",
+      "r": 2,
+      "t": "camera",
+      "x": 13,
+      "y": 16
+    },
+    {
+      "id": "p78",
+      "r": 0,
+      "t": "camera",
+      "x": 40,
+      "y": 54
+    },
+    {
+      "id": "p79",
+      "r": 0,
+      "t": "camera",
+      "x": 30,
+      "y": 13
+    },
+    {
+      "id": "p80",
+      "r": 0,
+      "t": "bush",
+      "x": 20,
+      "y": 44
+    },
+    {
+      "id": "p81",
+      "r": 0,
+      "t": "bush",
+      "x": 50,
+      "y": 40
+    },
+    {
+      "id": "p82",
+      "r": 0,
+      "t": "bush",
+      "x": 26,
+      "y": 8
+    },
+    {
+      "id": "p83",
+      "r": 0,
+      "t": "bush",
+      "x": 56,
+      "y": 20
+    },
+    {
+      "id": "p84",
+      "r": 0,
+      "t": "bush",
+      "x": 44,
+      "y": 49
+    },
+    {
+      "id": "p85",
+      "r": 0,
+      "t": "tree",
+      "x": 3,
+      "y": 24
+    },
+    {
+      "id": "p86",
+      "r": 0,
+      "t": "tree",
+      "x": 58,
+      "y": 30
+    },
+    {
+      "id": "p87",
+      "r": 0,
+      "t": "flowers",
+      "x": 40,
+      "y": 8
+    }
+  ],
+  "labels": [
+    {
+      "id": "l88",
+      "text": "House",
+      "x": 32,
+      "y": 24
+    },
+    {
+      "id": "l89",
+      "text": "Garage",
+      "x": 8,
+      "y": 13.4
+    },
+    {
+      "id": "l90",
+      "text": "Driveway",
+      "x": 7.5,
+      "y": 30
+    },
+    {
+      "id": "l91",
+      "text": "Gate, 3 locks",
+      "x": 7.5,
+      "y": 53.4
+    }
+  ],
+  "rev": "claude139",
+  "updated": 1792486159467,
+  "w": 64
+}
