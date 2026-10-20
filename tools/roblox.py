@@ -109,20 +109,48 @@ def upload_audio(path, name, uid):
     sys.exit(f"Upload timed out: {path}")
 
 
+def moderation(asset):
+    res = call("GET", f"{API}/assets/v1/assets/{asset}?readMask=moderationResult")
+    return (res.get("moderationResult") or {}).get("moderationState")
+
+
+def wait_approved(assets, limit=360):
+    """New sounds stay silent until Roblox approves them, so wait a little before publishing."""
+    start = time.time()
+    waiting = list(assets)
+    while waiting and time.time() - start < limit:
+        for asset in list(waiting):
+            state = moderation(asset)
+            if state == "Approved":
+                print(f"{asset} approved after {int(time.time() - start)} s")
+                waiting.remove(asset)
+            elif state == "Rejected":
+                print(f"{asset} was rejected by moderation")
+                waiting.remove(asset)
+        if waiting:
+            time.sleep(15)
+    for asset in waiting:
+        print(f"{asset} still in review, it will play once Roblox approves it")
+
+
 def audio():
     with open(CONFIG) as f:
         config = f.read()
     uid = None
+    uploaded = []
     for key, path, name in AUDIO:
         if not re.search(rf"\b{key} = 0,", config):
             print(f"{key} already set")
             continue
         uid = uid or user_id()
         asset = upload_audio(path, name, uid)
+        uploaded.append(asset)
         config = re.sub(rf"\b{key} = 0,", f"{key} = {asset},", config)
         print(f"{key} = {asset}")
     with open(CONFIG, "w") as f:
         f.write(config)
+    if uploaded:
+        wait_approved(uploaded)
 
 
 def universe_id(place):

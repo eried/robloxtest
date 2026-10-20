@@ -65,7 +65,8 @@ function Cat.character(): Model
 	model.Name = "StarterCharacter"
 	local root = Instance.new("Part")
 	root.Name = "HumanoidRootPart"
-	root.Size = Vector3.new(1.6, 1.4, 2.6)
+	-- Short and a little high so it slides up the steep stair ramp instead of digging in
+	root.Size = Vector3.new(1.4, 1, 1)
 	root.CFrame = CFrame.new(0, 1.4, 0)
 	root.Transparency = 1
 	root.CanCollide = true
@@ -83,7 +84,7 @@ function Cat.character(): Model
 	end
 	local humanoid = Instance.new("Humanoid")
 	humanoid.RigType = Enum.HumanoidRigType.R15
-	humanoid.HipHeight = 0.7
+	humanoid.HipHeight = 0.9
 	humanoid.RequiresNeck = false
 	humanoid.BreakJointsOnDeath = false
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None

@@ -269,7 +269,7 @@ local function buildLevel(lv: Level, baseY: number, top: boolean, parent: Folder
 			light.Color = s.light
 			light.Brightness = s.bright
 			light.Range = 34
-			light.Shadows = true
+			light.Shadows = false
 			light.Parent = lamp
 			lamp:SetAttribute("Room", room.name)
 		end
@@ -1113,6 +1113,8 @@ Lighting.OutdoorAmbient = Color3.fromRGB(80, 86, 120)
 Lighting.FogEnd = 900
 
 -- Pianka is the player
+-- The player's own avatar must not be dressed onto the cat
+StarterPlayer.LoadCharacterAppearance = false
 StarterPlayer.CharacterWalkSpeed = Config.WalkSpeed
 StarterPlayer.CharacterUseJumpPower = false
 StarterPlayer.CharacterJumpHeight = Config.JumpHeight
@@ -1337,11 +1339,11 @@ local function resetRound()
 	for _, player in Players:GetPlayers() do
 		player:SetAttribute("Out", nil)
 		player:SetAttribute("Seen", nil)
+		toBed(player)
 		local r = root(player)
 		if r then
 			r.Anchored = false
 		end
-		toBed(player)
 	end
 	event:FireAllClients("round")
 end
@@ -1601,8 +1603,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 
-Players.PlayerAdded:Connect(function(player: Player)
-	player.CharacterAdded:Connect(function(character: Model)
+local function joined(player: Player)
+	local function spawned(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 		humanoid.WalkSpeed = Config.WalkSpeed
 		humanoid.UseJumpPower = false
@@ -1617,8 +1619,16 @@ Players.PlayerAdded:Connect(function(player: Player)
 				end
 			end
 		end)
-	end)
-end)
+	end
+	player.CharacterAdded:Connect(spawned)
+	if player.Character then
+		task.spawn(spawned, player.Character)
+	end
+end
+Players.PlayerAdded:Connect(joined)
+for _, player in Players:GetPlayers() do
+	task.spawn(joined, player)
+end
 Players.PlayerRemoving:Connect(function(player: Player)
 	last[player] = nil
 	speeds[player] = nil

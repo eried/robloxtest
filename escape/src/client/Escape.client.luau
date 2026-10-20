@@ -63,32 +63,51 @@ task.spawn(function()
 		end
 	end
 	pcall(function()
-		ContentProvider:PreloadAsync(list)
+		ContentProvider:PreloadAsync(list, function(asset: string, status: Enum.AssetFetchStatus)
+			if status ~= Enum.AssetFetchStatus.Success then
+				warn("Sound did not load:", asset, status)
+			end
+		end)
 	end)
 end)
 
+-- Runs f once the sound has loaded, or warns after a while
 local function whenLoaded(s: Sound, f: () -> ())
 	if s.IsLoaded then
 		f()
 		return
 	end
-	task.spawn(function()
-		local start = os.clock()
-		while not s.IsLoaded and os.clock() - start < 20 do
-			task.wait(0.1)
-		end
-		if s.IsLoaded then
+	local fired = false
+	local conn = s.Loaded:Once(function()
+		if not fired then
+			fired = true
 			f()
+		end
+	end)
+	task.delay(15, function()
+		conn:Disconnect()
+		if not fired then
+			fired = true
+			if s.IsLoaded then
+				f()
+			else
+				warn("Sound still not loaded:", s.SoundId)
+			end
 		end
 	end)
 end
 
-local function playClip(parent: Instance, clip: { number }?, volume: number, speed: number, range: number, from: Sound?): Sound?
+-- One clip from a sound sheet. Little sounds are skipped until the sheet has loaded
+local function playClip(parent: Instance, clip: { number }?, volume: number, speed: number, range: number, from: Sound?, optional: boolean?): Sound?
 	if not from or not clip then
 		return nil
 	end
+	local source = from :: Sound
+	if optional and not source.IsLoaded then
+		return nil
+	end
 	local c = clip :: { number }
-	local s = from:Clone()
+	local s = source:Clone()
 	s.Volume = volume
 	s.Looped = false
 	s.PlaybackSpeed = speed
@@ -96,18 +115,33 @@ local function playClip(parent: Instance, clip: { number }?, volume: number, spe
 	s.RollOffMinDistance = 8
 	s.RollOffMaxDistance = range
 	s.Parent = parent
-	whenLoaded(s, function()
+	whenLoaded(source, function()
+		if not s.Parent then
+			return
+		end
 		s.PlaybackRegionsEnabled = true
 		s.PlaybackRegion = NumberRange.new(c[1], c[1] + c[2])
 		s:Play()
+		s.Ended:Once(function()
+			s:Destroy()
+		end)
+		task.delay(c[2] / speed + 1, function()
+			s:Destroy()
+		end)
 	end)
-	task.delay(c[2] / speed + 22, function()
-		s:Destroy()
+	task.delay(18, function()
+		if not s.IsPlaying then
+			s:Destroy()
+		end
 	end)
 	return s
 end
 local function sound(name: string, volume: number?, speed: number?, parent: Instance?, range: number?): Sound?
 	return playClip(parent or SoundService, SFX[name], volume or 1, speed or 1, range or 1000, sfx)
+end
+-- Pianka's own little sounds play close to the ear
+local function small(name: string, volume: number, speed: number?)
+	playClip(SoundService, SFX[name], volume, speed or 1, 1000, sfx, true)
 end
 local function voice(clip: { number }, volume: number, speed: number?)
 	playClip(SoundService, clip, volume, speed or 1, 1000, voices)
@@ -421,9 +455,31 @@ end
 
 local beepAt = 0
 local camNear = 0
+local conesAt = 0
+local conesShown = true
 local seenRay = RaycastParams.new()
 seenRay.FilterType = Enum.RaycastFilterType.Exclude
 RunService.RenderStepped:Connect(function()
+	-- Only in the yard, and 30 times a second is plenty
+	local inYard = workspace:GetAttribute("Stage") == "yard" or player:GetAttribute("Out") == true
+	if not inYard then
+		camNear = 0
+		meter.Visible = false
+		if conesShown then
+			conesShown = false
+			for _, c in cams do
+				for _, w in c.cone do
+					w.Transparency = 1
+				end
+			end
+		end
+		return
+	end
+	if os.clock() < conesAt then
+		return
+	end
+	conesAt = os.clock() + 1 / 30
+	conesShown = true
 	local t = workspace:GetServerTimeNow()
 	local half = math.rad(Config.CameraHalf)
 	local root = myRoot()
@@ -477,8 +533,11 @@ RunService.RenderStepped:Connect(function()
 				mine = true
 			end
 		end
-		for _, w in c.cone do
-			w.Transparency = if mine then 0.55 else 0.8
+		local alpha = if mine then 0.55 else 0.8
+		if c.cone[1].Transparency ~= alpha then
+			for _, w in c.cone do
+				w.Transparency = alpha
+			end
 		end
 	end
 	meter.Visible = out and seen > 0
@@ -491,6 +550,7 @@ end)
 
 -- Moving like a cat: slow and low near sleepers, soft paws, legs and tail
 local floor2 = Config.Floor2
+local syncAt = 0
 local stride = 0
 local lastPaw = 0
 local bases: { [Weld]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
@@ -517,7 +577,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		end
 		humanoid.WalkSpeed = if clipOn then 0 elseif near then Config.SneakSpeed else Config.WalkSpeed
 		humanoid.JumpHeight = if clipOn then 0 else Config.JumpHeight
-		humanoid.HipHeight = if near then 0.45 else 0.7
+		humanoid.HipHeight = if near then 0.65 else 0.9
 		-- Paws
 		local v = root.AssemblyLinearVelocity
 		local speed = Vector3.new(v.X, 0, v.Z).Magnitude
@@ -525,7 +585,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 			stride += dt * speed * 0.55
 			if stride - lastPaw > 1 then
 				lastPaw = stride
-				sound(if math.floor(stride) % 2 == 0 then "Paw1" else "Paw2", if near then 0.25 else 0.45, 0.9 + math.random() * 0.2, root, 40)
+				small(if math.floor(stride) % 2 == 0 then "Paw1" else "Paw2", if near then 0.18 else 0.3, 0.9 + math.random() * 0.2)
 			end
 		end
 	end
@@ -536,10 +596,19 @@ RunService.RenderStepped:Connect(function(dt: number)
 		target = math.max(target, 0.4)
 	end
 	danger += (target - danger) * math.min(1, dt * (if target > danger then 3 else 0.6))
-	if music and tense and musicOn then
-		music.Volume = 0.6 * (1 - 0.65 * danger)
+	if music and musicOn then
+		music.Volume = if tense then 0.6 * (1 - 0.65 * danger) else 0.6
+	end
+	if tense and musicOn then
 		tense.Volume = 0.85 * danger
-		if tense.IsPlaying and math.abs(tense.TimePosition - music.TimePosition) > 0.1 then
+	end
+	-- Keep the tense layer in step with the tune, checked now and then
+	local now = os.clock()
+	if music and tense and musicOn and now >= syncAt then
+		syncAt = now + 2
+		local length = math.max(music.TimeLength, 1)
+		local drift = (tense.TimePosition - music.TimePosition) % length
+		if tense.IsPlaying and math.min(drift, length - drift) > 0.2 then
 			tense.TimePosition = music.TimePosition
 		end
 	end
@@ -580,12 +649,15 @@ end)
 local function watchJumps(character: Model)
 	local humanoid = character:WaitForChild("Humanoid", 5) :: Humanoid?
 	if humanoid then
+		local airborne = 0
 		humanoid.StateChanged:Connect(function(_, new: Enum.HumanoidStateType)
-			local root = myRoot()
-			if new == Enum.HumanoidStateType.Landed and root then
-				sound("Land", 0.6, 1, root, 40)
-			elseif new == Enum.HumanoidStateType.Jumping and root then
-				sound("Whoosh", 0.25, 1.4, root, 30)
+			if new == Enum.HumanoidStateType.Freefall then
+				airborne = os.clock()
+			elseif new == Enum.HumanoidStateType.Landed and airborne > 0 and os.clock() - airborne > 0.3 then
+				airborne = 0
+				small("Land", 0.5)
+			elseif new == Enum.HumanoidStateType.Jumping then
+				small("Whoosh", 0.2, 1.4)
 			end
 		end)
 	end
@@ -674,12 +746,15 @@ local function buildMouse(parent: Instance): (Model, (boolean) -> ())
 		add(Vector3.one * 0.24, Vector3.new(x, 0.62, -0.38), Color3.fromRGB(255, 170, 190), true)
 		table.insert(alive, add(Vector3.one * 0.08, Vector3.new(x * 0.6, 0.45, -0.6), Color3.new(0, 0, 0), true))
 		for _, a in { 45, -45 } do
-			local bar = add(Vector3.new(0.24, 0.05, 0.05), Vector3.new(x * 0.6, 0.46, -0.62), Color3.new(0, 0, 0), false)
+			local bar = add(Vector3.new(0.28, 0.075, 0.06), Vector3.new(x * 0.85, 0.47, -0.62), Color3.new(0, 0, 0), false)
 			bar.CFrame = bar.CFrame * CFrame.Angles(0, 0, math.rad(a))
 			bar.Transparency = 1
 			table.insert(dead, bar)
 		end
 	end
+	local tongue = add(Vector3.new(0.12, 0.05, 0.18), Vector3.new(0.05, 0.27, -0.66), Color3.fromRGB(255, 110, 140), false)
+	tongue.Transparency = 1
+	table.insert(dead, tongue)
 	for _, x in { -0.2, 0.2 } do
 		for _, z in { -0.2, 0.22 } do
 			add(Vector3.one * 0.13, Vector3.new(x, 0.04, z), Color3.fromRGB(255, 170, 190), true)
@@ -752,10 +827,15 @@ local function dreamBubble(): (Frame, (number) -> ())
 	for _ = 1, 30 do
 		block(Vector3.one * 0.3, CFrame.new(rnd:NextNumber(-20, 44), rnd:NextNumber(6, 16), -24), Color3.new(1, 1, 1), true, true)
 	end
-	block(Vector3.new(2, 14, 12), CFrame.new(-13, 7, -2), Color3.fromRGB(236, 228, 214))
-	block(Vector3.new(1.2, 5, 4), CFrame.new(-11.9, 9, -3.5), Color3.fromRGB(255, 220, 150), false, true)
-	local hinge = CFrame.new(-12, 3, 2)
-	local door = block(Vector3.new(0.4, 6, 3.6), hinge * CFrame.new(0, 0, -1.8), Color3.fromRGB(110, 60, 40))
+	-- The house wall with a doorway: dark inside, the door swings open behind Pianka
+	local wallColor = Color3.fromRGB(236, 228, 214)
+	block(Vector3.new(2, 14, 6.2), CFrame.new(-13, 7, -4.9), wallColor)
+	block(Vector3.new(2, 14, 2.2), CFrame.new(-13, 7, 2.9), wallColor)
+	block(Vector3.new(2, 8, 3.6), CFrame.new(-13, 10, 0), wallColor)
+	block(Vector3.new(6, 6, 4), CFrame.new(-16.5, 3, 0), Color3.fromRGB(20, 16, 24))
+	block(Vector3.new(1.2, 4, 2.4), CFrame.new(-11.9, 9.5, -5), Color3.fromRGB(255, 220, 150), false, true)
+	local hinge = CFrame.new(-12, 3, -1.8)
+	local door = block(Vector3.new(0.4, 6, 3.6), hinge * CFrame.new(0, 0, 1.8), Color3.fromRGB(110, 60, 40))
 	for i = 0, 5 do
 		block(Vector3.one * 0.7, CFrame.new(20 + i * 1.3, 0.3, -1.5 + (i % 2) * 0.6), Color3.fromRGB(255, 120 + i * 20, 170), true)
 	end
@@ -808,33 +888,33 @@ local function dreamBubble(): (Frame, (number) -> ())
 	local function update(t: number)
 		-- The door opens, Pianka walks out under the moon
 		local open = math.clamp((t - 1.2) / 0.8, 0, 1)
-		door.CFrame = hinge * CFrame.Angles(0, -open * 1.6, 0) * CFrame.new(0, 0, -1.8)
+		door.CFrame = hinge * CFrame.Angles(0, open * 1.55, 0) * CFrame.new(0, 0, 1.8)
 		if once("creak", 1.2, t) then
 			sound("Creak", 0.9)
 		end
-		local catX, catY, carry = -10, 0, false
+		local catX, catY, carry = -14, 0, false
 		if t < 2 then
-			catX = -10
-		elseif t < 4.5 then
-			catX = -10 + (t - 2) / 2.5 * 12
-		elseif t < 5.5 then
-			catX = 2
+			catX = -14
+		elseif t < 4.3 then
+			catX = -14 + (t - 2) / 2.3 * 15
+		elseif t < 5.4 then
+			catX = 1
 			catY = -0.3
-		elseif t < 6.1 then
-			local k = (t - 5.5) / 0.6
-			catX = 2 + k * 4.5
+		elseif t < 6.0 then
+			local k = (t - 5.4) / 0.6
+			catX = 1 + k * 7.5
 			catY = math.sin(k * math.pi) * 3
 		elseif t < 6.6 then
-			catX = 6.5
+			catX = 8.5
 		elseif t < 9 then
-			catX = 6.5 + (t - 6.6) / 2.4 * 15
+			catX = 8.5 + (t - 6.6) / 2.4 * 13
 			carry = true
 		else
 			catX = 21.5
 		end
-		carry = carry or (t >= 6.1 and t < 9.1)
-		local wiggle = if t >= 4.5 and t < 5.5 then math.sin(t * 30) * 0.08 else 0
-		local bob = if (t > 2 and t < 4.5) or (t > 6.6 and t < 9) then math.abs(math.sin(t * 9)) * 0.25 else 0
+		carry = carry or (t >= 6.0 and t < 9.1)
+		local wiggle = if t >= 4.4 and t < 5.4 then math.sin(t * 30) * 0.08 else 0
+		local bob = if (t > 2 and t < 4.3) or (t > 6.6 and t < 9) then math.abs(math.sin(t * 9)) * 0.25 else 0
 		local catCf = CFrame.lookAt(Vector3.new(catX, catY + bob, 0), Vector3.new(catX + 1, catY + bob, 0)) * CFrame.Angles(0, wiggle, 0)
 		if t >= 9.6 then
 			-- Lifted into the hug
@@ -847,14 +927,17 @@ local function dreamBubble(): (Frame, (number) -> ())
 		-- The mouse runs in, gets caught, is carried and dropped at her feet
 		local mouseCf: CFrame
 		local lift = CFrame.new(0, 0.45, 0)
-		if t < 4 then
+		if t < 3.6 then
 			mouseCf = CFrame.new(40, 0, 0.5) * lift
-		elseif t < 5.5 then
-			local k = math.clamp((t - 4) / 1.2, 0, 1)
-			local hop = math.abs(math.sin(t * 14)) * 0.15
-			mouseCf = CFrame.lookAt(Vector3.new(14 - k * 7.5, hop, 0.5), Vector3.new(0, hop, 0.5)) * lift
-		elseif t < 6.1 then
-			mouseCf = CFrame.lookAt(Vector3.new(6.5, 0, 0.5), Vector3.new(0, 0, 0.5)) * lift
+		elseif t < 4.4 then
+			-- Sniffing, facing Pianka
+			local sniff = math.sin(t * 25) * 0.05
+			mouseCf = CFrame.lookAt(Vector3.new(5, 0, 0.5), Vector3.new(0, 0, 0.5)) * lift * CFrame.Angles(sniff, 0, 0)
+		elseif t < 6.0 then
+			-- Runs away from her as fast as it can
+			local k = math.clamp((t - 4.4) / 1.6, 0, 1)
+			local hop = math.abs(math.sin(t * 16)) * 0.2
+			mouseCf = CFrame.lookAt(Vector3.new(5 + k * 4.5, hop, 0.5), Vector3.new(20, hop, 0.5)) * lift
 		elseif carry then
 			-- Limp in Pianka's mouth
 			mouseCf = catCf * CFrame.new(0, 1.85, -2.8) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(0, 0, 0.5 + math.sin(t * 9) * 0.15)
@@ -862,15 +945,15 @@ local function dreamBubble(): (Frame, (number) -> ())
 			-- Dropped at her feet, belly up, feet in the air
 			mouseCf = CFrame.lookAt(Vector3.new(23.2, 0, 1.4), Vector3.new(20, 0, 2.5)) * lift * CFrame.Angles(0, 0, math.pi)
 		end
-		mouseDead(t >= 6.1)
+		mouseDead(t >= 6.0)
 		mouse:PivotTo(mouseCf)
-		if once("squeak", 4.1, t) then
+		if once("squeak", 4.2, t) then
 			sound("Mouse", 1)
 		end
-		if once("pounce", 5.5, t) then
+		if once("pounce", 5.4, t) then
 			sound("Pounce", 1)
 		end
-		if once("caught", 6.1, t) then
+		if once("caught", 6.0, t) then
 			sound("Mouse", 0.8, 1.2)
 			sound("Key", 0.5, 1.3)
 		end
@@ -936,10 +1019,7 @@ local function intro()
 			b:Play()
 		end)
 	end
-	local root = myRoot()
-	if root then
-		sound("Purr", 0.9, 1, root, 40)
-	end
+	sound("Purr", 0.7)
 	local bubble, update = dreamBubble()
 	bubble.Size = UDim2.fromScale(0, 0)
 	TweenService:Create(bubble, TweenInfo.new(0.9, Enum.EasingStyle.Back), { Size = UDim2.fromScale(0.52, 0.6) }):Play()
@@ -973,7 +1053,7 @@ local function intro()
 		end)
 	end
 	-- Awake: a yawn, a look at the door
-	meow(Config.Mew, 1, 0.85, root)
+	meow(Config.Mew, 1, 0.85)
 	TweenService:Create(fade, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
 	letterbox(false)
 	keyBar.Visible = true
@@ -991,7 +1071,6 @@ local function lockedClip(door: BasePart)
 	camera.CameraType = Enum.CameraType.Scriptable
 	letterbox(true)
 	local inside = door.Position + Vector3.new(0, 4, -18)
-	local rest = door.CFrame
 	local start = os.clock()
 	local cues: { [string]: boolean } = {}
 	local locks = {}
@@ -1021,12 +1100,8 @@ local function lockedClip(door: BasePart)
 	end
 	while not done and os.clock() - start < Config.LockedClipTime do
 		local t = os.clock() - start
-		camera.CFrame = CFrame.lookAt(inside + Vector3.new(math.sin(t * 0.4) * 2, 0, 0), door.Position + Vector3.new(0, 2 + math.max(0, t - 2.6) * 2.5, 0))
-		if t < 0.9 then
-			door.CFrame = rest * CFrame.new(math.sin(t * 60) * 0.12, 0, 0)
-		else
-			door.CFrame = rest
-		end
+		local shake = if t < 0.9 then Vector3.new(math.sin(t * 70) * 0.25, math.sin(t * 53) * 0.12, 0) else Vector3.zero
+		camera.CFrame = CFrame.lookAt(inside + Vector3.new(math.sin(t * 0.4) * 2, 0, 0) + shake, door.Position + Vector3.new(0, 2 + math.max(0, t - 2.6) * 2.5, 0) + shake)
 		if not cues.rattle then
 			cues.rattle = true
 			sound("Rattle", 1.4)
@@ -1062,7 +1137,6 @@ local function lockedClip(door: BasePart)
 		end
 		RunService.RenderStepped:Wait()
 	end
-	door.CFrame = rest
 	for _, g in ghosts do
 		g.model:Destroy()
 	end
@@ -1186,7 +1260,7 @@ local function exitClip()
 		camera.CFrame = CFrame.lookAt(want, target)
 		if t > 1.4 and not meowed then
 			meowed = true
-			meow(Config.Meow, 1.2, 1.1, root)
+			meow(Config.Meow, 1.2, 1.1)
 			popIcon(root, "📹❗", 2.4, 70)
 		end
 		RunService.RenderStepped:Wait()
@@ -1383,8 +1457,7 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any)
 		end
 	elseif kind == "round" then
 		showKeys()
-		local root = myRoot()
-		meow(Config.Mew, 0.7, 0.8, root)
+		meow(Config.Mew, 0.7, 0.8)
 	end
 end)
 

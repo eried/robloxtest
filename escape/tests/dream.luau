@@ -9,7 +9,7 @@ Engine.startServer()
 local ana = Engine.addPlayer("Ana")
 local DT = 1 / 30
 local frames = {}
-local wanted = { 1.6, 3.4, 5.2, 5.8, 7.5, 9.4, 10.6 }
+local wanted = { 1.6, 2.6, 4.0, 4.9, 5.8, 7.5, 9.4, 10.6 }
 local start = nil
 for _ = 1, 30 * 30 do
 	Engine.step(DT)
