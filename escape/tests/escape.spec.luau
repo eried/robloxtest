@@ -396,7 +396,14 @@ local through = gate.Position + Vector3.new(0, 1.4, 12)
 teleport(ana, through)
 run(0.5)
 check(workspace:GetAttribute("State") == "won", "walking through the open gate did not win")
-run(Config.WinRestart + 2)
+-- The run is timed: best times are saved, shown in the player list and on the end card
+run(Config.EndingTime + 3)
+local best = Engine.stores["ordered:EscapeBestTimes"] or {}
+check(best[tostring(ana.UserId)] ~= nil, "the escape time was not saved")
+local stats = ana:FindFirstChild("leaderstats")
+check(stats ~= nil and stats:FindFirstChild("⏱️") ~= nil and stats["⏱️"].Value ~= "-", "the best time is not in the player list")
+check(ana.PlayerGui.Escape:FindFirstChild("Again", true) ~= nil, "no end card with a play again button")
+run(Config.WinRestart - Config.EndingTime)
 check(workspace:GetAttribute("Keys") == 0 and workspace:GetAttribute("Stage") == "house" and nearBed(ana), "the round did not restart after the escape")
 
 for _, e in Engine.errors do

@@ -1003,6 +1003,13 @@ CLASS_METHODS.DataStoreService = {
 			GetAsync = function(_, key: string)
 				return data[key]
 			end,
+			UpdateAsync = function(_, key: string, f: any)
+				local value = f(data[key])
+				if value ~= nil then
+					data[key] = value
+				end
+				return data[key]
+			end,
 			GetSortedAsync = function(_, ascending: boolean, size: number)
 				local list = {}
 				for k, v in data do

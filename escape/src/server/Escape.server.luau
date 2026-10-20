@@ -1363,6 +1363,9 @@ starter.Parent = StarterPlayer
 
 -- Round state, shared by everyone in the server
 local state: string = "play"
+-- When each player's run started, and when they joined
+local runStart: { [Player]: number } = {}
+local joinedAt: { [Player]: number } = {}
 local function setState(s: string)
 	state = s
 	workspace:SetAttribute("State", s)
@@ -1586,6 +1589,11 @@ local function resetRound(reroll: boolean?)
 	if reroll then
 		gatePicks = nil
 	end
+	if reroll and state == "won" then
+		for _, p in Players:GetPlayers() do
+			runStart[p] = os.clock()
+		end
+	end
 	setState("play")
 	setStage("house")
 	garage.open = 0
@@ -1726,11 +1734,94 @@ local function floorOf(y: number): number
 	return if y > FLOOR2 - 3 then 2 else 1
 end
 
--- After a win the end card can start the next night a little sooner
+-- Speed: each run starts when the dream ends, wake ups and alarms cost time
+local DataStoreService = game:GetService("DataStoreService")
+local bestStore: any = nil
+pcall(function()
+	bestStore = DataStoreService:GetOrderedDataStore("EscapeBestTimes")
+end)
+local names: { [number]: string } = {}
+local top: { { name: string, time: number, id: number } } = {}
+local function nameOf(id: number): string
+	if not names[id] then
+		local ok, n = pcall(function()
+			return Players:GetNameFromUserIdAsync(id)
+		end)
+		names[id] = if ok and type(n) == "string" then n else "?"
+	end
+	return names[id]
+end
+local function clockText(seconds: number): string
+	local s = math.floor(seconds + 0.5)
+	return string.format("%d:%02d", s // 60, s % 60)
+end
+-- The best time shows in the player list
+local function showBest(player: Player, tenths: number?)
+	local stats = player:FindFirstChild("leaderstats")
+	if not stats then
+		local f = Instance.new("Folder")
+		f.Name = "leaderstats"
+		f.Parent = player
+		stats = f
+	end
+	local best = (stats :: Instance):FindFirstChild("⏱️") :: StringValue?
+	if not best then
+		local v = Instance.new("StringValue")
+		v.Name = "⏱️"
+		v.Value = "-"
+		v.Parent = stats
+		best = v
+	end
+	if tenths and best then
+		best.Value = clockText(tenths / 10)
+	end
+end
+local function loadTop()
+	local store = bestStore
+	if not store then
+		return
+	end
+	local ok, pages = pcall(function()
+		return store:GetSortedAsync(true, 10)
+	end)
+	if not ok or not pages then
+		return
+	end
+	local list = {}
+	for _, entry in (pages :: any):GetCurrentPage() do
+		local id = tonumber(entry.key) or 0
+		table.insert(list, { name = nameOf(id), time = entry.value / 10, id = id })
+	end
+	top = list
+end
+-- Only the best time is kept, and nothing silly short
+local function saveTime(player: Player, seconds: number)
+	local store = bestStore
+	if not store or player.UserId <= 0 or seconds < Config.MinRunTime then
+		return
+	end
+	local tenths = math.floor(seconds * 10 + 0.5)
+	local ok, saved = pcall(function()
+		return store:UpdateAsync(tostring(player.UserId), function(old: number?): number?
+			if old and old <= tenths then
+				return nil
+			end
+			return tenths
+		end)
+	end)
+	if ok and type(saved) == "number" then
+		showBest(player, saved)
+	end
+end
+
+-- After a win the end card can start the next night once the ending has played
 local wonAt = 0
-event.OnServerEvent:Connect(function(_, kind: any)
-	if kind == "again" and state == "won" and os.clock() - wonAt > 5 then
+event.OnServerEvent:Connect(function(player: Player, kind: any)
+	if kind == "again" and state == "won" and os.clock() - wonAt > Config.EndingTime then
 		resetRound(true)
+	elseif kind == "start" and joinedAt[player] and os.clock() - joinedAt[player] < 30 then
+		-- The dream is over: the clock starts now
+		runStart[player] = math.max(runStart[player] or 0, os.clock())
 	end
 end)
 
@@ -1865,6 +1956,21 @@ RunService.Heartbeat:Connect(function(dt: number)
 				setState("won")
 				wonAt = now
 				event:FireAllClients("free", player)
+				-- Everyone's time, saved and ranked
+				local times = {}
+				for _, p in Players:GetPlayers() do
+					table.insert(times, { id = p.UserId, time = now - (runStart[p] or now) })
+				end
+				task.spawn(function()
+					for _, entry in times do
+						local p = Players:GetPlayerByUserId(entry.id)
+						if p then
+							saveTime(p, entry.time)
+						end
+					end
+					loadTop()
+					event:FireAllClients("scores", times, top)
+				end)
 				task.delay(Config.WinRestart, function()
 					if workspace:GetAttribute("State") == "won" then
 						resetRound(true)
@@ -1899,6 +2005,20 @@ RunService.Heartbeat:Connect(function(dt: number)
 end)
 
 local function joined(player: Player)
+	joinedAt[player] = os.clock()
+	runStart[player] = os.clock()
+	showBest(player, nil)
+	task.spawn(function()
+		local store = bestStore
+		if store and player.UserId > 0 then
+			local ok, best = pcall(function()
+				return store:GetAsync(tostring(player.UserId))
+			end)
+			if ok and type(best) == "number" then
+				showBest(player, best)
+			end
+		end
+	end)
 	local function spawned(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 		humanoid.WalkSpeed = Config.WalkSpeed
@@ -1925,6 +2045,8 @@ for _, player in Players:GetPlayers() do
 	task.spawn(joined, player)
 end
 Players.PlayerRemoving:Connect(function(player: Player)
+	runStart[player] = nil
+	joinedAt[player] = nil
 	last[player] = nil
 	speeds[player] = nil
 	seen[player] = nil

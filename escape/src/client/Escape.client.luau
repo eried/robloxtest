@@ -1045,7 +1045,8 @@ end
 -- The dream ---------------------------------------------------------------
 
 -- Milenkitka, super happy, for the dream bubble
-local function buildMom(parent: Instance): { model: Model, arms: { BasePart }, shoulders: { CFrame }, upper: { BasePart } }
+type Mom = { model: Model, arms: { BasePart }, shoulders: { CFrame }, upper: { BasePart }, happy: { BasePart }, shock: { BasePart } }
+local function buildMom(parent: Instance): Mom
 	local model = Instance.new("Model")
 	model.Name = "Mom"
 	local look = Config.Sleepers.bedMom
@@ -1086,6 +1087,24 @@ local function buildMom(parent: Instance): { model: Model, arms: { BasePart }, s
 		local a = math.rad(200 + i * 140 / 6)
 		table.insert(upper, add("Smile", Vector3.one * 0.13, Vector3.new(math.cos(a) * 0.32, 5.62 + math.sin(a) * 0.28, -0.8), Color3.fromRGB(180, 50, 70)))
 	end
+	local happy = {}
+	for _, p in upper do
+		if p.Name == "Eye" or p.Name == "Smile" then
+			table.insert(happy, p)
+		end
+	end
+	-- Her horrified face: eyes wide open, brows up, mouth a big O
+	local shock = {}
+	for _, x in { -0.32, 0.32 } do
+		table.insert(shock, add("ShockEye", Vector3.one * 0.44, Vector3.new(x, 5.98, -0.66), Color3.new(1, 1, 1), true))
+		table.insert(shock, add("ShockPupil", Vector3.one * 0.15, Vector3.new(x, 5.98, -0.88), Color3.fromRGB(20, 20, 20), true))
+		table.insert(shock, add("Brow", Vector3.new(0.36, 0.08, 0.08), Vector3.new(x, 6.34, -0.7), Color3.fromRGB(70, 45, 30), false, CFrame.Angles(0, 0, math.rad(if x > 0 then -18 else 18))))
+	end
+	table.insert(shock, add("ShockMouth", Vector3.one * 0.42, Vector3.new(0, 5.4, -0.68), Color3.fromRGB(90, 20, 35), true))
+	for _, p in shock do
+		p.Transparency = 1
+		table.insert(upper, p)
+	end
 	local arms, shoulders = {}, {}
 	for _, x in { -1, 1 } do
 		local shoulder = CFrame.new(x * 0.95, 4.75, 0)
@@ -1093,7 +1112,7 @@ local function buildMom(parent: Instance): { model: Model, arms: { BasePart }, s
 		table.insert(arms, add("Arm", Vector3.new(0.45, 1.9, 0.45), (shoulder * CFrame.new(0, -0.95, 0)).Position, skin))
 	end
 	model.Parent = parent
-	return { model = model, arms = arms, shoulders = shoulders, upper = upper }
+	return { model = model, arms = arms, shoulders = shoulders, upper = upper, happy = happy, shock = shock }
 end
 
 -- The dream mouse. Once caught its eyes turn to x x
@@ -1148,6 +1167,120 @@ local function buildMouse(parent: Instance): (Model, (boolean) -> ())
 	end
 end
 
+-- The garden by the house door, for the dream at night and the real thing at dawn
+type Garden = {
+	wm: WorldModel,
+	cam: Camera,
+	block: (Vector3, CFrame, Color3, boolean?, boolean?) -> BasePart,
+	door: BasePart,
+	hinge: CFrame,
+	cat: any,
+	mouse: Model,
+	mouseDead: (boolean) -> (),
+	mom: Mom,
+	pose: (CFrame, number, number, number, number, number) -> (),
+	face: (boolean) -> (),
+}
+local function gardenScene(vf: ViewportFrame, dawn: boolean): Garden
+	local wm = new("WorldModel", { Parent = vf })
+	local cam = new("Camera", { FieldOfView = 45, Parent = vf })
+	vf.CurrentCamera = cam
+	local function block(size: Vector3, cf: CFrame, color: Color3, ball: boolean?, neon: boolean?): BasePart
+		local p = Instance.new("Part")
+		p.Size = size
+		p.CFrame = cf
+		p.Color = color
+		p.Anchored = true
+		p.Material = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		if ball then
+			p.Shape = Enum.PartType.Ball
+		end
+		p.Parent = wm
+		return p
+	end
+	-- The garden: grass, the moon and stars at night, the sun coming up at dawn, the house door
+	block(Vector3.new(80, 1, 30), CFrame.new(12, -0.5, 0), if dawn then Color3.fromRGB(95, 160, 85) else Color3.fromRGB(70, 130, 70))
+	local rnd = Random.new(4)
+	if dawn then
+		block(Vector3.one * 8, CFrame.new(26, 3, -26), Color3.fromRGB(255, 200, 110), true, true)
+		for i = 0, 2 do
+			for j, size in { 2.4, 3.2, 2.4 } do
+				block(Vector3.one * size, CFrame.new(-6 + i * 15 + (j - 2) * 2, 12 + (i % 2) * 2 + (if j == 2 then 0.5 else 0), -24), Color3.fromRGB(255, 240, 238), true, false)
+			end
+		end
+	else
+		block(Vector3.one * 5, CFrame.new(10, 11, -22), Color3.fromRGB(255, 245, 200), true, true)
+		for _ = 1, 30 do
+			block(Vector3.one * 0.3, CFrame.new(rnd:NextNumber(-20, 44), rnd:NextNumber(6, 16), -24), Color3.new(1, 1, 1), true, true)
+		end
+	end
+	-- The house wall with a doorway: dark inside, the door swings open behind Pianka
+	local wallColor = Color3.fromRGB(236, 228, 214)
+	block(Vector3.new(2, 14, 6.2), CFrame.new(-13, 7, -4.9), wallColor)
+	block(Vector3.new(2, 14, 2.2), CFrame.new(-13, 7, 2.9), wallColor)
+	block(Vector3.new(2, 8, 3.6), CFrame.new(-13, 10, 0), wallColor)
+	block(Vector3.new(6, 6, 4), CFrame.new(-16.5, 3, 0), Color3.fromRGB(20, 16, 24))
+	block(Vector3.new(1.2, 4, 2.4), CFrame.new(-11.9, 9.5, -5), Color3.fromRGB(255, 220, 150), false, true)
+	local hinge = CFrame.new(-12, 3, -1.8)
+	local door = block(Vector3.new(0.4, 6, 3.6), hinge * CFrame.new(0, 0, 1.8), Color3.fromRGB(110, 60, 40))
+	-- Little flowers by Milenkitka: a stem, a yellow middle and five petals
+	for i = 0, 6 do
+		local base = Vector3.new(19.5 + i * 1.4, 0, -2.2 + (i % 2) * 0.9)
+		local h = 1.1 + (i % 3) * 0.25
+		block(Vector3.new(0.12, h, 0.12), CFrame.new(base + Vector3.new(0, h / 2, 0)), Color3.fromRGB(70, 150, 70))
+		block(Vector3.new(0.5, 0.08, 0.25), CFrame.new(base + Vector3.new(0.2, h * 0.4, 0)) * CFrame.Angles(0, 0, 0.5), Color3.fromRGB(80, 170, 80))
+		local top = base + Vector3.new(0, h, 0)
+		local petal = ({ Color3.fromRGB(255, 120, 170), Color3.fromRGB(255, 200, 80), Color3.fromRGB(190, 140, 255), Color3.fromRGB(255, 255, 255) })[i % 4 + 1]
+		for j = 0, 4 do
+			local a = j / 5 * math.pi * 2
+			block(Vector3.new(0.34, 0.1, 0.34), CFrame.new(top + Vector3.new(math.cos(a) * 0.24, 0, math.sin(a) * 0.24)) * CFrame.Angles(math.rad(70), a, 0), petal, true)
+		end
+		block(Vector3.one * 0.2, CFrame.new(top + Vector3.new(0, 0.05, 0)), Color3.fromRGB(255, 220, 60), true)
+	end
+	local cat = Cat.build(CFrame.new(-10, 0, 0), 1)
+	cat.model.Parent = wm
+	local mouse, mouseDead = buildMouse(wm)
+	local mom = buildMom(wm)
+	local momParts: { [BasePart]: CFrame } = {}
+	for _, p in mom.model:GetDescendants() do
+		if p:IsA("BasePart") then
+			momParts[p] = p.CFrame
+		end
+	end
+	-- Arms up with joy, forward and around Pianka in a hug, straight up in horror.
+	-- Running swings the legs and flails the arms
+	local function pose(at: CFrame, kneel: number, joy: number, hug: number, shock: number, run: number)
+		local base = at * CFrame.new(0, -kneel * 1.3, 0)
+		local lean = CFrame.Angles(-kneel * 0.25 + shock * 0.18, 0, 0)
+		for p, rest in momParts do
+			local isArm = table.find(mom.arms, p)
+			if isArm then
+				local shoulder = mom.shoulders[isArm]
+				local side = if isArm == 1 then -1 else 1
+				local up = joy * (1 - hug) * (1 - shock)
+				local flail = if run ~= 0 then math.sin(run * 2 + isArm * 2.5) * 0.45 else 0
+				local tremble = shock * math.sin(os.clock() * 40 + isArm) * 0.06
+				local raise = CFrame.Angles(2.4 * up + 1.3 * hug + 2.9 * shock + flail + tremble, 0, side * (0.15 + 0.5 * up - 0.55 * hug + 0.2 * shock))
+				p.CFrame = base * lean * shoulder * raise * CFrame.new(0, -0.95, 0)
+			elseif p.Name == "Leg" then
+				local swing = math.sin(run) * 0.75 * (if rest.Position.X < 0 then 1 else -1)
+				p.CFrame = at * CFrame.new(0, 2.2, 0) * CFrame.Angles(swing, 0, 0) * CFrame.new(0, -2.2, 0) * rest
+			else
+				p.CFrame = base * lean * rest
+			end
+		end
+	end
+	local function face(shocked: boolean)
+		for _, p in mom.happy do
+			p.Transparency = if shocked then 1 else 0
+		end
+		for _, p in mom.shock do
+			p.Transparency = if shocked then 0 else 1
+		end
+	end
+	return { wm = wm, cam = cam, block = block, door = door, hinge = hinge, cat = cat, mouse = mouse, mouseDead = mouseDead, mom = mom, pose = pose, face = face }
+end
+
 -- The dream plays inside a bubble: out of the door, a mouse, and Milenkitka so happy she hugs Pianka
 local function dreamBubble(): (Frame, (number) -> (), { Frame })
 	local bubble = new("Frame", {
@@ -1179,81 +1312,14 @@ local function dreamBubble(): (Frame, (number) -> (), { Frame })
 		new("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = dot })
 		table.insert(trail, dot)
 	end
-	local wm = new("WorldModel", { Parent = vf })
-	local cam = new("Camera", { FieldOfView = 45, Parent = vf })
-	vf.CurrentCamera = cam
-	local function block(size: Vector3, cf: CFrame, color: Color3, ball: boolean?, neon: boolean?): BasePart
-		local p = Instance.new("Part")
-		p.Size = size
-		p.CFrame = cf
-		p.Color = color
-		p.Anchored = true
-		p.Material = if neon then Enum.Material.Neon else Enum.Material.SmoothPlastic
-		if ball then
-			p.Shape = Enum.PartType.Ball
-		end
-		p.Parent = wm
-		return p
-	end
-	-- The night garden: grass, moon, stars, the house door
-	block(Vector3.new(80, 1, 30), CFrame.new(12, -0.5, 0), Color3.fromRGB(70, 130, 70))
-	block(Vector3.one * 5, CFrame.new(10, 11, -22), Color3.fromRGB(255, 245, 200), true, true)
-	local rnd = Random.new(4)
-	for _ = 1, 30 do
-		block(Vector3.one * 0.3, CFrame.new(rnd:NextNumber(-20, 44), rnd:NextNumber(6, 16), -24), Color3.new(1, 1, 1), true, true)
-	end
-	-- The house wall with a doorway: dark inside, the door swings open behind Pianka
-	local wallColor = Color3.fromRGB(236, 228, 214)
-	block(Vector3.new(2, 14, 6.2), CFrame.new(-13, 7, -4.9), wallColor)
-	block(Vector3.new(2, 14, 2.2), CFrame.new(-13, 7, 2.9), wallColor)
-	block(Vector3.new(2, 8, 3.6), CFrame.new(-13, 10, 0), wallColor)
-	block(Vector3.new(6, 6, 4), CFrame.new(-16.5, 3, 0), Color3.fromRGB(20, 16, 24))
-	block(Vector3.new(1.2, 4, 2.4), CFrame.new(-11.9, 9.5, -5), Color3.fromRGB(255, 220, 150), false, true)
-	local hinge = CFrame.new(-12, 3, -1.8)
-	local door = block(Vector3.new(0.4, 6, 3.6), hinge * CFrame.new(0, 0, 1.8), Color3.fromRGB(110, 60, 40))
-	-- Little flowers by Milenkitka: a stem, a yellow middle and five petals
-	for i = 0, 6 do
-		local base = Vector3.new(19.5 + i * 1.4, 0, -2.2 + (i % 2) * 0.9)
-		local h = 1.1 + (i % 3) * 0.25
-		block(Vector3.new(0.12, h, 0.12), CFrame.new(base + Vector3.new(0, h / 2, 0)), Color3.fromRGB(70, 150, 70))
-		block(Vector3.new(0.5, 0.08, 0.25), CFrame.new(base + Vector3.new(0.2, h * 0.4, 0)) * CFrame.Angles(0, 0, 0.5), Color3.fromRGB(80, 170, 80))
-		local top = base + Vector3.new(0, h, 0)
-		local petal = ({ Color3.fromRGB(255, 120, 170), Color3.fromRGB(255, 200, 80), Color3.fromRGB(190, 140, 255), Color3.fromRGB(255, 255, 255) })[i % 4 + 1]
-		for j = 0, 4 do
-			local a = j / 5 * math.pi * 2
-			block(Vector3.new(0.34, 0.1, 0.34), CFrame.new(top + Vector3.new(math.cos(a) * 0.24, 0, math.sin(a) * 0.24)) * CFrame.Angles(math.rad(70), a, 0), petal, true)
-		end
-		block(Vector3.one * 0.2, CFrame.new(top + Vector3.new(0, 0.05, 0)), Color3.fromRGB(255, 220, 60), true)
-	end
-	local cat = Cat.build(CFrame.new(-10, 0, 0), 1)
-	cat.model.Parent = wm
-	local mouse, mouseDead = buildMouse(wm)
-	local mom = buildMom(wm)
+	local scene = gardenScene(vf, false)
+	local cam, block = scene.cam, scene.block
+	local door, hinge, cat, mouse, mouseDead = scene.door, scene.hinge, scene.cat, scene.mouse, scene.mouseDead
 	local momBase = CFrame.lookAt(Vector3.new(26, 0, 0), Vector3.new(20, 0, 5))
-	local momParts: { [BasePart]: CFrame } = {}
-	for _, p in mom.model:GetDescendants() do
-		if p:IsA("BasePart") then
-			momParts[p] = p.CFrame
-		end
-	end
-	-- Arms: up with joy, then forward and around Pianka
 	local function poseMom(kneel: number, joy: number, hug: number)
-		local base = momBase * CFrame.new(0, -kneel * 1.3, 0)
-		for p, rest in momParts do
-			local isArm = table.find(mom.arms, p)
-			if isArm then
-				local shoulder = mom.shoulders[isArm]
-				local side = if isArm == 1 then -1 else 1
-				local up = joy * (1 - hug)
-				local raise = CFrame.Angles(2.4 * up + 1.3 * hug, 0, side * (0.15 + 0.5 * up - 0.55 * hug))
-				p.CFrame = base * CFrame.Angles(-kneel * 0.25, 0, 0) * shoulder * raise * CFrame.new(0, -0.95, 0)
-			elseif p.Name == "Leg" then
-				p.CFrame = momBase * rest
-			else
-				p.CFrame = base * CFrame.Angles(-kneel * 0.25, 0, 0) * rest
-			end
-		end
+		scene.pose(momBase, kneel, joy, hug, 0, 0)
 	end
+	local rnd = Random.new(4)
 	poseMom(0, 0, 0)
 	-- Where she holds Pianka: in front of her chest, leaning in as she kneels
 	local function momHold(kneel: number): CFrame
@@ -1508,6 +1574,8 @@ local function intro()
 	introOn = false
 	endClip(my)
 	startMusic()
+	-- The clock for the speed score starts now
+	event:FireServer("start")
 end
 
 -- Ghost keys fly along a path: up the stairwell when their key is upstairs
@@ -2104,29 +2172,226 @@ local function gateClip(gate: BasePart)
 end
 
 -- After the way out: a picture card and a button to play again
+-- Scores from the server: everyone's time this run and the best times ever
+local myTime: number? = nil
+local bestList: { { name: string, time: number, id: number } } = {}
 local endCard: Frame? = nil
+local function clockText(seconds: number): string
+	local sec = math.floor(seconds + 0.5)
+	return string.format("%d:%02d", sec // 60, sec % 60)
+end
+local function fillCard(card: Frame)
+	for _, c in card:GetChildren() do
+		if c:IsA("GuiObject") and c.Name ~= "Again" then
+			c:Destroy()
+		end
+	end
+	local function label(text: string, pos: UDim2, size: UDim2, color: Color3?, parent: Instance?): TextLabel
+		return new("TextLabel", { Position = pos, Size = size, BackgroundTransparency = 1, TextScaled = true, Text = text, TextColor3 = color or Color3.new(1, 1, 1), Font = Enum.Font.FredokaOne, ZIndex = 26, Parent = parent or card })
+	end
+	-- Left: the story in pictures, your time and stars
+	label("🌙🐈🐭😱", UDim2.fromScale(0.04, 0.05), UDim2.fromScale(0.44, 0.2))
+	if myTime then
+		local t = myTime :: number
+		label("⏱️ " .. clockText(t), UDim2.fromScale(0.04, 0.28), UDim2.fromScale(0.44, 0.2), Color3.fromRGB(255, 230, 120))
+		local stars = if t < Config.Stars[1] then 3 elseif t < Config.Stars[2] then 2 else 1
+		label(string.rep("⭐", stars) .. string.rep("☆", 3 - stars), UDim2.fromScale(0.08, 0.5), UDim2.fromScale(0.36, 0.14))
+	end
+	-- Right: the best times ever, yours in gold
+	local board = new("Frame", { Position = UDim2.fromScale(0.52, 0.05), Size = UDim2.fromScale(0.44, 0.9), BackgroundColor3 = Color3.fromRGB(45, 42, 62), ZIndex = 26, Parent = card })
+	round(board, 14)
+	label("🏆", UDim2.fromScale(0.35, 0.01), UDim2.fromScale(0.3, 0.12), nil, board)
+	for i, entry in bestList do
+		if i > 10 then
+			break
+		end
+		local mine = entry.id == player.UserId
+		local color = if mine then Color3.fromRGB(255, 215, 80) else Color3.fromRGB(235, 235, 245)
+		local y = 0.14 + (i - 1) * 0.085
+		label(tostring(i), UDim2.fromScale(0.02, y), UDim2.fromScale(0.12, 0.075), color, board)
+		local name = label(entry.name, UDim2.fromScale(0.15, y), UDim2.fromScale(0.55, 0.075), color, board)
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		label(clockText(entry.time), UDim2.fromScale(0.72, y), UDim2.fromScale(0.26, 0.075), color, board)
+	end
+end
 local function showEndCard()
 	if endCard then
+		fillCard(endCard)
 		return
 	end
-	local card = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(320, 210), BackgroundColor3 = Color3.fromRGB(28, 26, 40), BackgroundTransparency = 0.1, ZIndex = 25, Parent = gui })
+	local card = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.7, 0.8), BackgroundColor3 = Color3.fromRGB(28, 26, 40), BackgroundTransparency = 0.05, ZIndex = 25, Parent = gui })
+	new("UIAspectRatioConstraint", { AspectRatio = 1.7, Parent = card })
+	new("UISizeConstraint", { MaxSize = Vector2.new(760, 450), Parent = card })
 	round(card, 24)
-	new("TextLabel", { Position = UDim2.fromOffset(10, 14), Size = UDim2.new(1, -20, 0, 90), BackgroundTransparency = 1, TextScaled = true, Text = "🌙🐈🐭⭐", ZIndex = 26, Parent = card })
-	local again = new("TextButton", { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 118), Size = UDim2.fromOffset(110, 74), BackgroundColor3 = Color3.fromRGB(90, 200, 120), TextScaled = true, Text = "▶", TextColor3 = Color3.new(1, 1, 1), ZIndex = 26, Parent = card })
+	local again = new("TextButton", { Name = "Again", Position = UDim2.fromScale(0.12, 0.68), Size = UDim2.fromScale(0.28, 0.24), BackgroundColor3 = Color3.fromRGB(90, 200, 120), TextScaled = true, Text = "▶", TextColor3 = Color3.new(1, 1, 1), ZIndex = 26, Parent = card })
 	round(again, 18)
 	again.Activated:Connect(function()
 		sound("Pop", 1)
 		event:FireServer("again")
 	end)
+	fillCard(card)
 	if usingPad() then
 		GuiService.SelectedObject = again
 	end
-	card.Size = UDim2.fromOffset(160, 105)
-	TweenService:Create(card, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Size = UDim2.fromOffset(320, 210) }):Play()
+	card.Size = UDim2.fromScale(0.35, 0.4)
+	TweenService:Create(card, TweenInfo.new(0.4, Enum.EasingStyle.Back), { Size = UDim2.fromScale(0.7, 0.8) }):Play()
+	sound("AllKeys", 0.8)
 	endCard = card
 end
 
--- Free! Out in the night a mouse runs across the road. To be continued...
+-- Where a point in a viewport scene shows up on the screen
+local function project(cam: Camera, size: Vector2, at: Vector3): UDim2
+	local rel = cam.CFrame:PointToObjectSpace(at)
+	if rel.Z >= -0.1 then
+		return UDim2.fromScale(-1, -1)
+	end
+	local f = 1 / math.tan(math.rad(cam.FieldOfView) / 2)
+	local aspect = size.X / math.max(size.Y, 1)
+	return UDim2.fromScale(0.5 + rel.X / -rel.Z * f / aspect * 0.5, 0.5 - rel.Y / -rel.Z * f * 0.5)
+end
+
+-- Home at dawn, like the dream: Pianka brings the mouse, Milenkitka screams and runs
+local function homeClip()
+	local my = beginClip(2, 0)
+	if not my then
+		return
+	end
+	local screen = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 21, Parent = gui })
+	local vf = new("ViewportFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(255, 196, 160),
+		Ambient = Color3.fromRGB(200, 180, 175),
+		LightColor = Color3.fromRGB(255, 225, 190),
+		LightDirection = Vector3.new(-0.5, -1, -0.7),
+		ZIndex = 22,
+		Parent = screen,
+	})
+	new("UIGradient", { Rotation = 90, Color = ColorSequence.new(Color3.fromRGB(140, 170, 235), Color3.fromRGB(255, 205, 165)), Parent = vf })
+	for _, y in { 0, 1 } do
+		new("Frame", { AnchorPoint = Vector2.new(0, y), Position = UDim2.fromScale(0, y), Size = UDim2.fromScale(1, 0.11), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 24, Parent = screen })
+	end
+	local black = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 25, Parent = screen })
+	TweenService:Create(black, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+	local scene = gardenScene(vf, true)
+	local cam = scene.cam
+	local mark = new("TextLabel", { AnchorPoint = Vector2.new(0.5, 1), Size = UDim2.fromOffset(70, 70), BackgroundTransparency = 1, TextScaled = true, Text = "", ZIndex = 23, Parent = screen })
+	local box: Sound? = nil
+	if dreamBox then
+		box = (dreamBox :: Sound):Clone()
+		local b = box :: Sound
+		b.Volume = 0.7
+		b.Parent = SoundService
+		whenLoaded(b, function()
+			b:Play()
+		end)
+	end
+	local cues: { [string]: boolean } = {}
+	local function once(name: string, at: number, now: number): boolean
+		if now >= at and not cues[name] then
+			cues[name] = true
+			return true
+		end
+		return false
+	end
+	local LENGTH = 11
+	local start = os.clock()
+	while clipId == my and os.clock() - start < LENGTH do
+		local t = os.clock() - start
+		-- Pianka trots in from the garden with the mouse and drops it at the door
+		local catX = if t < 3.2 then 24 - (t / 3.2) * 27 else -3
+		local bob = if t < 3.2 then math.abs(math.sin(t * 9)) * 0.25 else 0
+		local catLook = Vector3.new(-1, 0, 0)
+		local momAt: Vector3
+		local momNext = Vector3.new(1, 0, 0)
+		if t >= 7 then
+			-- Away from the cat, to the back of the garden and off
+			local k = math.clamp((t - 7) / 3, 0, 1)
+			local path = { Vector3.new(-10, 0, 0.6), Vector3.new(-9, 0, -7), Vector3.new(4, 0, -13), Vector3.new(36, 0, -13) }
+			local seg = math.min(math.floor(k * 3) + 1, 3)
+			momAt = path[seg]:Lerp(path[seg + 1], k * 3 - (seg - 1))
+			momNext = path[seg + 1]
+			catLook = (Vector3.new(momAt.X, 0, momAt.Z) - Vector3.new(catX, 0, 0)).Unit
+			if t >= 9.6 then
+				catLook = Vector3.new(0, 0, 1)
+			end
+		else
+			local k = math.clamp((t - 4) / 1, 0, 1)
+			momAt = Vector3.new(-16 + k * 6, 0, k * 0.6)
+			momNext = momAt + Vector3.new(1, 0, 0.1)
+		end
+		local catCf = CFrame.lookAt(Vector3.new(catX, bob, 0), Vector3.new(catX, bob, 0) + catLook)
+		scene.cat.model:PivotTo(catCf * CFrame.new(0, 1.4, 0))
+		if t < 3.2 then
+			scene.mouse:PivotTo(catCf * CFrame.new(0, 1.85, -2.8) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(0, 0, 0.5 + math.sin(t * 9) * 0.15))
+		else
+			scene.mouse:PivotTo(CFrame.lookAt(Vector3.new(-6, 0, 1.2), Vector3.new(-9, 0, 2.5)) * CFrame.new(0, 0.45, 0) * CFrame.Angles(0, 0, math.pi))
+		end
+		scene.mouseDead(true)
+		if once("drop", 3.2, t) then
+			sound("Pop", 0.8, 0.8)
+			meow(Config.Mew, 1, 1.15)
+		end
+		-- The door opens and Milenkitka comes out, stretching in the morning
+		local open = math.clamp((t - 3.8) / 0.6, 0, 1)
+		scene.door.CFrame = scene.hinge * CFrame.Angles(0, -open * 1.55, 0) * CFrame.new(0, 0, 1.8)
+		if once("creak", 3.8, t) then
+			sound("Creak", 0.9)
+		end
+		local walking = t >= 4 and t < 5
+		local stretch = math.clamp((t - 5) / 0.3, 0, 1) * (1 - math.clamp((t - 5.6) / 0.3, 0, 1))
+		local shock = if t >= 6 and t < 7 then 1 else 0
+		local running = t >= 7
+		local momCf = CFrame.lookAt(momAt, if (momNext - momAt).Magnitude > 0.1 then momNext else momAt + Vector3.new(1, 0, 0))
+		local runPhase = if running then t * 16 elseif walking then t * 9 else 0
+		scene.pose(momCf, if t >= 5.6 and t < 6 then 0.2 else 0, if running then 1 else stretch, 0, shock, runPhase)
+		scene.face(t >= 6)
+		-- She sees it
+		if once("see", 6, t) then
+			if box then
+				(box :: Sound):Stop()
+			end
+			sound("Scratch", 1.2)
+			mark.Text = "❗"
+		end
+		if once("scream", 6.15, t) then
+			sound("Scream", 1.5)
+		end
+		if once("puzzled", 9.6, t) then
+			mark.Text = "❓"
+			meow(Config.Meow, 0.8, 1.2)
+		end
+		-- The camera: wide like the dream, close on her face, then watching her run
+		local size = screen.AbsoluteSize
+		if t < 5.6 then
+			local follow = math.clamp(catX + 2, -8, 14)
+			local camX = follow + (-5 - follow) * math.clamp((t - 3.4) / 1.2, 0, 1)
+			cam.CFrame = CFrame.lookAt(Vector3.new(camX, 5.5, 16), Vector3.new(camX, 2, 0))
+		elseif t < 7 then
+			local shake = if t >= 6 then Vector3.new(math.sin(t * 60) * 0.12, math.cos(t * 55) * 0.12, 0) else Vector3.zero
+			cam.CFrame = CFrame.lookAt(Vector3.new(-6.5, 6, 7) + shake, Vector3.new(-10, 5.2, 0.6))
+		elseif t < 9.6 then
+			cam.CFrame = CFrame.lookAt(Vector3.new(0, 11, 22), momAt:Lerp(Vector3.new(-3, 2, 0), 0.4) + Vector3.new(0, 2, 0))
+		else
+			cam.CFrame = CFrame.lookAt(Vector3.new(-3, 4, 9), Vector3.new(-3, 2.2, 0))
+		end
+		local markAt = if t < 9.6 then momAt + Vector3.new(0, 8, 0) else Vector3.new(-3, 4.6, 0)
+		mark.Position = if mark.Text ~= "" and size then project(cam, size, markAt) else UDim2.fromScale(-1, -1)
+		if once("out", LENGTH - 0.8, t) then
+			TweenService:Create(black, TweenInfo.new(0.7), { BackgroundTransparency = 0 }):Play()
+		end
+		RunService.RenderStepped:Wait()
+	end
+	if box then
+		(box :: Sound):Destroy()
+	end
+	fade.BackgroundTransparency = 0
+	screen:Destroy()
+	letterbox(false)
+	endClip(my)
+	TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
+end
+
+-- Free! Out in the night a mouse runs across the road, and Pianka gets it
 local function freeClip(root: BasePart)
 	if introOn then
 		return
@@ -2141,34 +2406,86 @@ local function freeClip(root: BasePart)
 	local side = Vector3.new(1, 0, 0)
 	local holder = Instance.new("Model")
 	holder.Parent = workspace
-	local mouse = buildMouse(holder)
+	local mouse, dead = buildMouse(holder)
+	-- A stand-in Pianka does the pounce, the real one hides for the clip
+	local hunter = Cat.build(CFrame.new(at), 1)
+	hunter.model.Parent = holder
+	local hidden: { BasePart } = {}
+	for _, p in (root.Parent :: Instance):GetDescendants() do
+		if p:IsA("BasePart") then
+			p.LocalTransparencyModifier = 1
+			table.insert(hidden, p)
+		end
+	end
 	local start = os.clock()
 	local cues: { [string]: boolean } = {}
-	while clipId == my and os.clock() - start < 7 do
+	local caughtAt = at + ahead * 26
+	while clipId == my and os.clock() - start < 6.6 do
 		local t = os.clock() - start
-		camera.CFrame = CFrame.lookAt(at - ahead * 10 + Vector3.new(0, 5 + t * 0.6, 0), at + ahead * 22 + Vector3.new(0, 1, 0))
 		local k = math.clamp((t - 1.5) / 2.5, 0, 1)
 		local pos = at + ahead * 26 + side * (-24 + k * 48)
-		mouse:PivotTo(CFrame.lookAt(pos, pos + side) * CFrame.new(0, 0.45 + math.abs(math.sin(t * 16)) * 0.2, 0))
+		local catPos = at
+		local catLook = ahead
+		if t >= 2.8 and t < 3.8 then
+			-- The pounce: a big leap onto the mouse
+			local j = (t - 2.8) / 1
+			caughtAt = at + ahead * 26 + side * (-24 + math.clamp((3.8 - 1.5) / 2.5, 0, 1) * 48)
+			catPos = at:Lerp(caughtAt - ahead * 1.5, j) + Vector3.new(0, math.sin(j * math.pi) * 6, 0)
+			catLook = (Vector3.new(caughtAt.X, at.Y, caughtAt.Z) - Vector3.new(at.X, at.Y, at.Z)).Unit
+		elseif t >= 3.8 then
+			-- Got it: she turns proudly to the camera with it
+			catPos = caughtAt - ahead * 1.5
+			local turn = math.clamp((t - 4.2) / 0.6, 0, 1)
+			catLook = ((Vector3.new(caughtAt.X, at.Y, caughtAt.Z) - Vector3.new(at.X, at.Y, at.Z)).Unit):Lerp(-ahead, turn)
+			if catLook.Magnitude < 0.01 then
+				catLook = -ahead
+			end
+			catLook = catLook.Unit
+		end
+		local catCf = CFrame.lookAt(Vector3.new(catPos.X, at.Y - 1.4, catPos.Z), Vector3.new(catPos.X, at.Y - 1.4, catPos.Z) + catLook)
+		hunter.model:PivotTo(catCf * CFrame.new(0, 1.4 + (catPos.Y - at.Y), 0))
+		if t < 3.8 then
+			mouse:PivotTo(CFrame.lookAt(pos, pos + side) * CFrame.new(0, 0.45 + math.abs(math.sin(t * 16)) * 0.2 - 1.4, 0))
+		else
+			mouse:PivotTo(catCf * CFrame.new(0, 1.85, -2.8) * CFrame.Angles(0, math.pi / 2, 0) * CFrame.Angles(0, 0, 0.5))
+		end
+		dead(t >= 3.8)
+		local camFrom = if t < 3.8 then at - ahead * 10 + Vector3.new(0, 5 + t * 0.4, 0) else caughtAt - ahead * 9 + Vector3.new(0, 4, 0)
+		local camTo = if t < 3.8 then at + ahead * 22 + Vector3.new(0, 1, 0) else caughtAt - ahead * 1.5 + Vector3.new(0, 1, 0)
+		camera.CFrame = CFrame.lookAt(camFrom, camTo)
 		if t > 1.6 and not cues.squeak then
 			cues.squeak = true
 			sound("Mouse", 1)
 		end
-		if t > 2.6 and not cues.look then
+		if t > 2.4 and not cues.look then
 			cues.look = true
-			popIcon(root, "🐭❗", 2, 80)
+			popIcon(hunter.body or root, "🐭❗", 1.4, 80)
 			meow(Config.Mew, 1, 1.3)
+		end
+		if t > 2.8 and not cues.pounce then
+			cues.pounce = true
+			sound("Pounce", 1.2)
+		end
+		if t > 3.8 and not cues.caught then
+			cues.caught = true
+			sound("Mouse", 0.9, 1.3)
+			sound("Key", 0.5, 1.3)
+			popIcon(hunter.body or root, "⭐", 1.4, 80)
 		end
 		if t > 5.6 and not cues.fade then
 			cues.fade = true
-			TweenService:Create(fade, TweenInfo.new(1.2), { BackgroundTransparency = 0 }):Play()
+			TweenService:Create(fade, TweenInfo.new(0.9), { BackgroundTransparency = 0 }):Play()
 		end
 		RunService.RenderStepped:Wait()
 	end
 	holder:Destroy()
-	if endClip(my) then
-		TweenService:Create(fade, TweenInfo.new(1), { BackgroundTransparency = 1 }):Play()
+	for _, p in hidden do
+		p.LocalTransparencyModifier = 0
 	end
+	if not endClip(my) then
+		return
+	end
+	homeClip()
 	showEndCard()
 end
 
@@ -2318,8 +2635,19 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 			popIcon(root, "🌙🐈", 4, 100)
 			task.spawn(freeClip, root)
 		end
+	elseif kind == "scores" and type(a) == "table" then
+		for _, entry in a do
+			if type(entry) == "table" and entry.id == player.UserId then
+				myTime = tonumber(entry.time)
+			end
+		end
+		bestList = if type(b) == "table" then b else {}
+		if endCard then
+			fillCard(endCard)
+		end
 	elseif kind == "round" then
 		roundSignal:Fire()
+		myTime = nil
 		for _, lock in hiddenLocks do
 			lock.LocalTransparencyModifier = 0
 		end

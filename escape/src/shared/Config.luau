@@ -37,7 +37,12 @@ return {
 	CaughtTime = 4.5,
 	KeyCount = 3,
 	DownstairsKeyChance = 0.35,
-	WinRestart = 20,
+	WinRestart = 45,
+	-- The ending plays this long before the score card can start a new night
+	EndingTime = 18,
+	-- Speed stars: under these many seconds for 3 and 2 stars
+	Stars = { 240, 420 },
+	MinRunTime = 30,
 
 	-- Backyard cameras: how far and wide they see, how they sweep, how fast they catch you
 	CameraRange = 60,
@@ -55,7 +60,7 @@ return {
 	GarageClipTime = 1.6,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 111248190171943,
+	SfxId = 0,
 	Sfx = {
 		Breath = { 0.3, 4.42 },
 		BreathLight = { 5.02, 3.42 },
@@ -98,6 +103,8 @@ return {
 		Clack = { 74.456, 1.2 },
 		Clatter = { 75.956, 1.6 },
 		Clink = { 77.856, 2.0 },
+		Scream = { 80.156, 3.08 },
+		Scratch = { 83.536, 0.45 },
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
 	MusicId = 104015424025242,

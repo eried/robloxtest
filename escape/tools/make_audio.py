@@ -703,6 +703,56 @@ def clink():
     return norm(reverb(mix(parts, 1.3)[: int(1.3 * SR)], 0.25, 4, 0.7))
 
 
+def formant_env(f, formants):
+    e = np.zeros_like(f) + 0.02
+    for fc, bw, gain in formants:
+        e += gain / (1 + ((f - fc) / (bw / 2)) ** 2)
+    return e
+
+
+def scream_part(dur, f0s, seed, vowel):
+    g = np.random.default_rng(seed)
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    f0 = np.interp(t, np.linspace(0, dur, len(f0s)), f0s)
+    jitter = np.convolve(g.standard_normal(n), np.ones(800) / 800, mode="same") * 60
+    f0 = f0 * (1 + 0.025 * np.sin(2 * np.pi * 6.2 * t)) + jitter
+    phase = 2 * np.pi * np.cumsum(f0) / SR
+    out = np.zeros(n)
+    for k in range(1, 14):
+        fk = f0 * k
+        out += formant_env(fk, vowel) * (fk < 9000) / k ** 0.35 * np.sin(k * phase + g.uniform(0, 6.28))
+    out *= 1 + 0.25 * np.sin(phase / 2)
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    breath = np.fft.irfft(np.fft.rfft(g.standard_normal(n)) * formant_env(fr, vowel), n)
+    out = out / np.abs(out).max() + breath / np.abs(breath).max() * 0.12
+    shape = np.minimum(t / 0.05, 1) * np.minimum((dur - t) / 0.25, 1)
+    return np.tanh(out * shape * 1.8)
+
+
+def scream():
+    """Milenkitka sees the dead mouse: a long scream, a gasp, a shorter one."""
+    aa = [(1000, 260, 1.0), (1500, 300, 0.7), (2900, 400, 0.45), (3800, 500, 0.25)]
+    ee = [(700, 240, 0.8), (2600, 350, 1.0), (3300, 450, 0.6), (4200, 500, 0.3)]
+    first = scream_part(1.45, [560, 900, 960, 930, 980, 900, 760], 1, aa)
+    m = int(0.18 * SR)
+    gasp = band(np.random.default_rng(3).standard_normal(m), 300, 3000) * np.hanning(m) * 0.25
+    second = scream_part(0.85, [700, 1080, 1120, 1050, 860], 2, ee) * 0.9
+    return norm(reverb(np.concatenate([first, gasp, second]), 0.15, 5, 0.6))
+
+
+def scratch():
+    """A record scratch: the music stops."""
+    g = np.random.default_rng(91)
+    n = int(0.45 * SR)
+    t = np.arange(n) / SR
+    rate = np.interp(t, [0, 0.12, 0.2, 0.45], [1.0, 2.6, 0.4, 0.05])
+    phase = 2 * np.pi * np.cumsum(220 * rate) / SR
+    tone = np.sign(np.sin(phase)) * 0.3 + np.sin(phase * 2) * 0.3
+    hiss = band(g.standard_normal(n), 800, 7000) * 0.35 * rate / 2.6
+    return norm((tone + hiss) * np.minimum(t / 0.01, 1) * np.exp(-t * 3), 0.85)
+
+
 def voice(name, semis=0.0, tempo=1.0, wet=0.15):
     x = load_wav(os.path.join(ROOT, "sounds", "voice", name + ".wav"), semis, tempo)
     return norm(reverb(x, wet, 4, 0.6))
@@ -739,6 +789,7 @@ def main():
         ("Whoosh", whoosh()), ("Beep", beep()), ("Alert", alert()), ("Buzz", buzz()), ("Ding", ding()), ("Gate", gate_motor()),
         ("Sigh", sigh()), ("Crickets", crickets()), ("Servo", servo()), ("Click", click()),
         ("Rumble", rumble()), ("Clack", clack()), ("Clatter", clatter()), ("Clink", clink()),
+        ("Scream", scream()), ("Scratch", scratch()),
     ]
     table, chunks, pos = {}, [np.zeros(int(0.3 * SR))], 0.3
     for name, x in clips:
