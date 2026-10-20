@@ -23,11 +23,6 @@
         }
       }
     },
-    "Players": {
-      "$properties": {
-        "MaxPlayers": 6
-      }
-    },
     "Workspace": {
       "$properties": {
         "StreamingEnabled": false
