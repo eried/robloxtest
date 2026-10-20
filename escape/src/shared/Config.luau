@@ -48,7 +48,7 @@ return {
 	GarageClipTime = 1.6,
 
 	-- Sounds made by escape/tools/make_audio.py, uploaded by the publish job
-	SfxId = 0,
+	SfxId = 123345372711459,
 	Sfx = {
 		Breath = { 0.3, 4.42 },
 		BreathLight = { 5.02, 3.42 },
@@ -85,9 +85,9 @@ return {
 		Gate = { 58.786, 3.2 },
 	},
 	-- Music: the sneaky tune and its tense layer play together, the dream is the music box
-	MusicId = 0,
-	TenseId = 0,
-	DreamId = 0,
+	MusicId = 104015424025242,
+	TenseId = 100196456396884,
+	DreamId = 113838553205676,
 
 	-- Voices and meows from Find Pianka the Cat
 	VoicesId = 97571276201632,
