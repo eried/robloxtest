@@ -35,6 +35,8 @@ In Normal and Hard, Pianka jumps on your head when you find her, and every kitte
 
 Tap the **GPS** (or press M) to open the map and plan your way: hedges, guard dog lines, neighbors with lanterns, cabins, home and the area where Pianka is.
 
+With a controller: X searches and picks up, Y lantern, LB bone, RB call, D-pad up map, left menu, right shop, B back. Menus select a button, so the D-pad and A work right away.
+
 In Normal and Hard every rescue is one level up (up to 10): more dogs, wider lights, more rats, less time, more hiding spots and Pianka runs more. Picking a mode starts again at level 1.
 
 Pick up bones 🦴 (up to 3). Tap the bone button or press G: it flies to the closest dog, and every guard dog near it stops to eat. Save one for a friend in trouble. The Hard pack does not care about bones.

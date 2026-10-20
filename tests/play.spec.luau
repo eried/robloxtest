@@ -774,6 +774,48 @@ do
 	run(1)
 end
 
+-- Controller: hints show, Y toggles the lantern, the menu opens with Play selected and B closes it
+do
+	local bot = bots[1]
+	local selection = game:GetService("GuiService")
+	local function press(key: any)
+		Engine.fireForClient(bot.ctx, UIS.InputBegan, { KeyCode = key, UserInputType = Enum.UserInputType.Gamepad1 }, false)
+		run(0.5)
+	end
+	Engine.fireForClient(bot.ctx, UIS.LastInputTypeChanged, Enum.UserInputType.Gamepad1)
+	run(0.5)
+	local hint = false
+	for _, d in gui(bot):GetDescendants() do
+		if d.ClassName == "TextLabel" and d.Text == "Y" and d.Visible then
+			hint = true
+		end
+	end
+	check(hint, "gamepad: the lantern does not show the Y hint")
+	local before = bot.player:GetAttribute("LightOff") == true
+	press(Enum.KeyCode.ButtonY)
+	check((bot.player:GetAttribute("LightOff") == true) ~= before, "gamepad: Y did not toggle the lantern")
+	press(Enum.KeyCode.ButtonY)
+	press(Enum.KeyCode.DPadLeft)
+	local selected = selection.SelectedObject
+	check(selected ~= nil and selected.Text == "▶ Play", "gamepad: the menu did not select Play")
+	press(Enum.KeyCode.ButtonB)
+	check(selection.SelectedObject == nil, "gamepad: B did not close the menu")
+	press(Enum.KeyCode.DPadRight)
+	local item = selection.SelectedObject
+	check(item ~= nil and item.ClassName == "TextButton" and item.Text ~= "▶ Play", "gamepad: the shop did not select its first item")
+	press(Enum.KeyCode.ButtonB)
+	check(selection.SelectedObject == nil, "gamepad: B did not close the shop")
+	Engine.fireForClient(bot.ctx, UIS.LastInputTypeChanged, Enum.UserInputType.Keyboard)
+	run(0.5)
+	local shown = false
+	for _, d in gui(bot):GetDescendants() do
+		if d.ClassName == "TextLabel" and (d.Text == "◀" or d.Text == "Y") and d.Visible then
+			shown = true
+		end
+	end
+	check(not shown, "gamepad: hints stay after switching to the keyboard")
+end
+
 -- GPS screen agrees with the game
 do
 	local root = gui(bots[1])

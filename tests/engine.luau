@@ -798,7 +798,7 @@ local serviceClasses: { [string]: boolean } = {}
 for _, name in {
 	"Players", "ReplicatedStorage", "ServerScriptService", "Lighting", "TweenService", "RunService", "SoundService",
 	"StarterGui", "UserInputService", "ContentProvider", "DataStoreService", "StarterPlayer", "ServerStorage",
-	"ProximityPromptService", "Debris", "HttpService", "TextChatService", "CollectionService", "MarketplaceService",
+	"ProximityPromptService", "Debris", "HttpService", "TextChatService", "CollectionService", "MarketplaceService", "GuiService",
 } do
 	serviceClasses[name] = true
 end

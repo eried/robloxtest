@@ -38,6 +38,16 @@ local GREEN = Color3.fromRGB(90, 220, 110)
 local PANEL = Color3.fromRGB(35, 40, 35)
 local FONT = Enum.Font.FredokaOne
 local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+-- Controllers: hints show while the last input was a gamepad, menus get a selected button
+local pad = {
+	on = false,
+	gui = game:GetService("GuiService"),
+	hints = {} :: { { label: TextLabel, key: string?, pad: string, keep: boolean? } },
+	popups = {} :: { { frame: GuiObject, first: GuiObject } },
+	skip = nil :: (() -> ())?,
+	closeMenu = nil :: (() -> ())?,
+	toggleShop = nil :: (() -> ())?,
+}
 
 local function new(class: string, props: { [string]: any }): any
 	local obj = Instance.new(class)
@@ -56,6 +66,92 @@ end
 
 local function outline(parent: Instance, thickness: number): UIStroke
 	return new("UIStroke", { Color = GREEN, Thickness = thickness, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = parent })
+end
+
+-- A key label that shows the controller button instead, or keeps its text and only swaps it
+function pad.swap(label: TextLabel, text: string, keep: boolean?): TextLabel
+	if utf8.len(text) == 2 then
+		label.Size = UDim2.fromOffset(28, 20)
+	end
+	table.insert(pad.hints, { label = label, key = label.Text, pad = text, keep = keep })
+	return label
+end
+
+-- A small controller badge on a button, only while playing with a gamepad
+function pad.hint(parent: GuiObject, text: string)
+	local label = new("TextLabel", {
+		Position = UDim2.fromOffset(-4, -4),
+		Size = UDim2.fromOffset(20, 20),
+		BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+		Font = FONT,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = text,
+		Visible = pad.on,
+		ZIndex = parent.ZIndex + 4,
+		Parent = parent,
+	})
+	round(label, UDim.new(1, 0))
+	table.insert(pad.hints, { label = label, pad = text })
+end
+
+function pad.refresh()
+	for i = #pad.hints, 1, -1 do
+		local h = pad.hints[i]
+		if not h.label.Parent then
+			table.remove(pad.hints, i)
+			continue
+		end
+		h.label.Text = if pad.on or not h.key then h.pad else h.key :: string
+		h.label.Visible = pad.on or h.keep == true or (h.key ~= nil and not touch)
+	end
+end
+
+-- Select the first button of the top open menu, so the D-pad and A work right away
+function pad.focus(): boolean
+	local selected = pad.gui.SelectedObject
+	for i = #pad.popups, 1, -1 do
+		local p = pad.popups[i]
+		if p.frame.Visible then
+			if pad.on and not (selected and selected:IsDescendantOf(p.frame)) then
+				pad.gui.SelectedObject = p.first
+			end
+			return true
+		end
+	end
+	return false
+end
+
+function pad.popup(frame: GuiObject, first: GuiObject)
+	frame.SelectionGroup = true
+	table.insert(pad.popups, { frame = frame, first = first })
+	frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		local selected = pad.gui.SelectedObject
+		if not frame.Visible and selected and selected:IsDescendantOf(frame) then
+			pad.gui.SelectedObject = nil
+		end
+		pad.focus()
+	end)
+end
+
+function pad.set(on: boolean)
+	if pad.on ~= on then
+		pad.on = on
+		pad.refresh()
+		if on then
+			pad.focus()
+		else
+			pad.gui.SelectedObject = nil
+		end
+	end
+end
+
+function pad.input(kind: Enum.UserInputType)
+	if string.sub(kind.Name, 1, 7) == "Gamepad" then
+		pad.set(true)
+	elseif kind == Enum.UserInputType.Keyboard or kind == Enum.UserInputType.Touch or kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.MouseMovement then
+		pad.set(false)
+	end
 end
 
 local function formatTime(seconds: number): string
@@ -371,20 +467,19 @@ local flame = new("Frame", {
 })
 round(flame, UDim.new(1, 0))
 lanternBit(Vector2.new(32, 7), 57, METAL, 3)
-if not touch then
-	new("TextLabel", {
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -2, 1, -2),
-		Size = UDim2.fromOffset(20, 20),
-		BackgroundColor3 = METAL,
-		Font = FONT,
-		TextSize = 14,
-		TextColor3 = Color3.new(1, 1, 1),
-		Text = "F",
-		ZIndex = 6,
-		Parent = lanternButton,
-	})
-end
+pad.swap(new("TextLabel", {
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, -2, 1, -2),
+	Size = UDim2.fromOffset(20, 20),
+	BackgroundColor3 = METAL,
+	Font = FONT,
+	TextSize = 14,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "F",
+	Visible = not touch,
+	ZIndex = 6,
+	Parent = lanternButton,
+}), "Y")
 
 local function lanternColor(): Color3
 	local id = player:GetAttribute("Lantern")
@@ -457,20 +552,19 @@ local boneCount = new("TextLabel", {
 	Parent = boneButton,
 })
 round(boneCount, UDim.new(1, 0))
-if not touch then
-	new("TextLabel", {
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, -2, 1, 2),
-		Size = UDim2.fromOffset(20, 20),
-		BackgroundColor3 = Color3.fromRGB(45, 40, 35),
-		Font = FONT,
-		TextSize = 14,
-		TextColor3 = Color3.new(1, 1, 1),
-		Text = "G",
-		ZIndex = 3,
-		Parent = boneButton,
-	})
-end
+pad.swap(new("TextLabel", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, -2, 1, 2),
+	Size = UDim2.fromOffset(20, 20),
+	BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+	Font = FONT,
+	TextSize = 14,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "G",
+	Visible = not touch,
+	ZIndex = 3,
+	Parent = boneButton,
+}), "LB")
 local function showBones()
 	local count = (player:GetAttribute("Bones") :: number?) or 0
 	boneCount.Text = tostring(count)
@@ -503,20 +597,19 @@ local callButton = new("TextButton", {
 })
 round(callButton, UDim.new(1, 0))
 local callRing = new("UIStroke", { Color = Color3.fromRGB(120, 200, 255), Thickness = 3, Parent = callButton })
-if not touch then
-	new("TextLabel", {
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, -2, 1, 2),
-		Size = UDim2.fromOffset(20, 20),
-		BackgroundColor3 = Color3.fromRGB(45, 40, 35),
-		Font = FONT,
-		TextSize = 14,
-		TextColor3 = Color3.new(1, 1, 1),
-		Text = "C",
-		ZIndex = 3,
-		Parent = callButton,
-	})
-end
+pad.swap(new("TextLabel", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, -2, 1, 2),
+	Size = UDim2.fromOffset(20, 20),
+	BackgroundColor3 = Color3.fromRGB(45, 40, 35),
+	Font = FONT,
+	TextSize = 14,
+	TextColor3 = Color3.new(1, 1, 1),
+	Text = "C",
+	Visible = not touch,
+	ZIndex = 3,
+	Parent = callButton,
+}), "RB")
 local lastCallTime = -100
 local function callPianka()
 	local ok = workspace:GetAttribute("Mode") == "Hard" and not player:GetAttribute("Out")
@@ -1087,10 +1180,14 @@ local closeButton = new("TextButton", {
 	Parent = card,
 })
 round(closeButton, UDim.new(0, 12))
-closeButton.Activated:Connect(function()
-	modeEvent:FireServer(nil, selectedHero)
-	intro.Visible = false
-end)
+do
+	local function closeMenu()
+		modeEvent:FireServer(nil, selectedHero)
+		intro.Visible = false
+	end
+	pad.closeMenu = closeMenu
+	closeButton.Activated:Connect(closeMenu)
+end
 selectedMode = currentMode()
 refreshIntro()
 workspace:GetAttributeChangedSignal("Level"):Connect(refreshIntro)
@@ -1129,7 +1226,7 @@ outline(mapFrame, 3)
 if touch then
 	new("UIScale", { Scale = math.clamp((camera.ViewportSize.Y - 70) / (MAP + 56), 0.5, 0.8), Parent = mapFrame })
 end
-new("TextLabel", {
+pad.swap(new("TextLabel", {
 	Position = UDim2.fromOffset(0, 8),
 	Size = UDim2.new(1, 0, 0, 30),
 	BackgroundTransparency = 1,
@@ -1139,7 +1236,7 @@ new("TextLabel", {
 	Text = if touch then "🗺 Map" else "🗺 Map (M)",
 	ZIndex = 26,
 	Parent = mapFrame,
-})
+}), "🗺 Map (▲)", true)
 local mapClose = new("TextButton", {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -8, 0, 6),
@@ -1487,6 +1584,7 @@ local function playIntro()
 			return
 		end
 		finished = true
+		pad.skip = nil
 		if conn then
 			conn:Disconnect()
 		end
@@ -1517,6 +1615,8 @@ local function playIntro()
 		tween:Play()
 	end
 	skip.Activated:Connect(finish)
+	pad.skip = finish
+	pad.hint(skip, "B")
 	local runStart = foot + out * 6
 	local edge = runStart + away * 50
 	local function turned(from: Vector3, alpha: number): Vector3
@@ -1925,6 +2025,7 @@ local shopList = new("ScrollingFrame", {
 	CanvasSize = UDim2.new(),
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
 	ScrollingDirection = Enum.ScrollingDirection.Y,
+	Selectable = false,
 	ZIndex = 21,
 	Parent = shop,
 })
@@ -2140,10 +2241,14 @@ for _, row in shopRows do
 		shopEvent:FireServer(if table.find(owned, row.item.id) then "equip" else "buy", row.item.id)
 	end)
 end
-shopButton.Activated:Connect(function()
-	refreshShop()
-	shop.Visible = not shop.Visible
-end)
+do
+	local function toggleShop()
+		refreshShop()
+		shop.Visible = not shop.Visible
+	end
+	pad.toggleShop = toggleShop
+	shopButton.Activated:Connect(toggleShop)
+end
 for _, name in { "Owned", "Lantern", "Crown", "Pet", "ExtraHeart", "Hat", "Trail" } do
 	player:GetAttributeChangedSignal(name):Connect(refreshShop)
 end
@@ -2153,6 +2258,50 @@ task.spawn(function()
 	fish.Changed:Connect(refreshShop)
 	refreshShop()
 end)
+
+-- Controller: Y lantern, LB bone, RB call, D-pad up map, left menu, right shop, B back. X is for prompts
+pad.popup(intro, playButton)
+pad.popup(over, againButton)
+pad.popup(shop, if shopRows[1] then shopRows[1].button else shopClose)
+pad.hint(menuButton, "◀")
+pad.hint(shopButton, "▶")
+pad.hint(device, "▲")
+UserInputService.InputBegan:Connect(function(input, processed)
+	local key: Enum.KeyCode = input.KeyCode
+	if key == Enum.KeyCode.ButtonB then
+		if pad.skip then
+			pad.skip()
+		elseif mapFrame.Visible then
+			toggleMap(false)
+		elseif shop.Visible then
+			shop.Visible = false
+		elseif intro.Visible and closeButton.Visible and pad.closeMenu then
+			pad.closeMenu()
+		end
+	elseif processed or pad.skip then
+		return
+	elseif string.sub(key.Name, 1, 4) == "DPad" and pad.gui.SelectedObject == nil and pad.focus() then
+		return
+	elseif key == Enum.KeyCode.ButtonY then
+		toggleLantern()
+	elseif key == Enum.KeyCode.ButtonL1 then
+		throwBone()
+	elseif key == Enum.KeyCode.ButtonR1 then
+		callPianka()
+	elseif key == Enum.KeyCode.DPadUp then
+		toggleMap()
+	elseif key == Enum.KeyCode.DPadLeft then
+		openMenu()
+	elseif key == Enum.KeyCode.DPadRight and pad.toggleShop then
+		pad.toggleShop()
+	end
+end)
+UserInputService.LastInputTypeChanged:Connect(pad.input)
+pad.input(UserInputService:GetLastInputType())
+if UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled then
+	pad.set(true)
+end
+pad.refresh()
 
 -- Feedback
 local flash = new("Frame", {
