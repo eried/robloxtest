@@ -284,6 +284,17 @@ if kid then
 	check(workspace:GetAttribute("State") == "caught", "moving while the kid looked did not wake him")
 	run(Config.CaughtTime + 1.5)
 	check(workspace:GetAttribute("State") == "play" and kid:GetAttribute("Stir") == "sleep", "the round did not reset after the kid woke")
+	-- Up on his bed: it builds up and wakes him too
+	local bed = kid:FindFirstChild("Frame")
+	for _ = 1, math.ceil((Config.LookGrace + 1) / DT) do
+		teleport(ana, bed.Position + Vector3.new(0, 5, 0))
+		Engine.step(DT)
+		if workspace:GetAttribute("State") == "caught" then
+			break
+		end
+	end
+	check(workspace:GetAttribute("State") == "caught", "sitting on the kid's bed did not wake him")
+	run(Config.CaughtTime + 1.5)
 end
 
 -- Small things on the floor: jumping over them is quiet, stepping on one wakes someone

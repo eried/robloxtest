@@ -9,10 +9,10 @@ Pianka sleeps in her bed and dreams: out of the door, a mouse caught, and Milenk
 - Everyone else is asleep upstairs: Patrick, Aurelia and Milenkitka. Upstairs you hear them breathe softly. In their room the music fades away and only the breathing is left.
 - The front door is locked. The first time Pianka walks into the hall, it rattles, three locks clunk and three keys fly off to where they hide.
 - Near a sleeper Pianka walks low and slow on her own.
-- Now and then a sleeper snorts, then opens their eyes and looks around. Moving where they can see turns the screen edges red with a low drone: stop within 2 seconds or they wake up.
+- Now and then a sleeper snorts, then opens their eyes and looks around. Moving where they can see turns the screen edges red with a low drone: stop within 2 seconds or they wake up. Climbing up on their bed does the same.
 - One squeak of a toy upstairs wakes the closest sleeper. Downstairs a squeak only gets a grumble, and every few someone calls "Piaaaanka?".
 - Woken up: "PIANKA!", back to bed, and the keys go back.
-- Find the 3 keys, one in each bedroom, deep inside behind the toys. They glow, bronze like the keys on the screen. With all 3 the door opens.
+- Find the 3 keys, one in each bedroom, deep inside behind the toys, on the boxes, on the laundry basket or in the wardrobe. They glow, bronze like the keys on the screen. With all 3 the door opens.
 - The music is a sneaky detective tune. When someone stirs, a toy squeaks or a camera gets close, a tense layer fades in on top.
 
 ## The backyard (stage 2)

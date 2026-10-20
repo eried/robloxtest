@@ -643,12 +643,14 @@ task.spawn(function()
 end)
 
 -- Backyard cameras turn, blink and light a red cone on the ground
-type Cam = { model: Model, eye: Vector3, yaw: number, phase: number, period: number, cone: { BasePart }, led: BasePart?, reach: { [number]: number } }
+type Slice = { w1: BasePart, w2: BasePart, mid: number, alpha: number }
+type Cam = { model: Model, eye: Vector3, yaw: number, phase: number, period: number, slices: { Slice }, shaped: boolean, led: BasePart? }
 local cams: { Cam } = {}
 local hums: { Sound } = {}
 local coneFolder = new("Folder", { Name = "Cones", Parent = workspace })
 local RED = Color3.fromRGB(255, 60, 60)
-local SLICES = 10
+-- The light on the ground is made of thin 2 degree slices over the whole sweep, built once
+local FAN_STEP = math.rad(2)
 local function addCam(model: Instance)
 	if not model:IsA("Model") or model.Name ~= "Cam" then
 		return
@@ -656,10 +658,6 @@ local function addCam(model: Instance)
 	local head = model:WaitForChild("Camera", 5) :: BasePart?
 	if not head then
 		return
-	end
-	local cone = {}
-	for i = 1, SLICES * 2 do
-		cone[i] = new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = RED, Transparency = 0.8, Size = Vector3.one * 0.1, Parent = coneFolder })
 	end
 	new("SpotLight", { Color = RED, Brightness = 3, Range = if UserInputService.TouchEnabled then 36 else Config.CameraRange, Angle = Config.CameraHalf * 2, Face = Enum.NormalId.Front, Shadows = false, Parent = head })
 	local hum = loopClip(head, SFX.Servo, 0, 32, 0.9 + math.random() * 0.2)
@@ -672,9 +670,9 @@ local function addCam(model: Instance)
 		yaw = (model:GetAttribute("Yaw") :: number?) or 0,
 		phase = (model:GetAttribute("Phase") :: number?) or 0,
 		period = (model:GetAttribute("Period") :: number?) or Config.CameraPeriod,
-		cone = cone,
+		slices = {},
+		shaped = false,
 		led = model:FindFirstChild("Led") :: BasePart?,
-		reach = {},
 	})
 end
 for _, d in world:GetDescendants() do
@@ -701,9 +699,9 @@ local function yardPart(name: string): BasePart?
 	return yard and yard:FindFirstChild(name) :: BasePart?
 end
 workspace:GetAttributeChangedSignal("Garage"):Connect(function()
-	-- The garage door moved: work the cone shapes out again
+	-- The garage door moved: work the light shapes out again
 	for _, c in cams do
-		table.clear(c.reach)
+		c.shaped = false
 	end
 	local door = yardPart("GarageDoor")
 	if door and workspace:GetAttribute("Garage") == "closing" then
@@ -731,12 +729,51 @@ local function triangle(a: Vector3, b: Vector3, c: Vector3, w1: BasePart, w2: Ba
 	w2.CFrame = CFrame.fromMatrix((a + c) / 2, -right, up, -back)
 end
 
+local seenRay = RaycastParams.new()
+seenRay.FilterType = Enum.RaycastFilterType.Exclude
+-- The light of a camera on the ground: slices around its whole sweep, cut by walls and bushes
+local function shapeFan(c: Cam)
+	c.shaped = true
+	local apex = Vector3.new(c.eye.X, 0.3, c.eye.Z)
+	local n = math.ceil(math.rad(Config.CameraSweep + Config.CameraHalf) / FAN_STEP)
+	local points = {}
+	for i = -n, n do
+		local a = c.yaw + i * FAN_STEP
+		local dir = Vector3.new(math.sin(a), 0, -math.cos(a))
+		local hit = workspace:Raycast(apex + Vector3.new(0, 1.2, 0), dir * Config.CameraRange, seenRay)
+		points[i] = apex + dir * (if hit then math.max(1, (Vector3.new(hit.Position.X, 0, hit.Position.Z) - Vector3.new(apex.X, 0, apex.Z)).Magnitude) else Config.CameraRange)
+	end
+	for i = -n, n - 1 do
+		local k = i + n + 1
+		local sl = c.slices[k]
+		if not sl then
+			local function wedge(): BasePart
+				return new("WedgePart", { Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Material = Enum.Material.Neon, Color = RED, Transparency = 1, Size = Vector3.one * 0.1, Parent = coneFolder })
+			end
+			sl = { w1 = wedge(), w2 = wedge(), mid = (i + 0.5) * FAN_STEP, alpha = 1 }
+			c.slices[k] = sl
+		end
+		triangle(apex, points[i], points[i + 1], sl.w1, sl.w2)
+	end
+end
+-- Lights the slices the camera looks at right now
+local function light(c: Cam, yaw: number, alpha: number)
+	local half = math.rad(Config.CameraHalf)
+	local rel = (yaw - c.yaw + math.pi) % (2 * math.pi) - math.pi
+	for _, sl in c.slices do
+		local want = if alpha > 0 and math.abs(sl.mid - rel) <= half then alpha else 1
+		if sl.alpha ~= want then
+			sl.alpha = want
+			sl.w1.Transparency = want
+			sl.w2.Transparency = want
+		end
+	end
+end
+
 local beepAt = 0
 local camNear = 0
 local conesAt = 0
 local conesShown = true
-local seenRay = RaycastParams.new()
-seenRay.FilterType = Enum.RaycastFilterType.Exclude
 RunService.RenderStepped:Connect(function()
 	-- Only in the yard, and 30 times a second is plenty
 	local inYard = player:GetAttribute("Out") == true
@@ -746,8 +783,10 @@ RunService.RenderStepped:Connect(function()
 		if conesShown then
 			conesShown = false
 			for _, c in cams do
-				for _, w in c.cone do
-					w.Transparency = 1
+				for _, sl in c.slices do
+					sl.alpha = 1
+					sl.w1.Transparency = 1
+					sl.w2.Transparency = 1
 				end
 			end
 			for _, h in hums do
@@ -767,7 +806,6 @@ RunService.RenderStepped:Connect(function()
 	conesAt = os.clock() + 1 / 30
 	conesShown = true
 	local t = workspace:GetServerTimeNow()
-	local half = math.rad(Config.CameraHalf)
 	local root = myRoot()
 	local out = player:GetAttribute("Out") == true
 	local seen = (player:GetAttribute("Seen") :: number?) or 0
@@ -787,38 +825,16 @@ RunService.RenderStepped:Connect(function()
 	for _, c in cams do
 		-- Cameras far away are not drawn
 		if root and Vector3.new(c.eye.X - root.Position.X, 0, c.eye.Z - root.Position.Z).Magnitude > 120 then
-			if c.cone[1].Transparency ~= 1 then
-				for _, w in c.cone do
-					w.Transparency = 1
-				end
-			end
+			light(c, 0, 0)
 			continue
+		end
+		if not c.shaped then
+			shapeFan(c)
 		end
 		local look = Watch.look(c.yaw, c.phase, t, c.period)
 		c.model:PivotTo(CFrame.lookAt(c.eye, c.eye + look * 10 - Vector3.new(0, 4, 0)))
 		if c.led then
 			c.led.Transparency = if math.floor(t * 2) % 2 == 0 then 0 else 0.85
-		end
-		-- The cone on the ground stops at walls and bushes
-		local apex = Vector3.new(c.eye.X, 0.3, c.eye.Z)
-		local yaw = math.atan2(look.X, -look.Z)
-		local points = {}
-		for i = 0, SLICES do
-			local a = yaw - half + i * half * 2 / SLICES
-			local dir = Vector3.new(math.sin(a), 0, -math.cos(a))
-			-- How far the light reaches this way, worked out once every 2 degrees
-			local step = math.floor(math.deg((a - c.yaw + math.pi) % (2 * math.pi) - math.pi) / 2 + 0.5)
-			local length = c.reach[step]
-			if not length then
-				local d = math.rad(step * 2) + c.yaw
-				local hit = workspace:Raycast(apex + Vector3.new(0, 1.2, 0), Vector3.new(math.sin(d), 0, -math.cos(d)) * Config.CameraRange, seenRay)
-				length = if hit then math.max(1, (hit.Position - apex).Magnitude) else Config.CameraRange
-				c.reach[step] = length
-			end
-			points[i + 1] = apex + dir * (length :: number)
-		end
-		for i = 1, SLICES do
-			triangle(apex, points[i], points[i + 1], c.cone[i * 2 - 1], c.cone[i * 2])
 		end
 		local mine = false
 		if out and root then
@@ -829,12 +845,7 @@ RunService.RenderStepped:Connect(function()
 				mine = true
 			end
 		end
-		local alpha = if mine then 0.55 else 0.8
-		if c.cone[1].Transparency ~= alpha then
-			for _, w in c.cone do
-				w.Transparency = alpha
-			end
-		end
+		light(c, math.atan2(look.X, -look.Z), if mine then 0.55 else 0.8)
 	end
 	meter.Visible = out and seen > 0
 	meterFill.Size = UDim2.fromScale(seen, 1)
@@ -1131,7 +1142,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	for _, key in (if keys then keys:GetChildren() else {}) do
 		if key:IsA("Model") then
 			local home = key:GetAttribute("Home")
-			if typeof(home) == "Vector3" then
+			if typeof(home) == "Vector3" and not key:GetAttribute("Still") then
 				key:PivotTo(CFrame.new(home + Vector3.new(0, math.sin(t * 2) * 0.2, 0)) * CFrame.Angles(0, t * 1.6, 0))
 			end
 		end

@@ -57,11 +57,13 @@ return {
 	CameraRange = 60,
 	CameraHalf = 26,
 	CameraSweep = 38,
-	CameraPeriod = 9,
+	CameraPeriod = 12,
 	SpotTime = 1.6,
 	SpottedTime = 7,
 	ExitClipTime = 10,
 	GateKeyCount = 3,
+	-- Gate keys this far apart at least
+	GateKeyGap = 48,
 	-- The garage door: a button outside opens it, it closes slowly, a button inside opens it again
 	GarageOpenTime = 1.2,
 	GarageHold = 3.5,

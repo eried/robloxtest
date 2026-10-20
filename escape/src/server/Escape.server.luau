@@ -389,11 +389,13 @@ local function box(model: Instance, name: string, cf: CFrame, size: Vector3, col
 end
 
 local surfaces: { { floor: number, rect: Rect, top: number } } = {}
+-- Spots inside furniture where a key can hide, by floor and plan cell
+local nooks: { [string]: CFrame } = {}
 local function surface(floorNo: number, r: Rect, top: number)
 	table.insert(surfaces, { floor = floorNo, rect = r, top = top })
 end
 
-type Sleeper = { name: string, model: Model, head: BasePart, rest: CFrame, floor: number, phase: string, next: number, since: number, facing: Vector3, shut: { BasePart }, open: { BasePart }, face: { { part: BasePart, rel: CFrame } }, side: number }
+type Sleeper = { name: string, model: Model, head: BasePart, bed: BasePart, rest: CFrame, floor: number, phase: string, next: number, since: number, facing: Vector3, shut: { BasePart }, open: { BasePart }, face: { { part: BasePart, rel: CFrame } }, side: number }
 local sleepers: { Sleeper } = {}
 local toys: { { kind: string, model: Model, pos: Vector3, floor: number, ready: number } } = {}
 local keySpots: { { floor: number, pos: Vector3, room: string } } = {}
@@ -455,7 +457,7 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 	model.Name = it.t
 	model.Parent = parent
 	local look = Config.Sleepers[it.t]
-	box(model, "Frame", cf * CFrame.new(0, 1.25, 0), Vector3.new(width, 2.5, depth), WOOD_DARK, Enum.Material.Wood)
+	local bedFrame = box(model, "Frame", cf * CFrame.new(0, 1.25, 0), Vector3.new(width, 2.5, depth), WOOD_DARK, Enum.Material.Wood)
 	box(model, "Mattress", cf * CFrame.new(0, 3.5, 0), Vector3.new(width - 0.4, 2, depth - 0.6), WHITE, Enum.Material.Fabric)
 	box(model, "Headboard", cf * CFrame.new(0, 4.5, depth / 2 - 0.4), Vector3.new(width, 9, 0.8), WOOD_DARK, Enum.Material.Wood)
 	box(model, "Pillow", cf * CFrame.new(0, 5.0, depth / 2 - 2.4), Vector3.new(width * 0.65, 1.1, 2.6), Color3.fromRGB(250, 250, 255), Enum.Material.Fabric)
@@ -485,7 +487,7 @@ local function buildBed(lv: Level, it: any, floorNo: number, baseY: number, pare
 		model:SetAttribute("Room", roomName(floorNo, it.x, it.y))
 		model:SetAttribute("Stir", "sleep")
 		local first = os.clock() + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]) + #sleepers * 3
-		table.insert(sleepers, { name = look.name, model = model, head = head, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, since = 0, facing = Vector3.zero, shut = shut, open = open, face = face, side = 1 })
+		table.insert(sleepers, { name = look.name, model = model, head = head, bed = bedFrame, rest = head.CFrame, floor = floorNo, phase = "sleep", next = first, since = 0, facing = Vector3.zero, shut = shut, open = open, face = face, side = 1 })
 	end
 end
 
@@ -549,7 +551,7 @@ local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number
 			local cloth = box(model, "Clothes", CFrame.new(c + Vector3.new(-0.5 + i * 0.35, 3, (i % 2) * 0.5 - 0.25)), Vector3.one * 1.2, color, Enum.Material.Fabric, false)
 			;(cloth :: Part).Shape = Enum.PartType.Ball
 		end
-		surface(floorNo, r, baseY + 2.9)
+		surface(floorNo, r, baseY + 3.6)
 	elseif t == "boxes" then
 		-- A stack of moving boxes
 		local cardboard = Color3.fromRGB(190, 150, 100)
@@ -590,6 +592,9 @@ local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number
 		local hinge = cf * CFrame.new(half, 0, -depth / 2 + 0.75) * CFrame.Angles(0, math.rad(-55), 0)
 		box(model, "Door", hinge * CFrame.new(-half / 2, h / 2 + 0.2, 0), Vector3.new(half - 0.1, h - 0.6, 0.3), WOOD_LIGHT, Enum.Material.Wood, false)
 		box(model, "Handle", hinge * CFrame.new(-half + 0.6, h / 2, -0.2), Vector3.new(0.2, 1.2, 0.2), Color3.fromRGB(200, 170, 90), Enum.Material.Metal, false)
+		-- A key can lie inside behind the open door, its ring just out of the wardrobe
+		local nook = cf * CFrame.new(half / 2, 2.2, -depth / 2 + 1.6) * CFrame.Angles(0, math.pi, 0)
+		nooks[floorNo .. ":" .. math.floor(nook.X / U) .. ":" .. math.floor(nook.Z / U)] = nook
 	elseif t == "vanity" then
 		-- Her make-up table with a mirror and a stool
 		box(model, "Top", cf * CFrame.new(0, 5, 0.3), Vector3.new(width - 0.4, 0.4, depth - 0.8), WHITE, Enum.Material.Wood)
@@ -825,7 +830,7 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 	local hung: { [number]: boolean } = {}
 	local rugged: { [number]: boolean } = {}
 	for _, it in lv.items do
-		if it.t ~= "key" and it.t ~= "exit" then
+		if it.t ~= "exit" then
 			local r = rectOf(it)
 			for j = r.y - (if it.t == "squeaky" or it.t == "ballTrack" then 0 else 0), r.y + r.h - 1 do
 				for i = r.x, r.x + r.w - 1 do
@@ -1399,6 +1404,11 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 				end
 				piece("Chair", desk * CFrame.new(0, 3.2, -4.2), Vector3.new(2.4, 0.4, 2.4), WOOD_DARK, Enum.Material.Wood, true)
 				piece("ChairBack", desk * CFrame.new(0, 4.9, -5.3), Vector3.new(2.4, 3.2, 0.35), WOOD_DARK, Enum.Material.Wood, true)
+				for _, lx in { -0.95, 0.95 } do
+					for _, lz in { -0.95, 0.95 } do
+						piece("ChairLeg", desk * CFrame.new(lx, 1.5, -4.2 + lz), Vector3.new(0.3, 3, 0.3), WOOD_DARK, Enum.Material.Wood)
+					end
+				end
 				piece("Laptop", desk * CFrame.new(-1.2, 5.5, -1.8), Vector3.new(2, 0.15, 1.4), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
 				piece("Mug", desk * CFrame.new(1.8, 5.8, -1.4), Vector3.new(0.6, 0.8, 0.6), Color3.fromRGB(90, 160, 220))
 			end
@@ -1840,19 +1850,23 @@ end
 
 local KEY_BRONZE = Color3.fromRGB(214, 150, 62)
 local KEY_GLOW = Color3.fromRGB(255, 215, 110)
-local function makeKey(pos: Vector3, index: number): Model
+local function makeKey(pos: Vector3, index: number, still: CFrame?): Model
 	local model = Instance.new("Model")
 	model.Name = "Key"
 	-- Bronze like the key on the screen, with a glow around it so it shows in a dark room.
-	-- It turns around its middle, which sits at pos
-	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = CFrame.new(pos - Vector3.new(0, 0, 0.75)), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
+	-- It turns around its middle, which sits at pos. A key hidden in furniture lies still
+	local base = still or CFrame.new(pos)
+	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = base * CFrame.new(0, 0, -0.75), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
 	local ring = part({ Name = "Ring", Size = Vector3.new(0.55, 2.1, 2.1), CFrame = center.CFrame * CFrame.new(0, 0, 1.95) * CFrame.Angles(0, 0, math.rad(90)), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
 	;(ring :: Part).Shape = Enum.PartType.Cylinder
 	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.85, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.6, -1), Material = Enum.Material.Metal, Color = KEY_BRONZE, CanCollide = false, Parent = model })
 	part({ Name = "Tooth", Size = Vector3.new(0.55, 0.6, 0.55), CFrame = center.CFrame * CFrame.new(0, -0.5, -0.3), Material = Enum.Material.Metal, Color = KEY_BRONZE, CanCollide = false, Parent = model })
 	model.PrimaryPart = center
 	center.PivotOffset = CFrame.new(0, 0, 0.75)
-	model:SetAttribute("Home", pos)
+	model:SetAttribute("Home", base.Position)
+	model:SetAttribute("Still", still ~= nil)
+	-- Easier to reach into furniture
+	model:SetAttribute("Reach", if still then 3.8 else 3.2)
 	-- The light sits just above the key so it lights the key itself and the floor around it
 	local lamp = part({ Name = "Glow", Size = Vector3.one * 0.2, CFrame = center.CFrame * CFrame.new(0, 2.2, 0), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = model })
 	local light = Instance.new("PointLight")
@@ -1872,16 +1886,33 @@ local function makeKey(pos: Vector3, index: number): Model
 	return model
 end
 
-local function take(picks: { any }, list: { any })
-	if #list > 0 then
-		table.insert(picks, table.remove(list, rng:NextInteger(1, #list)))
+-- A spot from the list, away from the ones already picked, and not one used last time if it can
+local function pickSpot(list: { any }, picked: { any }, before: { any }, gap: number): any?
+	for _, avoidOld in { true, false } do
+		local ok = {}
+		for _, s in list do
+			local fine = not (avoidOld and table.find(before, s))
+			for _, p in picked do
+				if (p.pos - s.pos).Magnitude <= gap then
+					fine = false
+				end
+			end
+			if fine then
+				table.insert(ok, s)
+			end
+		end
+		if #ok > 0 then
+			return ok[rng:NextInteger(1, #ok)]
+		end
 	end
+	return nil
 end
 
 -- Three keys upstairs, one in each bedroom, deep inside behind the toys
 -- Keys go back to the same spots after a fail, new spots only after a win
 local housePicks: { any }? = nil
 local gatePicks: { any }? = nil
+local gateBefore: { any } = {}
 local function placeKeys(reroll: boolean?)
 	keyFolder:ClearAllChildren()
 	table.clear(keyModels)
@@ -1899,16 +1930,18 @@ local function placeKeys(reroll: boolean?)
 				table.insert(byRoom[s.room], s)
 			end
 		end
+		local before = housePicks or {}
 		local fresh = {}
 		while #fresh < Config.KeyCount and #rooms > 0 do
 			local room = table.remove(rooms, rng:NextInteger(1, #rooms)) :: string
-			take(fresh, byRoom[room])
+			table.insert(fresh, pickSpot(byRoom[room], fresh, before, 0))
 		end
 		housePicks = fresh
 	end
 	for i, s in housePicks :: { any } do
+		local nook = nooks[s.floor .. ":" .. math.floor(s.pos.X / U) .. ":" .. math.floor(s.pos.Z / U)]
 		local y = keyHeight(s.floor, s.pos) + 1.4
-		table.insert(keyModels, makeKey(Vector3.new(s.pos.X, y, s.pos.Z), i))
+		table.insert(keyModels, makeKey(Vector3.new(s.pos.X, y, s.pos.Z), i, nook))
 	end
 end
 
@@ -1921,10 +1954,15 @@ local function placeGateKeys()
 		for _, s in yardKeySpots do
 			table.insert(if s.garage then garage else other, s)
 		end
+		-- One in the garage, the others spread out over the yard
 		local fresh = {}
-		take(fresh, garage)
-		while #fresh < Config.GateKeyCount and (#other > 0 or #garage > 0) do
-			take(fresh, if #other > 0 then other else garage)
+		table.insert(fresh, pickSpot(garage, fresh, gateBefore, 0))
+		while #fresh < Config.GateKeyCount do
+			local s = pickSpot(other, fresh, gateBefore, Config.GateKeyGap) or pickSpot(other, fresh, gateBefore, 0)
+			if not s then
+				break
+			end
+			table.insert(fresh, s)
 		end
 		gatePicks = fresh
 	end
@@ -1977,6 +2015,7 @@ end
 
 local function resetRound(reroll: boolean?)
 	if reroll then
+		gateBefore = gatePicks or {}
 		gatePicks = nil
 	end
 	if reroll and state == "won" then
@@ -2290,7 +2329,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 				local key = keyModels[i]
 				-- Walking through a key picks it up
 				local kp = (key:GetAttribute("Home") :: Vector3?) or key:GetPivot().Position
-				if Vector3.new(kp.X - pos.X, 0, kp.Z - pos.Z).Magnitude < 3.2 and math.abs(kp.Y - pos.Y) < 4 then
+				if Vector3.new(kp.X - pos.X, 0, kp.Z - pos.Z).Magnitude < ((key:GetAttribute("Reach") :: number?) or 3.2) and math.abs(kp.Y - pos.Y) < 4 then
 					table.remove(keyModels, i)
 					local forGate = key:GetAttribute("Gate") == true
 					key:Destroy()
@@ -2411,6 +2450,20 @@ RunService.Heartbeat:Connect(function(dt: number)
 			end
 			if now >= s.next then
 				setStir(s, "sleep", now + rng:NextNumber(Config.StirEvery[1], Config.StirEvery[2]))
+			end
+		end
+	end
+	-- Up on a sleeper's bed is as bad as being seen
+	if state == "play" then
+		for _, p in Players:GetPlayers() do
+			local r = root(p)
+			if r and not watched[p] then
+				for _, s in sleepers do
+					local rel = s.bed.CFrame:PointToObjectSpace(r.Position)
+					if math.abs(rel.X) < s.bed.Size.X / 2 and math.abs(rel.Z) < s.bed.Size.Z / 2 and rel.Y > s.bed.Size.Y / 2 + 1 and rel.Y < 14 then
+						watched[p] = s
+					end
+				end
 			end
 		end
 	end
