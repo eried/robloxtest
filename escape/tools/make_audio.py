@@ -228,6 +228,8 @@ def stealth_calm():
             walk = [r + 12, r + tones[2], r + tones[1], nxt - 1]
         for b, m in enumerate(walk):
             parts.append((t0 + b * BEAT, upright(midi(m), 0.75, seed=bar * 4 + b), 0.9))
+            # The same line an octave up, softly, so phone speakers carry the walking bass
+            parts.append((t0 + b * BEAT, pluck(midi(m + 12), 0.4), 0.3))
         for b in (1, 3):
             parts.append((t0 + b * BEAT, snap(seed=bar * 2 + b), 0.55))
         for b in (0, 2):
@@ -242,7 +244,7 @@ def stealth_calm():
     m4 = [(0.66, 81, 0.25), (1.0, 79, 0.25), (1.66, 76, 0.25), (2.0, 73, 0.4), (3.0, 76, 0.5), (4.0, 69, 1.8)]
     for start, motif in ((2, m1), (6, m2), (10, m3), (14, m4)):
         for beat, m, d in motif:
-            parts.append((start * 4 * BEAT + beat * BEAT, vibes(midi(m), max(0.5, d * 1.6)), 0.75))
+            parts.append((start * 4 * BEAT + beat * BEAT, vibes(midi(m), max(0.5, d * 1.6)), 1.0))
     return norm(reverb(loop(parts, total), 0.18, 3, 1.0)[: int(total * SR)], 0.85)
 
 

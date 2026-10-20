@@ -1,0 +1,61 @@
+{
+  "ClassName": "Folder",
+  "Children": [
+    {
+      "Name": "Sfx",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://81655363407748",
+        "Volume": 0
+      }
+    },
+    {
+      "Name": "Music",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://133605492465993",
+        "Volume": 0
+      }
+    },
+    {
+      "Name": "Tense",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://120718840884184",
+        "Volume": 0
+      }
+    },
+    {
+      "Name": "Dream",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://113091535685140",
+        "Volume": 0
+      }
+    },
+    {
+      "Name": "Voices",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://97571276201632",
+        "Volume": 0
+      }
+    },
+    {
+      "Name": "LongCall",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://112612503374928",
+        "Volume": 0
+      }
+    },
+    {
+      "Name": "Sounds",
+      "ClassName": "Sound",
+      "Properties": {
+        "SoundId": "rbxassetid://91539648212607",
+        "Volume": 0
+      }
+    }
+  ]
+}

@@ -43,11 +43,21 @@ end
 
 -- Sounds: sheets of clips. They play right away, and start again properly once Roblox has
 -- loaded them, so nothing waits on a load that a phone never reports
+local placeSounds = SoundService:FindFirstChild("EscapeSounds")
 local function source(id: number, looped: boolean?): Sound?
 	if id == 0 then
 		return nil
 	end
-	return new("Sound", { SoundId = "rbxassetid://" .. id, Looped = looped == true, Volume = 0.5, Parent = SoundService })
+	-- The place holds every sound already, use that one when it is there
+	local want = "rbxassetid://" .. id
+	for _, s in (if placeSounds then placeSounds:GetChildren() else {}) do
+		if s:IsA("Sound") and s.SoundId == want then
+			s.Looped = looped == true
+			s.Volume = 0.5
+			return s
+		end
+	end
+	return new("Sound", { SoundId = want, Looped = looped == true, Volume = 0.5, Parent = SoundService })
 end
 local sfx = source(Config.SfxId)
 local voices = source(Config.VoicesId)

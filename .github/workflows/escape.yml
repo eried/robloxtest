@@ -67,6 +67,8 @@ jobs:
             git pull --rebase origin "$GITHUB_REF_NAME"
             git push
           fi
+          # Every sound sits in the place too
+          python3 escape/tools/sound_refs.py
           # The version shown in the game: run number and commit
           printf 'return "v%s %s"\n' "$GITHUB_RUN_NUMBER" "${GITHUB_SHA::7}" > escape/src/shared/Version.luau
           "$RUNNER_TEMP/rojo" build escape/default.project.json -o escape/PiankaEscape.rbxlx
