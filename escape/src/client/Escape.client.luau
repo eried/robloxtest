@@ -307,8 +307,9 @@ local function beginClip(rank: number, danger: number): number?
 	clipOn = true
 	clipDanger = danger
 	camera.CameraType = Enum.CameraType.Scriptable
-	-- No joystick on the phone while a clip plays
+	-- No joystick on the phone and no key bar while a clip plays
 	GuiService.TouchControlsEnabled = false
+	keyBar.Visible = false
 	return clipId
 end
 -- Ends the clip if no other clip took over. True when it still owned the screen
@@ -321,6 +322,7 @@ local function endClip(my: number): boolean
 	letterbox(false)
 	camera.CameraType = Enum.CameraType.Custom
 	GuiService.TouchControlsEnabled = true
+	keyBar.Visible = true
 	return true
 end
 -- The server moves everyone back to bed a moment after a fail: wait for it under the black
@@ -1632,7 +1634,6 @@ local function intro()
 	local my = beginClip(4, 0) :: number
 	local bed = (workspace:GetAttribute("CatBed") :: Vector3?) or Vector3.zero
 	letterbox(true)
-	keyBar.Visible = false
 	local skip = skipButton(3.2)
 	local done = false
 	skip.Activated:Connect(function()
@@ -1711,7 +1712,6 @@ local function intro()
 	end
 	meow(Config.Mew, 1, 0.85)
 	TweenService:Create(fade, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
-	keyBar.Visible = true
 	introOn = false
 	TweenService:Create(worldSounds, TweenInfo.new(2), { Volume = 1 }):Play()
 	endClip(my)
@@ -1890,7 +1890,7 @@ local function lockedClip(door: BasePart)
 	end
 end
 
--- Once each round, in the hall where she sees the door and the stairs: the door is locked, the keys are up there
+-- Once each round, walking in the hall toward the front door: the door is locked, the keys are up there
 RunService.Heartbeat:Connect(function()
 	if lockedShown or clipOn or introOn or workspace:GetAttribute("State") ~= "play" or workspace:GetAttribute("Stage") ~= "house" then
 		return
@@ -1901,7 +1901,9 @@ RunService.Heartbeat:Connect(function()
 	if not door or not root or root.Position.Y > 10 or ((workspace:GetAttribute("Keys") :: number?) or 0) >= Config.KeyCount then
 		return
 	end
-	if floorRoom == "hall" then
+	local toDoor = Vector3.new(door.Position.X - root.Position.X, 0, door.Position.Z - root.Position.Z)
+	local look = root.CFrame.LookVector
+	if floorRoom == "hall" and toDoor.Magnitude < 26 and Vector3.new(look.X, 0, look.Z).Unit:Dot(toDoor.Unit) > 0.5 then
 		task.spawn(lockedClip, door)
 	end
 end)

@@ -23,8 +23,8 @@ return {
 			"nffffffffffwffffffffdffffwfffffw",
 			"nffffffffffwffffffffdffffwfffffw",
 			"wffffffffffwffffffffwffffdfffffw",
-			"wffffffffffdffffffffwffffdfffffw",
-			"wffffffffffdffffffffwffffwfffffw",
+			"wffffffffffwffffffffwffffdfffffw",
+			"wffffffffffwffffffffwffffwfffffw",
 			"wwwnnnnwwwwwwwwddwwwwwwwwwwwwwww",
 		},
 		items = {

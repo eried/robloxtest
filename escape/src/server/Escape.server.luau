@@ -1135,8 +1135,9 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 
 	-- A run of free cells along a solid wall, away from doors. The frame sits on the floor at
 	-- the wall, looking into the room, X along the wall
-	local function wallRun(cells: { number }, need: number): CFrame?
-		for _, k in cells do
+	local function wallRun(cells: { number }, need: number, from: number?): CFrame?
+		for n = 0, #cells - 1 do
+			local k = cells[((from or 0) + n) % #cells + 1]
 			local x, y = k % lv.w, k // lv.w
 			for _, d in DIRS do
 				local sx, sy = d[2], d[1]
@@ -1191,6 +1192,16 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 		end
 		round(piece("Pot", cf * CFrame.new(1.1, h + 0.5, -0.6) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.8, 0.8, 0.8), tint, Enum.Material.Slate), Enum.PartType.Cylinder)
 		round(piece("Leaves", cf * CFrame.new(1.1, h + 1.3, -0.6), Vector3.one * 1.1, Color3.fromRGB(70, 150, 80), Enum.Material.Grass), Enum.PartType.Ball)
+	end
+	-- A scratching tree for Pianka
+	local function catTree(cf: CFrame)
+		local sisal = Color3.fromRGB(200, 170, 120)
+		local pink = Color3.fromRGB(240, 140, 185)
+		piece("TreeBase", cf * CFrame.new(0, 0.3, -2), Vector3.new(3.2, 0.6, 3.2), pink, Enum.Material.Fabric, true)
+		round(piece("TreePost", cf * CFrame.new(0, 3.3, -2) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(5.4, 1.1, 1.1), sisal, Enum.Material.Fabric, true), Enum.PartType.Cylinder)
+		piece("TreeTop", cf * CFrame.new(0, 6.2, -2), Vector3.new(3, 0.5, 3), pink, Enum.Material.Fabric, true)
+		round(piece("TreeBall", cf * CFrame.new(1.2, 5, -3.2), Vector3.one * 0.7, Color3.fromRGB(120, 200, 255)), Enum.PartType.Ball)
+		piece("TreeString", cf * CFrame.new(1.2, 5.6, -3.2), Vector3.new(0.05, 1.2, 0.05), WHITE)
 	end
 	-- A poster or a drawing on the wall
 	local function poster(cf: CFrame, h: number, colors: { Color3 })
@@ -1307,18 +1318,15 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 					round(piece("Flower", side * CFrame.new(-1.8 + (i - 2) * 0.45, 7.8 + (i % 2) * 0.3, -1.4), Vector3.one * 0.6, c), Enum.PartType.Ball)
 				end
 				for i = 0, 2 do
-					round(piece("Plate", side * CFrame.new(1 + i * 0.3, 5.9 + i * 0.12, -1.4) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.12, 1.6, 1.6), WHITE), Enum.PartType.Cylinder)
+					round(piece("Plate", side * CFrame.new(1 + i * 0.3, 5.26 + i * 0.12, -1.4) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.12, 1.6, 1.6), WHITE), Enum.PartType.Cylinder)
 				end
 			end
-			-- Pianka's scratching tree near her bed downstairs
-			local tree = if floorNo == 1 then wallRun(room.cells, 1) else nil
-			if tree then
-				local sisal = Color3.fromRGB(200, 170, 120)
-				piece("TreeBase", tree * CFrame.new(0, 0.3, -2), Vector3.new(3.2, 0.6, 3.2), Color3.fromRGB(240, 140, 185), Enum.Material.Fabric, true)
-				round(piece("TreePost", tree * CFrame.new(0, 3.3, -2) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(5.4, 1.1, 1.1), sisal, Enum.Material.Fabric, true), Enum.PartType.Cylinder)
-				piece("TreeTop", tree * CFrame.new(0, 6.2, -2), Vector3.new(3, 0.5, 3), Color3.fromRGB(240, 140, 185), Enum.Material.Fabric, true)
-				round(piece("TreeBall", tree * CFrame.new(1.2, 5, -3.2), Vector3.one * 0.7, Color3.fromRGB(120, 200, 255)), Enum.PartType.Ball)
-				piece("TreeString", tree * CFrame.new(1.2, 5.6, -3.2), Vector3.new(0.05, 1.2, 0.05), WHITE)
+			-- Pianka's scratching trees downstairs
+			for i = 1, if floorNo == 1 then 3 else 0 do
+				local tree = wallRun(room.cells, 1, i * #room.cells // 3)
+				if tree then
+					catTree(tree)
+				end
 			end
 		elseif has("hall") then
 			-- Coats, a hat and shoes by the front door
@@ -1411,6 +1419,15 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 				end
 				piece("Laptop", desk * CFrame.new(-1.2, 5.5, -1.8), Vector3.new(2, 0.15, 1.4), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
 				piece("Mug", desk * CFrame.new(1.8, 5.8, -1.4), Vector3.new(0.6, 0.8, 0.6), Color3.fromRGB(90, 160, 220))
+			end
+			local tree = wallRun(room.cells, 1)
+			if tree then
+				catTree(tree)
+			end
+		elseif has("storage") then
+			local tree = wallRun(room.cells, 1)
+			if tree then
+				catTree(tree)
 			end
 		end
 	end
