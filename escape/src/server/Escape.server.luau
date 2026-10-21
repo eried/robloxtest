@@ -390,7 +390,6 @@ end
 
 local surfaces: { { floor: number, rect: Rect, top: number } } = {}
 -- Spots inside furniture where a key can hide, by floor and plan cell
-local nooks: { [string]: CFrame } = {}
 local function surface(floorNo: number, r: Rect, top: number)
 	table.insert(surfaces, { floor = floorNo, rect = r, top = top })
 end
@@ -592,9 +591,6 @@ local function buildFurniture(lv: Level, it: any, floorNo: number, baseY: number
 		local hinge = cf * CFrame.new(half, 0, -depth / 2 + 0.75) * CFrame.Angles(0, math.rad(-55), 0)
 		box(model, "Door", hinge * CFrame.new(-half / 2, h / 2 + 0.2, 0), Vector3.new(half - 0.1, h - 0.6, 0.3), WOOD_LIGHT, Enum.Material.Wood, false)
 		box(model, "Handle", hinge * CFrame.new(-half + 0.6, h / 2, -0.2), Vector3.new(0.2, 1.2, 0.2), Color3.fromRGB(200, 170, 90), Enum.Material.Metal, false)
-		-- A key can lie inside behind the open door, its ring just out of the wardrobe
-		local nook = cf * CFrame.new(half / 2, 2.2, -depth / 2 + 1.6) * CFrame.Angles(0, math.pi, 0)
-		nooks[floorNo .. ":" .. math.floor(nook.X / U) .. ":" .. math.floor(nook.Z / U)] = nook
 	elseif t == "vanity" then
 		-- Her make-up table with a mirror and a stool
 		box(model, "Top", cf * CFrame.new(0, 5, 0.3), Vector3.new(width - 0.4, 0.4, depth - 0.8), WHITE, Enum.Material.Wood)
@@ -1851,12 +1847,12 @@ end
 
 local KEY_BRONZE = Color3.fromRGB(214, 150, 62)
 local KEY_GLOW = Color3.fromRGB(255, 215, 110)
-local function makeKey(pos: Vector3, index: number, still: CFrame?): Model
+local function makeKey(pos: Vector3, index: number): Model
 	local model = Instance.new("Model")
 	model.Name = "Key"
 	-- Bronze like the key on the screen, with a glow around it so it shows in a dark room.
-	-- It turns around its middle, which sits at pos. A key hidden in furniture lies still
-	local base = still or CFrame.new(pos)
+	-- It turns around its middle, which sits at pos
+	local base = CFrame.new(pos)
 	local center = part({ Name = "Shaft", Size = Vector3.new(0.7, 0.7, 3), CFrame = base * CFrame.new(0, 0, -0.75), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
 	local ring = part({ Name = "Ring", Size = Vector3.new(0.55, 2.1, 2.1), CFrame = center.CFrame * CFrame.new(0, 0, 1.95) * CFrame.Angles(0, 0, math.rad(90)), Material = Enum.Material.Metal, Color = KEY_BRONZE, Reflectance = 0.15, CanCollide = false, Parent = model })
 	;(ring :: Part).Shape = Enum.PartType.Cylinder
@@ -1865,9 +1861,6 @@ local function makeKey(pos: Vector3, index: number, still: CFrame?): Model
 	model.PrimaryPart = center
 	center.PivotOffset = CFrame.new(0, 0, 0.75)
 	model:SetAttribute("Home", base.Position)
-	model:SetAttribute("Still", still ~= nil)
-	-- Easier to reach into furniture
-	model:SetAttribute("Reach", if still then 3.8 else 3.2)
 	-- The light sits just above the key so it lights the key itself and the floor around it
 	local lamp = part({ Name = "Glow", Size = Vector3.one * 0.2, CFrame = center.CFrame * CFrame.new(0, 2.2, 0), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = model })
 	local light = Instance.new("PointLight")
@@ -1940,9 +1933,8 @@ local function placeKeys(reroll: boolean?)
 		housePicks = fresh
 	end
 	for i, s in housePicks :: { any } do
-		local nook = nooks[s.floor .. ":" .. math.floor(s.pos.X / U) .. ":" .. math.floor(s.pos.Z / U)]
 		local y = keyHeight(s.floor, s.pos) + 1.4
-		table.insert(keyModels, makeKey(Vector3.new(s.pos.X, y, s.pos.Z), i, nook))
+		table.insert(keyModels, makeKey(Vector3.new(s.pos.X, y, s.pos.Z), i))
 	end
 end
 
@@ -2327,7 +2319,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 				local key = keyModels[i]
 				-- Walking through a key picks it up
 				local kp = (key:GetAttribute("Home") :: Vector3?) or key:GetPivot().Position
-				if Vector3.new(kp.X - pos.X, 0, kp.Z - pos.Z).Magnitude < ((key:GetAttribute("Reach") :: number?) or 3.2) and math.abs(kp.Y - pos.Y) < 4 then
+				if Vector3.new(kp.X - pos.X, 0, kp.Z - pos.Z).Magnitude < 3.2 and math.abs(kp.Y - pos.Y) < 4 then
 					table.remove(keyModels, i)
 					local forGate = key:GetAttribute("Gate") == true
 					key:Destroy()

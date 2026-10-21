@@ -1141,7 +1141,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	for _, key in (if keys then keys:GetChildren() else {}) do
 		if key:IsA("Model") then
 			local home = key:GetAttribute("Home")
-			if typeof(home) == "Vector3" and not key:GetAttribute("Still") then
+			if typeof(home) == "Vector3" then
 				key:PivotTo(CFrame.new(home + Vector3.new(0, math.sin(t * 2) * 0.2, 0)) * CFrame.Angles(0, t * 1.6, 0))
 			end
 		end
@@ -2701,7 +2701,10 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 	elseif kind == "toy" and typeof(a) == "Instance" then
 		local model = a :: Model
 		local main = model.PrimaryPart
-		spike = 1
+		-- Tense music only for a squeak upstairs
+		if main and main.Position.Y > Config.Floor2 - 3 then
+			spike = 1
+		end
 		if main then
 			local info = Config.Toys[b] or Config.Toys.squeaky
 			local clip = if b == "squeaky" and math.random() < 0.5 then "Squeak2" else info.sound
