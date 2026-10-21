@@ -42,7 +42,6 @@ return {
 	},
 	-- Pianka stands with her middle 1.4 above the floor: a bit higher means she is in the air
 	StepHeight = 1.8,
-	TeaseEvery = 3,
 	LockedClipTime = 7.2,
 	CaughtTime = 4.5,
 	KeyCount = 3,

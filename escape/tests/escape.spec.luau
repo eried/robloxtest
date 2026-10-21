@@ -197,7 +197,7 @@ check(#keys() == 3, "keys were not put back after a wake up")
 check(nearBed(ana) and nearBed(bo), "players were not sent back to bed after a wake up")
 check(not root(bo).Anchored, "players stay frozen after a wake up")
 
--- Downstairs a squeak only gets a grumble from upstairs
+-- Downstairs a squeak wakes nobody
 local downToy = nil
 for _, t in toys do
 	if t.PrimaryPart.Position.Y < Config.Floor2 - 3 then

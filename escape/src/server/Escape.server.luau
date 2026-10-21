@@ -1328,21 +1328,6 @@ local function decorate(lv: Level, floorNo: number, baseY: number, parent: Folde
 					catTree(tree)
 				end
 			end
-		elseif has("hall") then
-			-- Coats, a hat and shoes by the front door
-			local rack = wallRun(room.cells, 1)
-			if rack then
-				piece("CoatRack", rack * CFrame.new(0, 5.5, -1.2), Vector3.new(0.35, 11, 0.35), WOOD_DARK, Enum.Material.Wood, true)
-				piece("CoatFoot", rack * CFrame.new(0, 0.2, -1.2), Vector3.new(2, 0.4, 2), WOOD_DARK, Enum.Material.Wood, true)
-				for i, c in { Color3.fromRGB(180, 60, 60), Color3.fromRGB(70, 90, 150), Color3.fromRGB(230, 200, 90) } do
-					local a = i * 2.1
-					piece("Coat", rack * CFrame.new(math.cos(a) * 0.7, 8, -1.2 + math.sin(a) * 0.7) * CFrame.Angles(0, a, 0), Vector3.new(1.6, 4.5, 0.5), c, Enum.Material.Fabric)
-				end
-				round(piece("Hat", rack * CFrame.new(0, 11.2, -1.2) * CFrame.Angles(0, 0, math.rad(90)), Vector3.new(0.8, 1.8, 1.8), Color3.fromRGB(90, 60, 40), Enum.Material.Fabric), Enum.PartType.Cylinder)
-				for i, c in { Color3.fromRGB(40, 40, 46), Color3.fromRGB(240, 90, 120), Color3.fromRGB(240, 90, 120), Color3.fromRGB(40, 40, 46) } do
-					piece("Shoe", rack * CFrame.new(-1.5 + (i - 1) * 0.6 + (if i > 2 then 1.4 else 0), 0.3, -2.6), Vector3.new(0.5, 0.5, 1.3), c)
-				end
-			end
 		elseif has("kid") then
 			-- Glow stars on the ceiling, a shelf with a rocket and a superhero poster
 			for i = 1, 16 do
@@ -1755,7 +1740,6 @@ local function setState(s: string)
 	workspace:SetAttribute("State", s)
 end
 local keysFound = 0
-local tease = 0
 local keyFolder = folder("Keys")
 local keyModels: { Model } = {}
 -- After the house comes the yard: gate keys, cameras and the gate
@@ -2157,7 +2141,7 @@ local function watcher(pos: Vector3, t: number): Vector3?
 	return nil
 end
 
--- One squeak upstairs wakes the closest sleeper. Downstairs only gets a grumble, and every few a call
+-- One squeak upstairs wakes the closest sleeper. Downstairs it is only the toy
 local function noise(pos: Vector3, floorNo: number, culprit: Player?)
 	if state ~= "play" then
 		return
@@ -2174,9 +2158,6 @@ local function noise(pos: Vector3, floorNo: number, culprit: Player?)
 		if best then
 			wake(best, "toy", culprit)
 		end
-	else
-		tease += 1
-		event:FireAllClients(if tease % Config.TeaseEvery == 0 then "tease" else "grumble")
 	end
 end
 

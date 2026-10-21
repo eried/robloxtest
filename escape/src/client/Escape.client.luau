@@ -182,9 +182,6 @@ end
 local function small(name: string, volume: number, speed: number?)
 	playClip(SoundService, SFX[name], volume, speed or 1, 1000, sfx, true)
 end
-local function voice(clip: { number }, volume: number, speed: number?)
-	playClip(SoundService, clip, volume, speed or 1, 1000, voices)
-end
 local function meow(clip: { number }, volume: number, speed: number?, parent: Instance?)
 	playClip(parent or SoundService, clip, volume, speed or 1, 120, meows)
 end
@@ -227,16 +224,6 @@ end
 -- Screen
 -- The whole screen, notch and rounded corners too, so clip bars and fades reach the edges on phones
 local gui = new("ScreenGui", { Name = "Escape", ResetOnSpawn = false, IgnoreGuiInset = true, ScreenInsets = Enum.ScreenInsets.None, ClipToDeviceSafeArea = false, Parent = player:WaitForChild("PlayerGui") })
--- The version, small in the corner for a few seconds at the start
-task.spawn(function()
-	local version = require(Shared:WaitForChild("Version")) :: string
-	local label = new("TextLabel", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 60, 1, -10), Size = UDim2.fromOffset(160, 16), BackgroundTransparency = 1, TextColor3 = Color3.new(1, 1, 1), TextTransparency = 0.3, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 40, Text = version, Parent = gui })
-	task.wait(8)
-	TweenService:Create(label, TweenInfo.new(1.5), { TextTransparency = 1 }):Play()
-	task.wait(1.6)
-	label:Destroy()
-end)
-
 local keyBar = new("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 12),
@@ -320,6 +307,13 @@ local function endClip(my: number): boolean
 	clipOn = false
 	clipRank = 0
 	letterbox(false)
+	-- Back behind Pianka, not at the last clip angle
+	local root = myRoot()
+	if root then
+		local look = root.CFrame.LookVector
+		local at = root.Position + Vector3.new(0, 1.5, 0)
+		camera.CFrame = CFrame.lookAt(at - Vector3.new(look.X, -0.45, look.Z).Unit * 12, at)
+	end
 	camera.CameraType = Enum.CameraType.Custom
 	GuiService.TouchControlsEnabled = true
 	keyBar.Visible = true
@@ -2755,13 +2749,6 @@ event.OnClientEvent:Connect(function(kind: string, a: any, b: any, ...: any)
 				model:PivotTo(pivot)
 			end)
 		end
-	elseif kind == "grumble" then
-		spike = math.max(spike, 0.6)
-		sound("Grumble", 0.7, 0.9 + math.random() * 0.2)
-	elseif kind == "tease" then
-		spike = math.max(spike, 0.8)
-		local calls = Config.Calls
-		voice(calls[math.random(1, #calls)], 0.55)
 	elseif kind == "wake" then
 		task.spawn(wakeClip, tostring(a), b, select(1, ...))
 	elseif kind == "escaped" then
