@@ -1890,7 +1890,7 @@ local function lockedClip(door: BasePart)
 	end
 end
 
--- Once each round, walking in the hall toward the front door: the door is locked, the keys are up there
+-- Once each round, heading to the front door in the hall: the door is locked, the keys are up there
 RunService.Heartbeat:Connect(function()
 	if lockedShown or clipOn or introOn or workspace:GetAttribute("State") ~= "play" or workspace:GetAttribute("Stage") ~= "house" then
 		return
@@ -1902,8 +1902,11 @@ RunService.Heartbeat:Connect(function()
 		return
 	end
 	local toDoor = Vector3.new(door.Position.X - root.Position.X, 0, door.Position.Z - root.Position.Z)
-	local look = root.CFrame.LookVector
-	if floorRoom == "hall" and toDoor.Magnitude < 26 and Vector3.new(look.X, 0, look.Z).Unit:Dot(toDoor.Unit) > 0.5 then
+	-- Moving toward the door, any way she faces, or already next to it
+	local vel = root.AssemblyLinearVelocity
+	local move = Vector3.new(vel.X, 0, vel.Z)
+	local toward = move.Magnitude > 2 and move.Unit:Dot(toDoor.Unit) > 0.5
+	if floorRoom == "hall" and (toDoor.Magnitude < 10 or toDoor.Magnitude < 26 and toward) then
 		task.spawn(lockedClip, door)
 	end
 end)
