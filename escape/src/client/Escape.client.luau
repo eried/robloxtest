@@ -307,6 +307,8 @@ local function beginClip(rank: number, danger: number): number?
 	clipOn = true
 	clipDanger = danger
 	camera.CameraType = Enum.CameraType.Scriptable
+	-- No joystick on the phone while a clip plays
+	GuiService.TouchControlsEnabled = false
 	return clipId
 end
 -- Ends the clip if no other clip took over. True when it still owned the screen
@@ -318,6 +320,7 @@ local function endClip(my: number): boolean
 	clipRank = 0
 	letterbox(false)
 	camera.CameraType = Enum.CameraType.Custom
+	GuiService.TouchControlsEnabled = true
 	return true
 end
 -- The server moves everyone back to bed a moment after a fail: wait for it under the black
